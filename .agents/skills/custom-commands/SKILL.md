@@ -69,6 +69,7 @@ with the following sub-clients:
 | `client.aop` | `athena_sdk::api::AopClient` | aop operations |
 | `client.assets` | `athena_sdk::api::AssetsClient` | assets operations |
 | `client.databases` | `athena_sdk::api::DatabasesClient` | databases operations |
+| `client.users` | `athena_sdk::api::UsersClient` | users operations |
 | `client.query` | `athena_sdk::api::QueryClient` | query operations |
 | `client.semantic_model` | `athena_sdk::api::SemanticModelClient` | semantic_model operations |
 | `client.threads` | `athena_sdk::api::ThreadsClient` | threads operations |

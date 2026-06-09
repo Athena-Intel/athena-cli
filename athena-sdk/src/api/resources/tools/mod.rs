@@ -250,4 +250,31 @@ impl ToolsClient {
             )
             .await
     }
+
+    /// Alias for /tools/file/raw-data - Get the raw file data for given asset.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// Streaming file download (use .into_bytes() to collect or stream chunks)
+    pub async fn get_raw_file_data(
+        &self,
+        request: &GetRawFileDataQueryRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<ByteStream, ApiError> {
+        self.http_client
+            .execute_stream_request(
+                Method::GET,
+                "api/v0/tools/raw-data",
+                None,
+                QueryBuilder::new()
+                    .string("asset_id", request.asset_id.clone())
+                    .build(),
+                options,
+            )
+            .await
+    }
 }

@@ -10,7 +10,6 @@ Full command reference for `athena`.
 - [`athena agents research`](#athena-agents-research)
 - [`athena agents sql`](#athena-agents-sql)
 - [`athena aop`](#athena-aop)
-- [`athena api`](#athena-api)
 - [`athena assets`](#athena-assets)
 - [`athena databases`](#athena-databases)
 - [`athena query`](#athena-query)
@@ -22,6 +21,7 @@ Full command reference for `athena`.
 - [`athena tools sheets`](#athena-tools-sheets)
 - [`athena tools structured-data-extractor`](#athena-tools-structured-data-extractor)
 - [`athena tools tasks`](#athena-tools-tasks)
+- [`athena users`](#athena-users)
 
 ---
 
@@ -147,37 +147,7 @@ Start execution of an Agent Operating Procedure (AOP) asset asynchronously. Retu
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
----
-
-### `athena api`
-
-#### `athena api get-current-user-info-api-v0-me-get`
-
-Returns basic information about the authenticated user including name, email, and workspace details.
-
-`GET /api/v0/me`
-
-#### `athena api get-raw-file-data-alias-api-v0-tools-raw-data-get`
-
-Alias for /tools/file/raw-data - Get the raw file data for given asset.
-
-`GET /api/v0/tools/raw-data`
-
-| Flag | Type | Required | Description |
-|------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-
-#### `athena api query-range-api-v0-tools-sheets-range-query-post`
-
-Query a range of cells from an Athena spreadsheet.
-
-`POST /api/v0/tools/sheets/range/query`
-
-| Flag | Type | Required | Description |
-|------|------|----------|-------------|
-| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
-
-#### `athena api retry-aop-execution-api-v0-aop-retry-post`
+#### `athena aop retry`
 
 Retry a failed AOP execution.
 
@@ -565,6 +535,16 @@ Get a screenshot of a specific page from an asset.
 | `--asset-id` | `string` | Yes |  |
 | `--page-number` | `integer` | No |  |
 
+#### `athena tools get-raw-file-data`
+
+Alias for /tools/file/raw-data - Get the raw file data for given asset.
+
+`GET /api/v0/tools/raw-data`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+
 #### `athena tools list-contents` `[BETA]`
 
 List contents of an asset (Folder, Collection, Project) or entire workspace in a tree structure.
@@ -780,6 +760,16 @@ Insert rows into a table in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
+#### `athena tools sheets query-range`
+
+Query a range of cells from an Athena spreadsheet.
+
+`POST /api/v0/tools/sheets/range/query`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
 #### `athena tools sheets update-cell` `[BETA]`
 
 Update a single cell in an Athena spreadsheet.
@@ -859,6 +849,16 @@ Executes a serverless function script or flow synchronously. Server handles poll
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
+### `athena users`
+
+#### `athena users get-current-user`
+
+Returns basic information about the authenticated user including name, email, and workspace details.
+
+`GET /api/v0/me`
 
 ---
 

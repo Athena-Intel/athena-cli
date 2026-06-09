@@ -1,332 +1,4 @@
 # Reference
-<details><summary><code>client.<a href="/src/client.rs">retry_aop_execution_api_v0aop_retry_post</a>(request: AopRetryRequest) -> Result&lt;AopRetryResponse, ApiError&gt;</code></summary>
-<dl>
-<dd>
-
-#### 📝 Description
-
-<dl>
-<dd>
-
-<dl>
-<dd>
-
-Retry a failed AOP execution.
-
-Looks up the failed session, extracts the original AOP asset and trigger
-type, then sends a new Inngest execution event. Auth: session owner or admin.
-</dd>
-</dl>
-</dd>
-</dl>
-
-#### 🔌 Usage
-
-<dl>
-<dd>
-
-<dl>
-<dd>
-
-```rust
-use athena_sdk::prelude::*;
-
-#[tokio::main]
-async fn main() {
-    let config = ClientConfig {
-        api_key: Some("<value>".to_string()),
-        ..Default::default()
-    };
-    let client = AthenaClient::new(config).expect("Failed to build client");
-    client
-        .retry_aop_execution_api_v0aop_retry_post(
-            &AopRetryRequest {
-                thread_id: "thread_id".to_string(),
-                user_inputs: None,
-            },
-            None,
-        )
-        .await;
-}
-```
-</dd>
-</dl>
-</dd>
-</dl>
-
-#### ⚙️ Parameters
-
-<dl>
-<dd>
-
-<dl>
-<dd>
-
-**thread_id:** `String` — Thread ID of the failed AOP execution to retry
-    
-</dd>
-</dl>
-
-<dl>
-<dd>
-
-**user_inputs:** `Option<Option<std::collections::HashMap<String, serde_json::Value>>>` — Optional user inputs for the retried execution
-    
-</dd>
-</dl>
-</dd>
-</dl>
-
-
-</dd>
-</dl>
-</details>
-
-<details><summary><code>client.<a href="/src/client.rs">get_current_user_info_api_v0me_get</a>() -> Result&lt;UserInfoOut, ApiError&gt;</code></summary>
-<dl>
-<dd>
-
-#### 📝 Description
-
-<dl>
-<dd>
-
-<dl>
-<dd>
-
-Returns basic information about the authenticated user including name, email, and workspace details.
-</dd>
-</dl>
-</dd>
-</dl>
-
-#### 🔌 Usage
-
-<dl>
-<dd>
-
-<dl>
-<dd>
-
-```rust
-use athena_sdk::prelude::*;
-
-#[tokio::main]
-async fn main() {
-    let config = ClientConfig {
-        api_key: Some("<value>".to_string()),
-        ..Default::default()
-    };
-    let client = AthenaClient::new(config).expect("Failed to build client");
-    client.get_current_user_info_api_v0me_get(None).await;
-}
-```
-</dd>
-</dl>
-</dd>
-</dl>
-
-
-</dd>
-</dl>
-</details>
-
-<details><summary><code>client.<a href="/src/client.rs">get_raw_file_data_alias_api_v0tools_raw_data_get</a>(asset_id: Option&lt;String&gt;) -> Result&lt;Vec&lt;u8&gt;, ApiError&gt;</code></summary>
-<dl>
-<dd>
-
-#### 📝 Description
-
-<dl>
-<dd>
-
-<dl>
-<dd>
-
-Alias for /tools/file/raw-data - Get the raw file data for given asset.
-</dd>
-</dl>
-</dd>
-</dl>
-
-#### 🔌 Usage
-
-<dl>
-<dd>
-
-<dl>
-<dd>
-
-```rust
-use athena_sdk::prelude::*;
-
-#[tokio::main]
-async fn main() {
-    let config = ClientConfig {
-        api_key: Some("<value>".to_string()),
-        ..Default::default()
-    };
-    let client = AthenaClient::new(config).expect("Failed to build client");
-    client
-        .get_raw_file_data_alias_api_v0tools_raw_data_get(
-            &GetRawFileDataAliasAPIV0ToolsRawDataGetQueryRequest {
-                asset_id: "asset_id".to_string(),
-            },
-            None,
-        )
-        .await;
-}
-```
-</dd>
-</dl>
-</dd>
-</dl>
-
-#### ⚙️ Parameters
-
-<dl>
-<dd>
-
-<dl>
-<dd>
-
-**asset_id:** `String` 
-    
-</dd>
-</dl>
-</dd>
-</dl>
-
-
-</dd>
-</dl>
-</details>
-
-<details><summary><code>client.<a href="/src/client.rs">query_range_api_v0tools_sheets_range_query_post</a>(request: QuerySheetRangeRequest) -> Result&lt;QuerySheetRangeResponse, ApiError&gt;</code></summary>
-<dl>
-<dd>
-
-#### 📝 Description
-
-<dl>
-<dd>
-
-<dl>
-<dd>
-
-Query a range of cells from an Athena spreadsheet.
-</dd>
-</dl>
-</dd>
-</dl>
-
-#### 🔌 Usage
-
-<dl>
-<dd>
-
-<dl>
-<dd>
-
-```rust
-use athena_sdk::prelude::*;
-
-#[tokio::main]
-async fn main() {
-    let config = ClientConfig {
-        api_key: Some("<value>".to_string()),
-        ..Default::default()
-    };
-    let client = AthenaClient::new(config).expect("Failed to build client");
-    client
-        .query_range_api_v0tools_sheets_range_query_post(
-            &QuerySheetRangeRequest {
-                asset_id: "asset_id".to_string(),
-                end_column: 1,
-                end_row: 1,
-                layer: "layer".to_string(),
-                start_column: 1,
-                start_row: 1,
-                sheet_id: None,
-            },
-            None,
-        )
-        .await;
-}
-```
-</dd>
-</dl>
-</dd>
-</dl>
-
-#### ⚙️ Parameters
-
-<dl>
-<dd>
-
-<dl>
-<dd>
-
-**asset_id:** `String` — The ID of the spreadsheet asset
-    
-</dd>
-</dl>
-
-<dl>
-<dd>
-
-**end_column:** `i64` — 1-based ending column index
-    
-</dd>
-</dl>
-
-<dl>
-<dd>
-
-**end_row:** `i64` — 1-based ending row index
-    
-</dd>
-</dl>
-
-<dl>
-<dd>
-
-**layer:** `String` — Data layer to query: 'values' for userEnteredValue (what user typed), 'effective_values' for effectiveValue (computed result), 'formatting' for formattedValue (display string)
-    
-</dd>
-</dl>
-
-<dl>
-<dd>
-
-**sheet_id:** `Option<i64>` — Sheet ID (defaults to 1)
-    
-</dd>
-</dl>
-
-<dl>
-<dd>
-
-**start_column:** `i64` — 1-based starting column index
-    
-</dd>
-</dl>
-
-<dl>
-<dd>
-
-**start_row:** `i64` — 1-based starting row index
-    
-</dd>
-</dl>
-</dd>
-</dl>
-
-
-</dd>
-</dl>
-</details>
-
 ## Agents
 <details><summary><code>client.agents.<a href="/src/api/resources/agents/client.rs">invoke_by_id</a>(agent_id: String, request: CustomAgentRequest) -> Result&lt;CustomAgentResponse, ApiError&gt;</code></summary>
 <dl>
@@ -542,6 +214,90 @@ async fn main() {
         .await;
 }
 ```
+</dd>
+</dl>
+</dd>
+</dl>
+
+
+</dd>
+</dl>
+</details>
+
+<details><summary><code>client.aop.<a href="/src/api/resources/aop/client.rs">retry</a>(request: AopRetryRequest) -> Result&lt;AopRetryResponse, ApiError&gt;</code></summary>
+<dl>
+<dd>
+
+#### 📝 Description
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+Retry a failed AOP execution.
+
+Looks up the failed session, extracts the original AOP asset and trigger
+type, then sends a new Inngest execution event. Auth: session owner or admin.
+</dd>
+</dl>
+</dd>
+</dl>
+
+#### 🔌 Usage
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+```rust
+use athena_sdk::prelude::*;
+
+#[tokio::main]
+async fn main() {
+    let config = ClientConfig {
+        api_key: Some("<value>".to_string()),
+        ..Default::default()
+    };
+    let client = AthenaClient::new(config).expect("Failed to build client");
+    client
+        .aop
+        .retry(
+            &AopRetryRequest {
+                thread_id: "thread_id".to_string(),
+                user_inputs: None,
+            },
+            None,
+        )
+        .await;
+}
+```
+</dd>
+</dl>
+</dd>
+</dl>
+
+#### ⚙️ Parameters
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+**thread_id:** `String` — Thread ID of the failed AOP execution to retry
+    
+</dd>
+</dl>
+
+<dl>
+<dd>
+
+**user_inputs:** `Option<Option<std::collections::HashMap<String, serde_json::Value>>>` — Optional user inputs for the retried execution
+    
 </dd>
 </dl>
 </dd>
@@ -1920,6 +1676,56 @@ async fn main() {
 </dl>
 </details>
 
+## Users
+<details><summary><code>client.users.<a href="/src/api/resources/users/client.rs">get_current_user</a>() -> Result&lt;UserInfoOut, ApiError&gt;</code></summary>
+<dl>
+<dd>
+
+#### 📝 Description
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+Returns basic information about the authenticated user including name, email, and workspace details.
+</dd>
+</dl>
+</dd>
+</dl>
+
+#### 🔌 Usage
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+```rust
+use athena_sdk::prelude::*;
+
+#[tokio::main]
+async fn main() {
+    let config = ClientConfig {
+        api_key: Some("<value>".to_string()),
+        ..Default::default()
+    };
+    let client = AthenaClient::new(config).expect("Failed to build client");
+    client.users.get_current_user(None).await;
+}
+```
+</dd>
+</dl>
+</dd>
+</dl>
+
+
+</dd>
+</dl>
+</details>
+
 ## Query
 <details><summary><code>client.query.<a href="/src/api/resources/query/client.rs">execute_snippet</a>(snippet_asset_id: Option&lt;String&gt;) -> Result&lt;DataFrameRequestOut, ApiError&gt;</code></summary>
 <dl>
@@ -3134,6 +2940,78 @@ async fn main() {
 <dd>
 
 **parent_folder_id:** `Option<Option<String>>` — Identifier of the folder into which the asset should be saved
+    
+</dd>
+</dl>
+</dd>
+</dl>
+
+
+</dd>
+</dl>
+</details>
+
+<details><summary><code>client.tools.<a href="/src/api/resources/tools/client.rs">get_raw_file_data</a>(asset_id: Option&lt;String&gt;) -> Result&lt;Vec&lt;u8&gt;, ApiError&gt;</code></summary>
+<dl>
+<dd>
+
+#### 📝 Description
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+Alias for /tools/file/raw-data - Get the raw file data for given asset.
+</dd>
+</dl>
+</dd>
+</dl>
+
+#### 🔌 Usage
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+```rust
+use athena_sdk::prelude::*;
+
+#[tokio::main]
+async fn main() {
+    let config = ClientConfig {
+        api_key: Some("<value>".to_string()),
+        ..Default::default()
+    };
+    let client = AthenaClient::new(config).expect("Failed to build client");
+    client
+        .tools
+        .get_raw_file_data(
+            &GetRawFileDataQueryRequest {
+                asset_id: "asset_id".to_string(),
+            },
+            None,
+        )
+        .await;
+}
+```
+</dd>
+</dl>
+</dd>
+</dl>
+
+#### ⚙️ Parameters
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+**asset_id:** `String` 
     
 </dd>
 </dl>
@@ -4613,6 +4491,133 @@ async fn main() {
 <dd>
 
 **formatting:** `CellFormat` — Cell format
+    
+</dd>
+</dl>
+
+<dl>
+<dd>
+
+**sheet_id:** `Option<i64>` — Sheet ID (defaults to 1)
+    
+</dd>
+</dl>
+
+<dl>
+<dd>
+
+**start_column:** `i64` — 1-based starting column index
+    
+</dd>
+</dl>
+
+<dl>
+<dd>
+
+**start_row:** `i64` — 1-based starting row index
+    
+</dd>
+</dl>
+</dd>
+</dl>
+
+
+</dd>
+</dl>
+</details>
+
+<details><summary><code>client.tools().sheets.<a href="/src/api/resources/tools/sheets/client.rs">query_range</a>(request: QuerySheetRangeRequest) -> Result&lt;QuerySheetRangeResponse, ApiError&gt;</code></summary>
+<dl>
+<dd>
+
+#### 📝 Description
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+Query a range of cells from an Athena spreadsheet.
+</dd>
+</dl>
+</dd>
+</dl>
+
+#### 🔌 Usage
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+```rust
+use athena_sdk::prelude::*;
+
+#[tokio::main]
+async fn main() {
+    let config = ClientConfig {
+        api_key: Some("<value>".to_string()),
+        ..Default::default()
+    };
+    let client = AthenaClient::new(config).expect("Failed to build client");
+    client
+        .tools
+        .sheets
+        .query_range(
+            &QuerySheetRangeRequest {
+                asset_id: "asset_id".to_string(),
+                end_column: 1,
+                end_row: 1,
+                layer: "layer".to_string(),
+                start_column: 1,
+                start_row: 1,
+                sheet_id: None,
+            },
+            None,
+        )
+        .await;
+}
+```
+</dd>
+</dl>
+</dd>
+</dl>
+
+#### ⚙️ Parameters
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+**asset_id:** `String` — The ID of the spreadsheet asset
+    
+</dd>
+</dl>
+
+<dl>
+<dd>
+
+**end_column:** `i64` — 1-based ending column index
+    
+</dd>
+</dl>
+
+<dl>
+<dd>
+
+**end_row:** `i64` — 1-based ending row index
+    
+</dd>
+</dl>
+
+<dl>
+<dd>
+
+**layer:** `String` — Data layer to query: 'values' for userEnteredValue (what user typed), 'effective_values' for effectiveValue (computed result), 'formatting' for formattedValue (display string)
     
 </dd>
 </dl>

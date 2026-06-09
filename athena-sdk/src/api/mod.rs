@@ -11,7 +11,7 @@ pub mod resources;
 
 pub use resources::{
     AgentsClient, AopClient, ApiClient, AssetsClient, DatabasesClient, QueryClient,
-    SemanticModelClient, ThreadsClient, ToolsClient,
+    SemanticModelClient, ThreadsClient, ToolsClient, UsersClient,
 };
 
 pub use athena_types::*;

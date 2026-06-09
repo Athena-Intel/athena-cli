@@ -54,7 +54,6 @@ pub fn sdk_client(ctx: &AppContext) -> athena_sdk::api::ApiClient {
     use athena_sdk::api::resources as r;
     athena_sdk::api::ApiClient {
         config,
-        http_client: http_client.clone(),
         agents: r::AgentsClient {
             http_client: http_client.clone(),
             drive: r::agents::DriveClient { http_client: http_client.clone() },
@@ -65,6 +64,7 @@ pub fn sdk_client(ctx: &AppContext) -> athena_sdk::api::ApiClient {
         aop: r::AopClient { http_client: http_client.clone() },
         assets: r::AssetsClient { http_client: http_client.clone() },
         databases: r::DatabasesClient { http_client: http_client.clone() },
+        users: r::UsersClient { http_client: http_client.clone() },
         query: r::QueryClient { http_client: http_client.clone() },
         semantic_model: r::SemanticModelClient { http_client: http_client.clone() },
         threads: r::ThreadsClient { http_client: http_client.clone() },

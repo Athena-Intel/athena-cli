@@ -188,6 +188,31 @@ impl SheetsClient {
             .await
     }
 
+    /// Query a range of cells from an Athena spreadsheet.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn query_range(
+        &self,
+        request: &QuerySheetRangeRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<QuerySheetRangeResponse, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                "api/v0/tools/sheets/range/query",
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
     /// Update a range of cells in an Athena spreadsheet.
     ///
     /// # Arguments

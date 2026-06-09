@@ -62,4 +62,32 @@ impl AopClient {
             )
             .await
     }
+
+    /// Retry a failed AOP execution.
+    ///
+    /// Looks up the failed session, extracts the original AOP asset and trigger
+    /// type, then sends a new Inngest execution event. Auth: session owner or admin.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn retry(
+        &self,
+        request: &AopRetryRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<AopRetryResponse, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                "api/v0/aop/retry",
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
 }
