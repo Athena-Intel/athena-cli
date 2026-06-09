@@ -1,0 +1,2 @@
+pub mod tools_structured_data_extractor;
+pub use tools_structured_data_extractor::StructuredDataExtractorClient;

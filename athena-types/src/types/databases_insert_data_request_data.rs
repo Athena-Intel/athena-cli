@@ -1,0 +1,49 @@
+pub use crate::prelude::*;
+use super::*;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum InsertDataRequestData {
+        StringToValueMap(HashMap<String, serde_json::Value>),
+
+        StringToValueMapList(Vec<HashMap<String, serde_json::Value>>),
+}
+
+impl InsertDataRequestData {
+    pub fn is_string_to_value_map(&self) -> bool {
+        matches!(self, Self::StringToValueMap(_))
+    }
+
+    pub fn is_string_to_value_map_list(&self) -> bool {
+        matches!(self, Self::StringToValueMapList(_))
+    }
+
+
+    pub fn as_string_to_value_map(&self) -> Option<&HashMap<String, serde_json::Value>> {
+        match self {
+                    Self::StringToValueMap(value) => Some(value),
+                    _ => None,
+                }
+    }
+
+    pub fn into_string_to_value_map(self) -> Option<HashMap<String, serde_json::Value>> {
+        match self {
+                    Self::StringToValueMap(value) => Some(value),
+                    _ => None,
+                }
+    }
+
+    pub fn as_string_to_value_map_list(&self) -> Option<&Vec<HashMap<String, serde_json::Value>>> {
+        match self {
+                    Self::StringToValueMapList(value) => Some(value),
+                    _ => None,
+                }
+    }
+
+    pub fn into_string_to_value_map_list(self) -> Option<Vec<HashMap<String, serde_json::Value>>> {
+        match self {
+                    Self::StringToValueMapList(value) => Some(value),
+                    _ => None,
+                }
+    }
+}
