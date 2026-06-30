@@ -19,10 +19,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            artifact-name: athena-linux-x64
-            rust-target: ""
-            binary-path: target/release/athena
           - os: macos-14
             artifact-name: athena-macos-x64
             rust-target: x86_64-apple-darwin
