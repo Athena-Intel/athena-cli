@@ -1,0 +1,55 @@
+name: Build CLI Binaries
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: Build ${{ matrix.artifact-name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact-name: athena-linux-x64
+            binary-path: target/release/athena
+          - os: macos-13
+            artifact-name: athena-macos-x64
+            binary-path: target/release/athena
+          - os: macos-14
+            artifact-name: athena-macos-arm64
+            binary-path: target/release/athena
+          - os: windows-latest
+            artifact-name: athena-windows-x64.exe
+            binary-path: target/release/athena.exe
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build CLI
+        run: cargo build --release --locked --bin athena
+
+      - name: Package binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          cp "${{ matrix.binary-path }}" "artifacts/${{ matrix.artifact-name }}"
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: artifacts/${{ matrix.artifact-name }}
