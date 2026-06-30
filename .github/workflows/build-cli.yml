@@ -1,0 +1,74 @@
+name: Build CLI Binaries
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.artifact-name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact-name: athena-linux-x64
+            rust-target: ""
+            binary-path: target/release/athena
+          - os: macos-14
+            artifact-name: athena-macos-x64
+            rust-target: x86_64-apple-darwin
+            binary-path: target/x86_64-apple-darwin/release/athena
+          - os: macos-14
+            artifact-name: athena-macos-arm64
+            rust-target: aarch64-apple-darwin
+            binary-path: target/aarch64-apple-darwin/release/athena
+          - os: windows-latest
+            artifact-name: athena-windows-x64.exe
+            rust-target: ""
+            binary-path: target/release/athena.exe
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Rust target
+        if: matrix.rust-target != ''
+        run: rustup target add "${{ matrix.rust-target }}"
+
+      - name: Build CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ matrix.rust-target }}" ]; then
+            cargo build --release --locked --bin athena --target "${{ matrix.rust-target }}"
+          else
+            cargo build --release --locked --bin athena
+          fi
+
+      - name: Package binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          cp "${{ matrix.binary-path }}" "artifacts/${{ matrix.artifact-name }}"
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: artifacts/${{ matrix.artifact-name }}
