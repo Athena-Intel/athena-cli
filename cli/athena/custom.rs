@@ -15,10 +15,11 @@
 //! generated commands) so the capability-aware UX survives regeneration and
 //! works before the generated SDK gains typed methods for these endpoints.
 //!
-//! `meetings browse` is an interactive companion to the generated
-//! `meetings list/get/download` commands — a search → paginate → select →
-//! download loop. It drives the same spec endpoints through the CLI's
-//! executor, so it inherits the same auth/retries/TLS/`--base-url` behavior.
+//! `meetings browse` and `sessions browse` are interactive companions to the
+//! generated `meetings ...`/`sessions ...` command groups — a search →
+//! paginate → select → download loop. They drive the same spec endpoints
+//! through the CLI's executor, so they inherit the same
+//! auth/retries/TLS/`--base-url` behavior.
 
 use std::any::Any;
 use std::io::Write as _;
@@ -247,6 +248,45 @@ pub fn register(app: CliApp) -> CliApp {
                 .downcast_ref::<AppContext>()
                 .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
             browse_meetings(matches, ctx)
+        }),
+    )
+    .command_under(
+        &["sessions"],
+        clap::Command::new("browse")
+            .about("Interactively search, page through, select, and download sessions")
+            .arg(
+                clap::Arg::new("query")
+                    .long("query")
+                    .help("Initial keyword to search session titles"),
+            )
+            .arg(
+                clap::Arg::new("state")
+                    .long("state")
+                    .help("Filter by execution state(s), comma-separated (e.g. running,completed)"),
+            )
+            .arg(
+                clap::Arg::new("source-channel")
+                    .long("source-channel")
+                    .help("Filter by originating channel(s), comma-separated (e.g. web,agent_slack)"),
+            )
+            .arg(
+                clap::Arg::new("page-size")
+                    .long("page-size")
+                    .value_parser(clap::value_parser!(u32).range(1..=100))
+                    .default_value("10")
+                    .help("Sessions per page"),
+            )
+            .arg(
+                clap::Arg::new("output-dir")
+                    .long("output-dir")
+                    .default_value(".")
+                    .help("Directory to save downloaded exports into"),
+            ),
+        Box::new(|matches, ctx| {
+            let ctx = ctx
+                .downcast_ref::<AppContext>()
+                .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
+            browse_sessions(matches, ctx)
         }),
     )
 }
@@ -496,10 +536,25 @@ fn download_artifact(
     artifact: &str,
     dest: &std::path::Path,
 ) -> Result<(), CliError> {
+    download_to_file(
+        ctx,
+        &format!("api/v0/meetings/{asset_id}/download?artifact={artifact}"),
+        dest,
+    )
+}
+
+/// Stream a GET of `path_and_query` (relative to the spec's server URL) to
+/// disk through the CLI executor so the download inherits auth, TLS,
+/// retries, and any --base-url override.
+fn download_to_file(
+    ctx: &AppContext,
+    path_and_query: &str,
+    dest: &std::path::Path,
+) -> Result<(), CliError> {
     // Build the request against the spec's server URL; the executor
     // applies the base-URL override (if any) at send time.
     let root = ctx.spec().root_url.trim_end_matches('/').to_string();
-    let url = format!("{root}/api/v0/meetings/{asset_id}/download?artifact={artifact}");
+    let url = format!("{root}/{path_and_query}");
     let executor = ctx.build_sdk_executor();
 
     tokio::task::block_in_place(|| {
@@ -537,6 +592,236 @@ fn download_artifact(
             Ok(())
         })
     })
+}
+
+// ---------------------------------------------------------------------------
+// sessions browse — interactive search / paginate / select / download
+// ---------------------------------------------------------------------------
+
+struct SessionBrowseState {
+    query: Option<String>,
+    state: Option<String>,
+    source_channel: Option<String>,
+    page_size: u32,
+    offset: u64,
+    output_dir: PathBuf,
+}
+
+/// The download formats served by `GET /api/v0/sessions/{id}/download`,
+/// as (menu label, export_format value, filename suffix).
+const SESSION_EXPORT_FORMATS: [(&str, &str, &str); 4] = [
+    (
+        "Download full trace (JSON, all tool calls)",
+        "trace",
+        "trace.json",
+    ),
+    (
+        "Download conversation (JSON, user/agent turns)",
+        "messages",
+        "messages.json",
+    ),
+    (
+        "Download transcript (Markdown)",
+        "markdown",
+        "transcript.md",
+    ),
+    ("Download stats (JSON)", "stats", "stats.json"),
+];
+
+fn browse_sessions(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(), CliError> {
+    if !user_attended() {
+        return Err(CliError::Validation(
+            "`sessions browse` needs an interactive terminal. \
+             Use `athena sessions list` for scripted access."
+                .into(),
+        ));
+    }
+
+    let mut state = SessionBrowseState {
+        query: matches.get_one::<String>("query").cloned(),
+        state: matches.get_one::<String>("state").cloned(),
+        source_channel: matches.get_one::<String>("source-channel").cloned(),
+        page_size: *matches.get_one::<u32>("page-size").unwrap_or(&10),
+        offset: 0,
+        output_dir: PathBuf::from(
+            matches
+                .get_one::<String>("output-dir")
+                .map(String::as_str)
+                .unwrap_or("."),
+        ),
+    };
+
+    let theme = ColorfulTheme::default();
+
+    loop {
+        let page = fetch_sessions_page(ctx, &state)?;
+        let items = page["items"].as_array().cloned().unwrap_or_default();
+        let total = page["total"].as_u64().unwrap_or(0);
+        let has_more = page["has_more"].as_bool().unwrap_or(false);
+
+        if total == 0 {
+            eprintln!(
+                "{}",
+                style("No sessions matched. Adjust the search or press ctrl-c to exit.").yellow()
+            );
+        }
+
+        // Build the selection list: sessions first, then navigation entries.
+        let mut labels: Vec<String> = items.iter().map(|s| format_session_row(s)).collect();
+        let session_count = labels.len();
+        let mut nav: Vec<&str> = Vec::new();
+        if has_more {
+            nav.push("→ next page");
+        }
+        if state.offset > 0 {
+            nav.push("← previous page");
+        }
+        nav.push("⌕ edit search");
+        nav.push("✗ quit");
+        labels.extend(nav.iter().map(|s| s.to_string()));
+
+        let shown_from = state.offset + 1;
+        let shown_to = state.offset + session_count as u64;
+        let prompt = format!(
+            "Sessions {shown_from}-{shown_to} of {total}{}",
+            state
+                .query
+                .as_deref()
+                .map(|q| format!("  (query: \"{q}\")"))
+                .unwrap_or_default()
+        );
+
+        let choice = Select::with_theme(&theme)
+            .with_prompt(prompt)
+            .items(&labels)
+            .default(0)
+            .interact()
+            .map_err(|e| CliError::Other(anyhow::anyhow!("prompt failed: {e}")))?;
+
+        if choice < session_count {
+            session_actions(ctx, &theme, &items[choice], &state.output_dir)?;
+            continue;
+        }
+
+        match labels[choice].as_str() {
+            "→ next page" => state.offset += u64::from(state.page_size),
+            "← previous page" => {
+                state.offset = state.offset.saturating_sub(u64::from(state.page_size));
+            }
+            "⌕ edit search" => {
+                let q: String = Input::with_theme(&theme)
+                    .with_prompt("Keyword (empty clears)")
+                    .with_initial_text(state.query.clone().unwrap_or_default())
+                    .allow_empty(true)
+                    .interact_text()
+                    .map_err(|e| CliError::Other(anyhow::anyhow!("prompt failed: {e}")))?;
+                state.query = if q.trim().is_empty() { None } else { Some(q) };
+                state.offset = 0;
+            }
+            _ => return Ok(()), // quit
+        }
+    }
+}
+
+/// Fetch one page of sessions via the spec-driven executor (same auth,
+/// retries, and --base-url handling as the generated `sessions list`).
+fn fetch_sessions_page(
+    ctx: &AppContext,
+    state: &SessionBrowseState,
+) -> Result<serde_json::Value, CliError> {
+    let method = ctx.find_method("sessions", "list")?;
+    let mut params = serde_json::Map::new();
+    params.insert("limit".into(), state.page_size.into());
+    params.insert("offset".into(), state.offset.into());
+    if let Some(q) = &state.query {
+        params.insert("query".into(), q.clone().into());
+    }
+    if let Some(s) = &state.state {
+        params.insert("state".into(), s.clone().into());
+    }
+    if let Some(c) = &state.source_channel {
+        params.insert("source_channel".into(), c.clone().into());
+    }
+    let params_json = serde_json::Value::Object(params).to_string();
+    ctx.invoke(method, Some(&params_json), None, None)
+}
+
+fn format_session_row(session: &serde_json::Value) -> String {
+    let title = session["title"].as_str().unwrap_or("(untitled)");
+    let title = truncate(title, 48);
+    let date = session["created_at"]
+        .as_str()
+        .map(|d| d.chars().take(10).collect::<String>())
+        .unwrap_or_default();
+    let state = session["state"].as_str().unwrap_or("?");
+    let channel = session["source_channel"].as_str().unwrap_or("web");
+    let messages = session["num_messages"].as_u64().unwrap_or(0);
+    format!("{date}  {title:<48}  [{state}]  {channel}  {messages} msg(s)")
+}
+
+/// Action menu for one selected session.
+fn session_actions(
+    ctx: &AppContext,
+    theme: &ColorfulTheme,
+    session: &serde_json::Value,
+    output_dir: &std::path::Path,
+) -> Result<(), CliError> {
+    let asset_id = session["id"]
+        .as_str()
+        .ok_or_else(|| CliError::Validation("session has no id".into()))?
+        .to_string();
+    let title = session["title"].as_str().unwrap_or("session").to_string();
+
+    loop {
+        let mut labels: Vec<&str> = vec!["Show JSON"];
+        labels.extend(SESSION_EXPORT_FORMATS.iter().map(|(label, _, _)| *label));
+        labels.push("Print asset id");
+        labels.push("← back to list");
+
+        let choice = Select::with_theme(theme)
+            .with_prompt(truncate(&title, 60))
+            .items(&labels)
+            .default(0)
+            .interact()
+            .map_err(|e| CliError::Other(anyhow::anyhow!("prompt failed: {e}")))?;
+
+        match labels[choice] {
+            "Show JSON" => {
+                println!("{}", serde_json::to_string_pretty(session).unwrap_or_default());
+            }
+            "Print asset id" => {
+                println!("{asset_id}");
+                return Ok(());
+            }
+            "← back to list" => return Ok(()),
+            label => {
+                let (_, export_format, suffix) = SESSION_EXPORT_FORMATS
+                    .iter()
+                    .find(|(l, _, _)| *l == label)
+                    .expect("menu label matches a session export format");
+                let dest = output_dir.join(session_export_filename(&title, suffix));
+                eprintln!("{}", style(format!("Downloading {export_format}…")).dim());
+                download_to_file(
+                    ctx,
+                    &format!(
+                        "api/v0/sessions/{asset_id}/download?export_format={export_format}"
+                    ),
+                    &dest,
+                )?;
+                eprintln!("{}", style(format!("Saved {}", dest.display())).green());
+            }
+        }
+    }
+}
+
+fn session_export_filename(title: &str, suffix: &str) -> String {
+    let safe: String = title
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-' || *c == '_')
+        .collect();
+    let safe = safe.trim();
+    let base = if safe.is_empty() { "session" } else { safe };
+    format!("{base}-{suffix}")
 }
 
 // Keep the unused-import lint quiet if future edits drop the Any usage.
