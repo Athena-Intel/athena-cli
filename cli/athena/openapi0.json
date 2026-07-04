@@ -3007,6 +3007,57 @@
                 "title": "DatabaseSqlResponse",
                 "type": "object"
             },
+            "DatabaseStatusResponse": {
+                "description": "Response for database status check.\n\nUsed to determine if a serverless database is running or suspended\n(scale-to-zero). Poll this endpoint to know when a database is ready.",
+                "example": {
+                    "asset_id": "asset_db_12345",
+                    "provider": "kronos",
+                    "status": "running"
+                },
+                "properties": {
+                    "asset_id": {
+                        "description": "The database asset ID",
+                        "title": "Asset Id",
+                        "type": "string"
+                    },
+                    "message": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Optional status message or error details",
+                        "title": "Message"
+                    },
+                    "provider": {
+                        "description": "Database provider ('neon_cloud' or 'kronos')",
+                        "title": "Provider",
+                        "type": "string"
+                    },
+                    "status": {
+                        "description": "Standardized database status",
+                        "enum": [
+                            "running",
+                            "suspended",
+                            "starting",
+                            "failed",
+                            "unknown"
+                        ],
+                        "title": "Status",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "asset_id",
+                    "status",
+                    "provider"
+                ],
+                "title": "DatabaseStatusResponse",
+                "type": "object"
+            },
             "DatabaseTableInfo": {
                 "description": "Table metadata for list tables response.",
                 "properties": {
@@ -5256,6 +5307,61 @@
                 "title": "PaginatedMeetingsOut",
                 "type": "object"
             },
+            "PaginatedSessionsOut": {
+                "description": "Paginated response containing a list of sessions.",
+                "properties": {
+                    "has_more": {
+                        "description": "Whether there are more sessions available beyond this page",
+                        "title": "Has More",
+                        "type": "boolean"
+                    },
+                    "items": {
+                        "description": "Array of session objects for the current page",
+                        "items": {
+                            "$ref": "#/components/schemas/SessionOut"
+                        },
+                        "title": "Items",
+                        "type": "array"
+                    },
+                    "limit": {
+                        "description": "Maximum number of sessions returned in this response (1-500)",
+                        "title": "Limit",
+                        "type": "integer"
+                    },
+                    "next_offset": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Offset value to use for the next page request, null if no more pages",
+                        "title": "Next Offset"
+                    },
+                    "offset": {
+                        "description": "Number of sessions skipped from the beginning of the result set",
+                        "title": "Offset",
+                        "type": "integer"
+                    },
+                    "total": {
+                        "description": "Total number of sessions matching the query filters",
+                        "title": "Total",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "total",
+                    "limit",
+                    "offset",
+                    "has_more",
+                    "next_offset",
+                    "items"
+                ],
+                "title": "PaginatedSessionsOut",
+                "type": "object"
+            },
             "ParentFolderError": {
                 "properties": {
                     "message": {
@@ -6164,6 +6270,203 @@
                     "expires_at"
                 ],
                 "title": "SemanticModelTokenResponseOut",
+                "type": "object"
+            },
+            "SessionOut": {
+                "description": "An agent session (conversation) asset with flattened metadata.",
+                "properties": {
+                    "agent": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Agent identity the session ran with, when set",
+                        "title": "Agent"
+                    },
+                    "app_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Application identifier the session belongs to, when set",
+                        "title": "App Id"
+                    },
+                    "created_at": {
+                        "description": "Timestamp when the session was created (ISO 8601)",
+                        "format": "date-time",
+                        "title": "Created At",
+                        "type": "string"
+                    },
+                    "created_by_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Unique identifier of the user who created this session",
+                        "title": "Created By Id"
+                    },
+                    "id": {
+                        "description": "Unique identifier of the session asset (e.g., 'asset_abc123')",
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "is_sub_session": {
+                        "default": false,
+                        "description": "Whether this is a branched sub-session of another session",
+                        "title": "Is Sub Session",
+                        "type": "boolean"
+                    },
+                    "last_message_preview": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Plain-text preview of the most recent message, when available",
+                        "title": "Last Message Preview"
+                    },
+                    "model": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Model the session ran with, when set",
+                        "title": "Model"
+                    },
+                    "num_messages": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Number of messages in the session, when tracked",
+                        "title": "Num Messages"
+                    },
+                    "parent_session_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Asset ID of the parent session for sub-sessions",
+                        "title": "Parent Session Id"
+                    },
+                    "session_type": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Kind of session: 'session' (chat), 'video_session', 'desktop_session', or 'mobile_session'",
+                        "title": "Session Type"
+                    },
+                    "source_channel": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Channel the session originated from (e.g., 'web', 'api', 'agent_email', 'agent_slack', 'agent_sms')",
+                        "title": "Source Channel"
+                    },
+                    "state": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Execution state of the session (e.g., 'running', 'completed')",
+                        "title": "State"
+                    },
+                    "thread_id": {
+                        "description": "LangChain thread ID backing this session's message history",
+                        "title": "Thread Id",
+                        "type": "string"
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Display title of the session",
+                        "title": "Title"
+                    },
+                    "total_cost_usd": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Total LLM cost of the session in USD, when tracked",
+                        "title": "Total Cost Usd"
+                    },
+                    "updated_at": {
+                        "description": "Timestamp when the session was last updated (ISO 8601)",
+                        "format": "date-time",
+                        "title": "Updated At",
+                        "type": "string"
+                    },
+                    "workspace_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Unique identifier of the workspace this session belongs to",
+                        "title": "Workspace Id"
+                    }
+                },
+                "required": [
+                    "id",
+                    "thread_id",
+                    "created_at",
+                    "updated_at"
+                ],
+                "title": "SessionOut",
                 "type": "object"
             },
             "ShareAssetRequestIn": {
@@ -7762,57 +8065,6 @@
                 ],
                 "title": "WrapStrategy",
                 "type": "string"
-            },
-            "agora__web__api__public__v0__models__database_data__DatabaseStatusResponse": {
-                "description": "Response for database status check.\n\nUsed to determine if a serverless database is running or suspended\n(scale-to-zero). Poll this endpoint to know when a database is ready.",
-                "example": {
-                    "asset_id": "asset_db_12345",
-                    "provider": "kronos",
-                    "status": "running"
-                },
-                "properties": {
-                    "asset_id": {
-                        "description": "The database asset ID",
-                        "title": "Asset Id",
-                        "type": "string"
-                    },
-                    "message": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Optional status message or error details",
-                        "title": "Message"
-                    },
-                    "provider": {
-                        "description": "Database provider ('neon_cloud' or 'kronos')",
-                        "title": "Provider",
-                        "type": "string"
-                    },
-                    "status": {
-                        "description": "Standardized database status",
-                        "enum": [
-                            "running",
-                            "suspended",
-                            "starting",
-                            "failed",
-                            "unknown"
-                        ],
-                        "title": "Status",
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "asset_id",
-                    "status",
-                    "provider"
-                ],
-                "title": "DatabaseStatusResponse",
-                "type": "object"
             }
         },
         "securitySchemes": {
@@ -10175,7 +10427,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/agora__web__api__public__v0__models__database_data__DatabaseStatusResponse"
+                                    "$ref": "#/components/schemas/DatabaseStatusResponse"
                                 }
                             }
                         },
@@ -11759,6 +12011,545 @@
                 "x-fern-availability": "beta",
                 "x-fern-sdk-group-name": "semantic_model",
                 "x-fern-sdk-method-name": "query"
+            }
+        },
+        "/api/v0/sessions": {
+            "get": {
+                "description": "Retrieve a paginated list of agent sessions (conversations) with optional title search, state filtering, source channel filtering, date range filtering, and sorting. By default, AOP/workflow runs and branched sub-sessions are excluded.",
+                "operationId": "list_sessions_v0_api_v0_sessions_get",
+                "parameters": [
+                    {
+                        "description": "Keyword to search session titles (case-insensitive)",
+                        "in": "query",
+                        "name": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Keyword to search session titles (case-insensitive)",
+                            "title": "Query"
+                        }
+                    },
+                    {
+                        "description": "Execution state(s) to filter by (e.g. 'running', 'completed'). Repeat the parameter or pass a comma-separated list.",
+                        "in": "query",
+                        "name": "state",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Execution state(s) to filter by (e.g. 'running', 'completed'). Repeat the parameter or pass a comma-separated list.",
+                            "title": "State"
+                        }
+                    },
+                    {
+                        "description": "Originating channel(s) to filter by (e.g. 'web', 'api', 'agent_email'). Repeat the parameter or pass a comma-separated list.",
+                        "in": "query",
+                        "name": "source_channel",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Originating channel(s) to filter by (e.g. 'web', 'api', 'agent_email'). Repeat the parameter or pass a comma-separated list.",
+                            "title": "Source Channel"
+                        }
+                    },
+                    {
+                        "description": "Session kind(s) to include: 'session', 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list.",
+                        "in": "query",
+                        "name": "session_type",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Session kind(s) to include: 'session', 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list.",
+                            "title": "Session Type"
+                        }
+                    },
+                    {
+                        "description": "Only include sessions belonging to this application identifier",
+                        "in": "query",
+                        "name": "app_id",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Only include sessions belonging to this application identifier",
+                            "title": "App Id"
+                        }
+                    },
+                    {
+                        "description": "Include branched sub-sessions (excluded by default)",
+                        "in": "query",
+                        "name": "include_sub_sessions",
+                        "required": false,
+                        "schema": {
+                            "default": false,
+                            "description": "Include branched sub-sessions (excluded by default)",
+                            "title": "Include Sub Sessions",
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "description": "Include AOP/workflow task runs (excluded by default)",
+                        "in": "query",
+                        "name": "include_task_sessions",
+                        "required": false,
+                        "schema": {
+                            "default": false,
+                            "description": "Include AOP/workflow task runs (excluded by default)",
+                            "title": "Include Task Sessions",
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "description": "Only include sessions created at or after this ISO 8601 timestamp",
+                        "in": "query",
+                        "name": "created_after",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "format": "date-time",
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Only include sessions created at or after this ISO 8601 timestamp",
+                            "title": "Created After"
+                        }
+                    },
+                    {
+                        "description": "Only include sessions created at or before this ISO 8601 timestamp",
+                        "in": "query",
+                        "name": "created_before",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "format": "date-time",
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Only include sessions created at or before this ISO 8601 timestamp",
+                            "title": "Created Before"
+                        }
+                    },
+                    {
+                        "description": "Field to sort by",
+                        "in": "query",
+                        "name": "sort_by",
+                        "required": false,
+                        "schema": {
+                            "default": "updated_at",
+                            "description": "Field to sort by",
+                            "enum": [
+                                "updated_at",
+                                "created_at",
+                                "title"
+                            ],
+                            "title": "Sort By",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Sort direction",
+                        "in": "query",
+                        "name": "sort_direction",
+                        "required": false,
+                        "schema": {
+                            "default": "desc",
+                            "description": "Sort direction",
+                            "enum": [
+                                "asc",
+                                "desc"
+                            ],
+                            "title": "Sort Direction",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of sessions to return per page (1-500)",
+                        "in": "query",
+                        "name": "limit",
+                        "required": false,
+                        "schema": {
+                            "default": 50,
+                            "description": "Maximum number of sessions to return per page (1-500)",
+                            "maximum": 500,
+                            "minimum": 1,
+                            "title": "Limit",
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Number of sessions to skip for pagination",
+                        "in": "query",
+                        "name": "offset",
+                        "required": false,
+                        "schema": {
+                            "default": 0,
+                            "description": "Number of sessions to skip for pagination",
+                            "minimum": 0,
+                            "title": "Offset",
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Keyword to search session titles (case-insensitive).",
+                        "example": "quarterly report",
+                        "name": "query"
+                    },
+                    {
+                        "description": "Filter sessions by execution state(s), e.g. 'running' or 'completed'. Repeat the parameter or pass a comma-separated list.",
+                        "example": "completed",
+                        "name": "state"
+                    },
+                    {
+                        "description": "Filter sessions by originating channel(s), e.g. 'web', 'api', 'agent_email', 'agent_slack'. Repeat the parameter or pass a comma-separated list.",
+                        "example": "web",
+                        "name": "source_channel"
+                    },
+                    {
+                        "description": "Filter by session kind(s): 'session' (chat), 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list.",
+                        "example": "session",
+                        "name": "session_type"
+                    },
+                    {
+                        "description": "Only include sessions belonging to this application identifier.",
+                        "example": "app_123",
+                        "name": "app_id"
+                    },
+                    {
+                        "description": "Include branched sub-sessions (excluded by default).",
+                        "example": false,
+                        "name": "include_sub_sessions"
+                    },
+                    {
+                        "description": "Include AOP/workflow task runs (excluded by default).",
+                        "example": false,
+                        "name": "include_task_sessions"
+                    },
+                    {
+                        "description": "Only include sessions created at or after this ISO 8601 timestamp.",
+                        "example": "2025-01-01T00:00:00Z",
+                        "name": "created_after"
+                    },
+                    {
+                        "description": "Only include sessions created at or before this ISO 8601 timestamp.",
+                        "example": "2025-12-31T23:59:59Z",
+                        "name": "created_before"
+                    },
+                    {
+                        "description": "Field to sort by: updated_at, created_at, or title.",
+                        "example": "updated_at",
+                        "name": "sort_by"
+                    },
+                    {
+                        "description": "Sort direction: asc or desc.",
+                        "example": "desc",
+                        "name": "sort_direction"
+                    },
+                    {
+                        "description": "Maximum number of sessions to return per page. Must be between 1 and 500.",
+                        "example": 50,
+                        "name": "limit"
+                    },
+                    {
+                        "description": "Number of sessions to skip from the beginning of the result set for pagination.",
+                        "example": 0,
+                        "name": "offset"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "has_more": false,
+                                    "items": [
+                                        {
+                                            "agent": "athena",
+                                            "created_at": "2025-06-01T10:30:00Z",
+                                            "created_by_id": "user_123",
+                                            "id": "asset_92492920-d118-42d3-95b4-00eccfe0754f",
+                                            "is_sub_session": false,
+                                            "last_message_preview": "Here is the summary you asked for...",
+                                            "model": "claude-sonnet-5",
+                                            "num_messages": 24,
+                                            "session_type": "session",
+                                            "source_channel": "web",
+                                            "state": "completed",
+                                            "thread_id": "92492920-d118-42d3-95b4-00eccfe0754f",
+                                            "title": "Quarterly report deep dive",
+                                            "total_cost_usd": 0.42,
+                                            "updated_at": "2025-06-01T11:35:00Z",
+                                            "workspace_id": "workspace_abc123"
+                                        }
+                                    ],
+                                    "limit": 50,
+                                    "offset": 0,
+                                    "total": 42
+                                },
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginatedSessionsOut"
+                                }
+                            }
+                        },
+                        "description": "Successfully retrieved paginated list of sessions"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyHeader": []
+                    },
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "List sessions",
+                "x-fern-audiences": [
+                    "public"
+                ],
+                "x-fern-availability": "beta",
+                "x-fern-pagination": {
+                    "offset": "$request.offset",
+                    "results": "$response.items"
+                },
+                "x-fern-sdk-group-name": "sessions",
+                "x-fern-sdk-method-name": "list"
+            }
+        },
+        "/api/v0/sessions/{asset_id}": {
+            "get": {
+                "description": "Retrieve a single session by its asset ID, including state, originating channel, agent/model, message count, and cost.",
+                "operationId": "get_session_v0_api_v0_sessions__asset_id__get",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "asset_id",
+                        "required": true,
+                        "schema": {
+                            "title": "Asset Id",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Unique identifier of the session asset to retrieve",
+                        "example": "asset_92492920-d118-42d3-95b4-00eccfe0754f",
+                        "name": "asset_id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SessionOut"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthorizedAssetAccessError"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AssetNotFoundError"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyHeader": []
+                    },
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Get session by ID",
+                "x-fern-audiences": [
+                    "public"
+                ],
+                "x-fern-availability": "beta",
+                "x-fern-sdk-group-name": "sessions",
+                "x-fern-sdk-method-name": "get"
+            }
+        },
+        "/api/v0/sessions/{asset_id}/download": {
+            "get": {
+                "description": "Download a session's message history. Formats: 'trace' (default \u2014 every message fully serialized, including tool calls, tool results, reasoning, and token usage), 'messages' (just the user/agent conversation turns as plain text), 'markdown' (the conversation rendered as a readable transcript), or 'stats' (aggregate metrics: message/tool-call counts, token usage, duration). All formats return JSON except 'markdown', which returns text/markdown.",
+                "operationId": "download_session_v0_api_v0_sessions__asset_id__download_get",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "asset_id",
+                        "required": true,
+                        "schema": {
+                            "title": "Asset Id",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Which representation to download: 'trace' (full trace with all tool calls), 'messages' (user/agent turns only), 'markdown' (readable transcript), or 'stats' (aggregate metrics)",
+                        "in": "query",
+                        "name": "export_format",
+                        "required": false,
+                        "schema": {
+                            "default": "trace",
+                            "description": "Which representation to download: 'trace' (full trace with all tool calls), 'messages' (user/agent turns only), 'markdown' (readable transcript), or 'stats' (aggregate metrics)",
+                            "enum": [
+                                "trace",
+                                "messages",
+                                "markdown",
+                                "stats"
+                            ],
+                            "title": "Export Format",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Unique identifier of the session asset to download",
+                        "example": "asset_92492920-d118-42d3-95b4-00eccfe0754f",
+                        "name": "asset_id"
+                    },
+                    {
+                        "description": "Which representation to download: 'trace' (full trace, default), 'messages' (user/agent turns only), 'markdown' (readable transcript), or 'stats' (aggregate metrics).",
+                        "example": "messages",
+                        "name": "export_format"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {},
+                            "text/markdown": {}
+                        },
+                        "description": "The session history in the requested format."
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthorizedAssetAccessError"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AssetNotFoundError"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyHeader": []
+                    },
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Download session history",
+                "x-fern-audiences": [
+                    "public"
+                ],
+                "x-fern-availability": "beta",
+                "x-fern-sdk-group-name": "sessions",
+                "x-fern-sdk-method-name": "download"
             }
         },
         "/api/v0/threads/batch-stop": {
