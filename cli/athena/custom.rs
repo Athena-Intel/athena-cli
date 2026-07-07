@@ -20,6 +20,13 @@
 //! paginate → select → download loop. They drive the same spec endpoints
 //! through the CLI's executor, so they inherit the same
 //! auth/retries/TLS/`--base-url` behavior.
+//!
+//! `assets download` streams `GET /api/v0/assets/{asset_id}/download` — the
+//! asset's authoritative file (Athena documents as .docx, spreadsheets as
+//! .xlsx, presentations as .pptx, uploads as original bytes) — to a local
+//! file, a directory, or stdout. Remove it once the generated SDK/spec gains
+//! an `assets download` method (it will collide with this custom command at
+//! build time).
 
 use std::any::Any;
 use std::io::Write as _;
@@ -210,6 +217,43 @@ pub fn register(app: CliApp) -> CliApp {
             "List read_asset capabilities (formats, anchors, pagination) for every asset type",
         ),
         handle_read_asset_capabilities,
+    )
+    .command_under(
+        &["assets"],
+        clap::Command::new("download")
+            .about("Download an asset's file in its authoritative format")
+            .long_about(
+                "Download an asset's file exactly as Athena stores or serves it — \
+                 no type coercion, no pagination.\n\n\
+                 Native collaborative assets convert from live content: Athena \
+                 documents download as .docx, spreadsheets as .xlsx (round-trip \
+                 faithful — string identifiers and leading zeros survive), PPTX \
+                 Studio presentations as .pptx, Word documents as .docx, notebooks \
+                 as .ipynb. Uploaded files stream their original bytes.\n\n\
+                 With no --output the file is written to the current directory \
+                 under the server-provided filename. --output may be a file path, \
+                 a directory, or '-' to stream the bytes to stdout.",
+            )
+            .arg(
+                clap::Arg::new("asset_id")
+                    .required(true)
+                    .help("Asset id to download"),
+            )
+            .arg(
+                clap::Arg::new("output")
+                    .short('o')
+                    .long("output")
+                    .help(
+                        "Destination file path, directory, or '-' for stdout \
+                         (default: server-provided filename in the current directory)",
+                    ),
+            ),
+        Box::new(|matches, ctx| {
+            let ctx = ctx
+                .downcast_ref::<AppContext>()
+                .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
+            download_asset_file(matches, ctx)
+        }),
     )
     .command_under(
         &["meetings"],
@@ -595,6 +639,177 @@ fn download_to_file(
 }
 
 // ---------------------------------------------------------------------------
+// assets download — stream an asset's authoritative file to disk or stdout
+// ---------------------------------------------------------------------------
+
+/// Percent-decode a Content-Disposition filename value ("My%20File.xlsx").
+fn percent_decode_filename(value: &str) -> String {
+    percent_encoding::percent_decode_str(value)
+        .decode_utf8()
+        .map(|decoded| decoded.to_string())
+        .unwrap_or_else(|_| value.to_string())
+}
+
+/// Extract a filename from a Content-Disposition header, preferring the
+/// RFC 5987 `filename*=` form over the plain `filename=` form.
+fn filename_from_content_disposition(header: &str) -> Option<String> {
+    for part in header.split(';') {
+        let part = part.trim();
+        if let Some(rest) = part.strip_prefix("filename*=") {
+            let rest = rest.trim_matches('"');
+            let encoded = rest.find("''").map(|idx| &rest[idx + 2..]).unwrap_or(rest);
+            if !encoded.is_empty() {
+                return Some(percent_decode_filename(encoded));
+            }
+        }
+    }
+    for part in header.split(';') {
+        let part = part.trim();
+        if let Some(rest) = part.strip_prefix("filename=") {
+            let rest = rest.trim_matches('"');
+            if !rest.is_empty() {
+                return Some(percent_decode_filename(rest));
+            }
+        }
+    }
+    None
+}
+
+/// Reduce a server-provided filename to a safe local basename.
+fn safe_local_filename(raw: &str) -> Option<String> {
+    let base = raw.rsplit(['/', '\\']).next().unwrap_or("");
+    let cleaned: String = base.chars().filter(|c| !c.is_control()).collect();
+    let cleaned = cleaned.trim();
+    if cleaned.is_empty() || cleaned == "." || cleaned == ".." {
+        None
+    } else {
+        Some(cleaned.to_string())
+    }
+}
+
+/// Fallback file extension for a response content type.
+fn extension_for_content_type(content_type: &str) -> &'static str {
+    let base = content_type.split(';').next().unwrap_or("").trim();
+    match base {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ".docx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => ".xlsx",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation" => ".pptx",
+        "application/pdf" => ".pdf",
+        "application/zip" => ".zip",
+        "application/json" => ".json",
+        "application/sql" => ".sql",
+        "application/x-ipynb+json" => ".ipynb",
+        "text/markdown" => ".md",
+        "text/csv" => ".csv",
+        "text/plain" => ".txt",
+        "video/mp4" => ".mp4",
+        _ => ".bin",
+    }
+}
+
+/// Handle `athena assets download <ASSET_ID> [-o PATH|DIR|-]`.
+///
+/// Streams `GET /api/v0/assets/{asset_id}/download` through the CLI executor
+/// so the request inherits auth, TLS, retries, and any --base-url override.
+fn download_asset_file(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(), CliError> {
+    let asset_id = matches
+        .get_one::<String>("asset_id")
+        .expect("asset_id is a required arg")
+        .clone();
+    let output = matches.get_one::<String>("output").cloned();
+
+    let root = ctx.spec().root_url.trim_end_matches('/').to_string();
+    let url = format!("{root}/api/v0/assets/{asset_id}/download");
+    let executor = ctx.build_sdk_executor();
+
+    tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async move {
+            let request = reqwest::Client::new()
+                .get(&url)
+                .build()
+                .map_err(|e| CliError::Other(anyhow::anyhow!("bad request: {e}")))?;
+            let mut response = SdkRequestExecutor::execute(&*executor, request)
+                .await
+                .map_err(|e| e.into_cli_error())?;
+
+            let status = response.status();
+            if !status.is_success() {
+                let body = response.text().await.unwrap_or_default();
+                return Err(CliError::Api {
+                    code: status.as_u16(),
+                    message: truncate(&body, 300),
+                    reason: "httpError".into(),
+                });
+            }
+
+            // `-o -`: stream raw bytes to stdout, print nothing else.
+            if output.as_deref() == Some("-") {
+                let mut stdout = std::io::stdout().lock();
+                while let Some(chunk) = response
+                    .chunk()
+                    .await
+                    .map_err(|e| CliError::Other(anyhow::anyhow!("download failed: {e}")))?
+                {
+                    stdout
+                        .write_all(&chunk)
+                        .map_err(|e| CliError::Other(anyhow::anyhow!("write failed: {e}")))?;
+                }
+                stdout
+                    .flush()
+                    .map_err(|e| CliError::Other(anyhow::anyhow!("write failed: {e}")))?;
+                return Ok(());
+            }
+
+            let server_filename = response
+                .headers()
+                .get(reqwest::header::CONTENT_DISPOSITION)
+                .and_then(|value| value.to_str().ok())
+                .and_then(filename_from_content_disposition)
+                .and_then(|name| safe_local_filename(&name));
+            let content_type = response
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            let filename = server_filename.unwrap_or_else(|| {
+                format!("{asset_id}{}", extension_for_content_type(&content_type))
+            });
+
+            let dest: PathBuf = match output {
+                None => PathBuf::from(&filename),
+                Some(path_text) => {
+                    let path = PathBuf::from(&path_text);
+                    if path_text.ends_with('/') || path.is_dir() {
+                        path.join(&filename)
+                    } else {
+                        path
+                    }
+                }
+            };
+
+            let mut file = std::fs::File::create(&dest).map_err(|e| {
+                CliError::Other(anyhow::anyhow!("cannot create {}: {e}", dest.display()))
+            })?;
+            while let Some(chunk) = response
+                .chunk()
+                .await
+                .map_err(|e| CliError::Other(anyhow::anyhow!("download failed: {e}")))?
+            {
+                file.write_all(&chunk)
+                    .map_err(|e| CliError::Other(anyhow::anyhow!("write failed: {e}")))?;
+            }
+            file.flush()
+                .map_err(|e| CliError::Other(anyhow::anyhow!("write failed: {e}")))?;
+
+            // Print the written path so scripts can capture it.
+            println!("{}", dest.display());
+            Ok(())
+        })
+    })
+}
+
+// ---------------------------------------------------------------------------
 // sessions browse — interactive search / paginate / select / download
 // ---------------------------------------------------------------------------
 
@@ -828,4 +1043,71 @@ fn session_export_filename(title: &str, suffix: &str) -> String {
 #[allow(dead_code)]
 fn _assert_context_downcast(ctx: &dyn Any) -> bool {
     ctx.is::<AppContext>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn content_disposition_plain_filename() {
+        assert_eq!(
+            filename_from_content_disposition("attachment; filename=\"report.pdf\""),
+            Some("report.pdf".to_string()),
+        );
+    }
+
+    #[test]
+    fn content_disposition_percent_encoded_filename() {
+        assert_eq!(
+            filename_from_content_disposition(
+                "attachment; filename=\"Fidelity%20Sheet.xlsx\""
+            ),
+            Some("Fidelity Sheet.xlsx".to_string()),
+        );
+    }
+
+    #[test]
+    fn content_disposition_prefers_rfc5987_form() {
+        assert_eq!(
+            filename_from_content_disposition(
+                "attachment; filename=\"fallback.docx\"; filename*=UTF-8''r%C3%A9sum%C3%A9.docx"
+            ),
+            Some("résumé.docx".to_string()),
+        );
+    }
+
+    #[test]
+    fn content_disposition_without_filename() {
+        assert_eq!(filename_from_content_disposition("inline"), None);
+    }
+
+    #[test]
+    fn safe_local_filename_strips_path_components() {
+        assert_eq!(
+            safe_local_filename("../../etc/passwd"),
+            Some("passwd".to_string()),
+        );
+        assert_eq!(
+            safe_local_filename("C:\\temp\\deck.pptx"),
+            Some("deck.pptx".to_string()),
+        );
+        assert_eq!(safe_local_filename(""), None);
+        assert_eq!(safe_local_filename(".."), None);
+    }
+
+    #[test]
+    fn extension_fallbacks_cover_office_types() {
+        assert_eq!(
+            extension_for_content_type(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            ".xlsx",
+        );
+        assert_eq!(extension_for_content_type("application/pdf"), ".pdf");
+        assert_eq!(
+            extension_for_content_type("application/x-unknown; charset=utf-8"),
+            ".bin",
+        );
+    }
 }
