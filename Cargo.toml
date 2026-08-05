@@ -15,13 +15,9 @@ name = "fern_cli_sdk"
 path = "src/lib.rs"
 
 [[bin]]
-# NOTE: the generator derives this from the API display name ("Athena Intelligence
-# API") and rewrites this block on every regeneration, so it comes back as
-# `athena-intelligence-api` each cycle — re-pin it. `athena` is the released command:
-# .github/workflows/build-cli.yml does `cargo build --bin athena` and publishes
-# `athena-*` artifacts, so leaving the generated name fails the release build loudly
-# (by design) rather than shipping a renamed command. There is no app/binary-name knob
-# in generators.yml — see Athena-Intel/athena-fern-config#194.
+# Re-applied by .github/workflows/regenerate-cli.yml — the generator derives this
+# from the API display name and rewrites it every cycle. `athena` is the released
+# command name (build-cli.yml builds --bin athena and publishes athena-* artifacts).
 name = "athena"
 path = "cli/athena-intelligence-api/main.rs"
 
@@ -48,10 +44,8 @@ anyhow = "1"
 base64 = "0.22"
 bytes = "1"
 clap = { version = "4", features = ["derive", "string", "env"] }
-# NOTE: used only by cli/athena-intelligence-api/custom.rs (interactive
-# `meetings browse` / `sessions browse`). Dropped on every regeneration — re-add it.
-# Cargo.toml cannot go in .fernignore: the generator owns the workspace deps and the
-# crate paths it renames.
+# Re-applied by .github/workflows/regenerate-cli.yml — required by
+# cli/athena-intelligence-api/custom.rs, dropped by every regeneration.
 dialoguer = "0.11"
 clap_complete = "4"
 clap_mangen = "0.2"
