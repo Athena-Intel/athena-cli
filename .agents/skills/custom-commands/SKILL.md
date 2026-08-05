@@ -1,13 +1,13 @@
 ---
-name: athena-custom-commands
-description: How to author custom commands for the athena CLI using the co-generated SDK.
+name: athena-intelligence-api-custom-commands
+description: How to author custom commands for the athena-intelligence-api CLI using the co-generated SDK.
 ---
 
-# Custom Commands for `athena`
+# Custom Commands for `athena-intelligence-api`
 
 ## Overview
 
-The `athena` CLI supports user-authored custom commands that are
+The `athena-intelligence-api` CLI supports user-authored custom commands that are
 compiled into the binary alongside the auto-generated API commands.
 Custom commands get a fully-wired SDK client that inherits the CLI's
 auth, retries, TLS, base URL, and global headers — zero configuration required.
@@ -15,34 +15,34 @@ auth, retries, TLS, base URL, and global headers — zero configuration required
 ## Architecture
 
 ```
-cli/athena/custom.rs    ← Your command handlers (protected by .fernignore)
-cli/athena/sdk_glue.rs  ← Generated bridge: sdk_client() + block_on()
-cli/athena/main.rs      ← Generated entrypoint (calls custom::register)
-athena-sdk/             ← Co-generated typed SDK crate
-athena-types/           ← Co-generated typed model crate
+cli/athena-intelligence-api/custom.rs    ← Your command handlers (protected by .fernignore)
+cli/athena-intelligence-api/sdk.rs       ← Generated bridge: client() + block_on()
+cli/athena-intelligence-api/main.rs      ← Generated entrypoint (calls custom::register)
+athena-intelligence-api-sdk/             ← Co-generated typed SDK crate
+athena-intelligence-api-types/           ← Co-generated typed model crate
 ```
 
 ## Adding a Custom Command
 
-### 1. Edit `cli/athena/custom.rs`
+### 1. Edit `cli/athena-intelligence-api/custom.rs`
 
 This file is protected by `.fernignore` — `fern generate` will never
 overwrite it. Register commands in the `register()` function:
 
 ```rust
-use athena_sdk::api::*;
+use athena_intelligence_api_sdk::api::*;
 
 pub fn register(app: CliApp) -> CliApp {
     let app = app.command(
-        clap::Command::new("get")
-            .about("Get asset by ID")
+        clap::Command::new("get-config")
+            .about("Get AOP configuration")
             .arg(clap::Arg::new("asset_id").required(true))
         ,
         |matches, ctx| {
             let asset_id = matches.get_one::<String>("asset_id").unwrap();
-            let client = super::sdk_glue::sdk_client(ctx);
-            let result = super::sdk_glue::block_on(
-                client.assets.get(asset_id),
+            let client = super::sdk::client(ctx);
+            let result = super::sdk::block_on(
+                client.aop.get_config(asset_id),
             )?;
             println!("{}", serde_json::to_string_pretty(&result).unwrap());
             Ok(())
@@ -55,43 +55,58 @@ pub fn register(app: CliApp) -> CliApp {
 Then build and test:
 ```bash
 cargo build
-athena get <asset_id>
+athena-intelligence-api get-config <asset_id>
 ```
 
 ### 2. Available SDK Clients
 
-The `sdk_glue::sdk_client(ctx)` call returns a `athena_sdk::api::Client`
+The `super::sdk::client(ctx)` call returns a `athena_intelligence_api_sdk::api::Client`
 with the following sub-clients:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `client.agents` | `athena_sdk::api::AgentsClient` | agents operations |
-| `client.aop` | `athena_sdk::api::AopClient` | aop operations |
-| `client.assets` | `athena_sdk::api::AssetsClient` | assets operations |
-| `client.databases` | `athena_sdk::api::DatabasesClient` | databases operations |
-| `client.users` | `athena_sdk::api::UsersClient` | users operations |
-| `client.query` | `athena_sdk::api::QueryClient` | query operations |
-| `client.semantic_model` | `athena_sdk::api::SemanticModelClient` | semantic_model operations |
-| `client.threads` | `athena_sdk::api::ThreadsClient` | threads operations |
-| `client.tools` | `athena_sdk::api::ToolsClient` | tools operations |
+| `client.agents` | `athena_intelligence_api_sdk::api::AgentsClient` | agents operations |
+| `client.drive` | `athena_intelligence_api_sdk::api::DriveClient` | drive operations |
+| `client.general` | `athena_intelligence_api_sdk::api::GeneralClient` | general operations |
+| `client.research` | `athena_intelligence_api_sdk::api::ResearchClient` | research operations |
+| `client.sql` | `athena_intelligence_api_sdk::api::SqlClient` | sql operations |
+| `client.aop` | `athena_intelligence_api_sdk::api::AopClient` | aop operations |
+| `client.assets` | `athena_intelligence_api_sdk::api::AssetsClient` | assets operations |
+| `client.collab_agents` | `athena_intelligence_api_sdk::api::CollabAgentsClient` | collab_agents operations |
+| `client.computer` | `athena_intelligence_api_sdk::api::ComputerClient` | computer operations |
+| `client.databases` | `athena_intelligence_api_sdk::api::DatabasesClient` | databases operations |
+| `client.users` | `athena_intelligence_api_sdk::api::UsersClient` | users operations |
+| `client.meetings` | `athena_intelligence_api_sdk::api::MeetingsClient` | meetings operations |
+| `client.query` | `athena_intelligence_api_sdk::api::QueryClient` | query operations |
+| `client.semantic_model` | `athena_intelligence_api_sdk::api::SemanticModelClient` | semantic_model operations |
+| `client.sessions` | `athena_intelligence_api_sdk::api::SessionsClient` | sessions operations |
+| `client.threads` | `athena_intelligence_api_sdk::api::ThreadsClient` | threads operations |
+| `client.toolkits` | `athena_intelligence_api_sdk::api::ToolkitsClient` | toolkits operations |
+| `client.tools` | `athena_intelligence_api_sdk::api::ToolsClient` | tools operations |
+| `client.calendar` | `athena_intelligence_api_sdk::api::CalendarClient` | calendar operations |
+| `client.email` | `athena_intelligence_api_sdk::api::EmailClient` | email operations |
+| `client.sheets` | `athena_intelligence_api_sdk::api::SheetsClient` | sheets operations |
+| `client.structured_data_extractor` | `athena_intelligence_api_sdk::api::StructuredDataExtractorClient` | structured_data_extractor operations |
+| `client.tasks` | `athena_intelligence_api_sdk::api::TasksClient` | tasks operations |
+| `client.workspaces` | `athena_intelligence_api_sdk::api::WorkspacesClient` | workspaces operations |
 
 ### 3. Key Patterns
 
 **Get the SDK client** (execution-sharing, fully authenticated):
 ```rust
-let client = super::sdk_glue::sdk_client(ctx);
+let client = super::sdk::client(ctx);
 ```
 
 **Run an async SDK call from a sync handler:**
 ```rust
-let result = super::sdk_glue::block_on(
+let result = super::sdk::block_on(
     client.some_resource.some_method(args),
 )?;
 ```
 
 **Use typed models for request/response serialization:**
 ```rust
-use athena_sdk::api::*;
+use athena_intelligence_api_sdk::api::*;
 ```
 
 ### 4. Authentication
@@ -99,7 +114,7 @@ use athena_sdk::api::*;
 Custom commands automatically inherit the CLI's authentication.
 The following auth schemes are configured:
 
-- **APIKeyHeader** (header): env `ATHENA_API_KEY`
+- **APIKeyHeader** (header): env `ATHENA_INTELLIGENCE_API_API_KEY`
 
 No manual auth wiring is needed in custom command handlers.
 
@@ -107,11 +122,11 @@ No manual auth wiring is needed in custom command handlers.
 
 | File | Regenerated? | Notes |
 |------|-------------|-------|
-| `cli/athena/custom.rs` | **No** | Protected by `.fernignore` |
-| `cli/athena/sdk_glue.rs` | Yes | Bridges AppContext → SDK client |
-| `cli/athena/main.rs` | Yes | Calls `custom::register(app)` |
-| `athena-sdk/` | Yes | Co-generated typed SDK crate |
-| `athena-types/` | Yes | Co-generated typed models |
+| `cli/athena-intelligence-api/custom.rs` | **No** | Protected by `.fernignore` |
+| `cli/athena-intelligence-api/sdk.rs` | Yes | Bridges AppContext → SDK client |
+| `cli/athena-intelligence-api/main.rs` | Yes | Calls `custom::register(app)` |
+| `athena-intelligence-api-sdk/` | Yes | Co-generated typed SDK crate |
+| `athena-intelligence-api-types/` | Yes | Co-generated typed models |
 
 After running `fern generate`, your `custom.rs` is preserved. All
 generated code (SDK, types, glue, main.rs) is updated to match the
@@ -125,8 +140,8 @@ sub-clients), update your `custom.rs` to match.
 cargo build
 
 # Run your custom command
-athena <your-command> [args]
+athena-intelligence-api <your-command> [args]
 
 # Run with verbose output for debugging
-RUST_LOG=debug athena <your-command> [args]
+RUST_LOG=debug athena-intelligence-api <your-command> [args]
 ```

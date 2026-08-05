@@ -17,17 +17,25 @@ Command-line interface for the Athena Intelligence API.
 
 ## Installation
 
-Install the [Rust toolchain](https://rustup.rs/) if you don't have it:
+### Shell (macOS / Linux)
 
 ```bash
-curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/<org>/<repo>/releases/latest/download/athena-intelligence-api-installer.sh | sh
 ```
 
-Then build from source:
+### PowerShell (Windows)
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://github.com/<org>/<repo>/releases/latest/download/athena-intelligence-api-installer.ps1 | iex"
+```
+
+### Build from source
+
+If you prefer to build from source, install the [Rust toolchain](https://rustup.rs/) and run:
 
 ```bash
 cargo build --release
-./target/release/athena --help
+./target/release/athena-intelligence-api --help
 ```
 
 ## Authentication
@@ -35,7 +43,7 @@ cargo build --release
 Set the following environment variable(s) before using the CLI:
 
 ```bash
-export ATHENA_API_KEY="<your api key>"
+export ATHENA_INTELLIGENCE_API_API_KEY="<your api key>"
 ```
 
 A `.env` file in the working directory is also supported — the CLI auto-loads it on startup.
@@ -45,25 +53,25 @@ A `.env` file in the working directory is also supported — the CLI auto-loads 
 List available commands:
 
 ```bash
-athena --help
+athena-intelligence-api --help
 ```
 
 Call an API endpoint:
 
 ```bash
-athena <resource> <method>
+athena-intelligence-api <resource> <method>
 ```
 
-Run `athena <resource> --help` to see available methods for a resource.
+Run `athena-intelligence-api <resource> --help` to see available methods for a resource.
 
 ## Usage
 
-Every API resource appears as a subcommand (e.g. `athena <resource> <method>`). Run `athena <resource> --help` to see available methods.
+Every API resource appears as a subcommand (e.g. `athena-intelligence-api <resource> <method>`). Run `athena-intelligence-api <resource> --help` to see available methods.
 
 Provide request parameters as flags or as JSON:
 
 ```bash
-athena <resource> <method> --json '{"key": "value"}'
+athena-intelligence-api <resource> <method> --json '{"key": "value"}'
 ```
 
 ## Documentation
@@ -92,11 +100,11 @@ These flags are available on every operation:
 
 | Variable | Description |
 |----------|-------------|
-| `ATHENA_BASE_URL` | Override the API base URL |
-| `ATHENA_CA_BUNDLE` | Path to PEM file with extra trust roots (or `SSL_CERT_FILE`) |
-| `ATHENA_INSECURE=1` | Skip TLS verification (debugging only) |
-| `ATHENA_PROXY` | HTTP(S) proxy URL |
-| `ATHENA_TIMEOUT_SECS` | Total request timeout in seconds |
+| `ATHENA_INTELLIGENCE_API_BASE_URL` | Override the API base URL |
+| `ATHENA_INTELLIGENCE_API_CA_BUNDLE` | Path to PEM file with extra trust roots (or `SSL_CERT_FILE`) |
+| `ATHENA_INTELLIGENCE_API_INSECURE=1` | Skip TLS verification (debugging only) |
+| `ATHENA_INTELLIGENCE_API_PROXY` | HTTP(S) proxy URL |
+| `ATHENA_INTELLIGENCE_API_TIMEOUT_SECS` | Total request timeout in seconds |
 
 Standard environment variables (`HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` / `SSL_CERT_FILE`) are also honored.
 
@@ -106,10 +114,10 @@ Use the global `--format` flag to control output. Supported values: `json` (defa
 
 ```bash
 # Pipe JSON output through jq
-athena <resource> <method> --format json | jq
+athena-intelligence-api <resource> <method> --format json | jq
 
 # Machine-readable catalog of every operation
-athena --help --format json | jq 'length'
+athena-intelligence-api --help --format json | jq 'length'
 ```
 
 ### Shell completion
@@ -117,6 +125,6 @@ athena --help --format json | jq 'length'
 Generate shell completion scripts:
 
 ```bash
-athena completion <bash|zsh|fish|powershell>
+athena-intelligence-api completion <bash|zsh|fish|powershell>
 ```
 

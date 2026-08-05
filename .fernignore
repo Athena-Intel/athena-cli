@@ -1,2 +1,16 @@
 # Files owned by the user — fern generate will not overwrite these.
-cli/athena/custom.rs
+#
+# `custom.rs` must live in the directory the generated `[[bin]]` builds from,
+# because generated `main.rs` reaches it via `mod custom;`. When the generator
+# renames that directory, this path has to move with it — otherwise the file
+# survives regeneration while silently dropping out of the build. That is exactly
+# what happened on 2026-08-05: this entry still read `cli/athena/custom.rs`, the
+# file was duly preserved, and the binary moved to `cli/athena-intelligence-api/`
+# and compiled against the generator's 1.6 KB stub instead. It still compiled, so
+# nothing failed — the custom commands just stopped existing.
+cli/athena-intelligence-api/custom.rs
+
+# CI is never generated. Without this the whole directory is wiped on every
+# regeneration — including build-cli.yml, the workflow that builds and releases
+# the binaries, and the only thing that would have caught the loss above.
+.github/

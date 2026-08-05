@@ -1,33 +1,40 @@
 # Athena Intelligence API CLI Reference
 
-Full command reference for `athena`.
+Full command reference for `athena-intelligence-api`.
 
 ## Commands
 
-- [`athena agents`](#athena-agents)
-- [`athena agents drive`](#athena-agents-drive)
-- [`athena agents general`](#athena-agents-general)
-- [`athena agents research`](#athena-agents-research)
-- [`athena agents sql`](#athena-agents-sql)
-- [`athena aop`](#athena-aop)
-- [`athena assets`](#athena-assets)
-- [`athena databases`](#athena-databases)
-- [`athena query`](#athena-query)
-- [`athena semantic-model`](#athena-semantic-model)
-- [`athena threads`](#athena-threads)
-- [`athena tools`](#athena-tools)
-- [`athena tools calendar`](#athena-tools-calendar)
-- [`athena tools email`](#athena-tools-email)
-- [`athena tools sheets`](#athena-tools-sheets)
-- [`athena tools structured-data-extractor`](#athena-tools-structured-data-extractor)
-- [`athena tools tasks`](#athena-tools-tasks)
-- [`athena users`](#athena-users)
+- [`athena-intelligence-api agents`](#athena-intelligence-api-agents)
+- [`athena-intelligence-api agents drive`](#athena-intelligence-api-agents-drive)
+- [`athena-intelligence-api agents general`](#athena-intelligence-api-agents-general)
+- [`athena-intelligence-api agents research`](#athena-intelligence-api-agents-research)
+- [`athena-intelligence-api agents sql`](#athena-intelligence-api-agents-sql)
+- [`athena-intelligence-api aop`](#athena-intelligence-api-aop)
+- [`athena-intelligence-api api`](#athena-intelligence-api-api)
+- [`athena-intelligence-api assets`](#athena-intelligence-api-assets)
+- [`athena-intelligence-api collab-agents`](#athena-intelligence-api-collab-agents)
+- [`athena-intelligence-api computer`](#athena-intelligence-api-computer)
+- [`athena-intelligence-api databases`](#athena-intelligence-api-databases)
+- [`athena-intelligence-api meetings`](#athena-intelligence-api-meetings)
+- [`athena-intelligence-api query`](#athena-intelligence-api-query)
+- [`athena-intelligence-api semantic-model`](#athena-intelligence-api-semantic-model)
+- [`athena-intelligence-api sessions`](#athena-intelligence-api-sessions)
+- [`athena-intelligence-api threads`](#athena-intelligence-api-threads)
+- [`athena-intelligence-api toolkits`](#athena-intelligence-api-toolkits)
+- [`athena-intelligence-api tools`](#athena-intelligence-api-tools)
+- [`athena-intelligence-api tools calendar`](#athena-intelligence-api-tools-calendar)
+- [`athena-intelligence-api tools email`](#athena-intelligence-api-tools-email)
+- [`athena-intelligence-api tools sheets`](#athena-intelligence-api-tools-sheets)
+- [`athena-intelligence-api tools structured-data-extractor`](#athena-intelligence-api-tools-structured-data-extractor)
+- [`athena-intelligence-api tools tasks`](#athena-intelligence-api-tools-tasks)
+- [`athena-intelligence-api users`](#athena-intelligence-api-users)
+- [`athena-intelligence-api workspaces`](#athena-intelligence-api-workspaces)
 
 ---
 
-### `athena agents`
+### `athena-intelligence-api agents`
 
-#### `athena agents invoke-by-id` `[BETA]`
+#### `athena-intelligence-api agents invoke-by-id` `[BETA]`
 
 Coming soon!
 
@@ -46,9 +53,9 @@ and expected responses.
 
 ---
 
-### `athena agents drive`
+### `athena-intelligence-api agents drive`
 
-#### `athena agents drive invoke` `[BETA]`
+#### `athena-intelligence-api agents drive invoke` `[BETA]`
 
 Coming soon! Manage folders and search for files in the internal drive.
 
@@ -60,9 +67,9 @@ Coming soon! Manage folders and search for files in the internal drive.
 
 ---
 
-### `athena agents general`
+### `athena-intelligence-api agents general`
 
-#### `athena agents general batch` `[BETA]`
+#### `athena-intelligence-api agents general batch` `[BETA]`
 
 Coming soon! Call the general agent with batched requests and return the results.
 
@@ -72,7 +79,7 @@ Coming soon! Call the general agent with batched requests and return the results
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena agents general invoke` `[BETA]`
+#### `athena-intelligence-api agents general invoke` `[BETA]`
 
 Call the general Athena agent synchronously.
 
@@ -85,7 +92,7 @@ and return the result.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena agents general stream-events` `[BETA]`
+#### `athena-intelligence-api agents general stream-events` `[BETA]`
 
 Coming soon! Call the general agent and stream events for real-time chat applications.
 
@@ -97,9 +104,9 @@ Coming soon! Call the general agent and stream events for real-time chat applica
 
 ---
 
-### `athena agents research`
+### `athena-intelligence-api agents research`
 
-#### `athena agents research invoke` `[BETA]`
+#### `athena-intelligence-api agents research invoke` `[BETA]`
 
 Coming soon! Conduct research using web and other sources.
 
@@ -111,9 +118,9 @@ Coming soon! Conduct research using web and other sources.
 
 ---
 
-### `athena agents sql`
+### `athena-intelligence-api agents sql`
 
-#### `athena agents sql invoke` `[BETA]`
+#### `athena-intelligence-api agents sql invoke` `[BETA]`
 
 Coming soon! Generate, execute, and test SQL queries. Returns an asset ID for the query object.
 
@@ -125,9 +132,19 @@ Coming soon! Generate, execute, and test SQL queries. Returns an asset ID for th
 
 ---
 
-### `athena aop`
+### `athena-intelligence-api aop`
 
-#### `athena aop execute` `[DEPRECATED]`
+#### `athena-intelligence-api aop create` `[BETA]`
+
+Create a new AOP (Agent Operating Procedure) asset with the given configuration. The created AOP can then be executed via /aop/execute-async, inspected via /aop/{asset_id}/config, and updated via PUT /aop/{asset_id}/config. Use [[ placeholder ]] syntax in the prompt for user inputs supplied at execution time.
+
+`POST /api/v0/aop/create`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api aop execute` `[DEPRECATED]`
 
 DEPRECATED: This endpoint is deprecated. Please use /aop/execute-async instead for better performance and reliability. Execute an existing Agent Operating Procedure (AOP) asset with optional user inputs. AOPs are pre-configured AI workflows that can perform complex tasks like research, analysis, and content generation.
 
@@ -137,7 +154,7 @@ DEPRECATED: This endpoint is deprecated. Please use /aop/execute-async instead f
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena aop execute-async` `[BETA]`
+#### `athena-intelligence-api aop execute-async` `[BETA]`
 
 Start execution of an Agent Operating Procedure (AOP) asset asynchronously. Returns immediately with a thread_id for tracking execution progress without waiting for completion.
 
@@ -147,7 +164,44 @@ Start execution of an Agent Operating Procedure (AOP) asset asynchronously. Retu
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena aop retry`
+#### `athena-intelligence-api aop get-config` `[BETA]`
+
+Retrieve the full configuration of an AOP asset by its ID. Returns prompt, agent config, structured output schema, and other settings.
+
+`GET /api/v0/aop/{asset_id}/config`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | No | Unique identifier of the AOP asset |
+
+#### `athena-intelligence-api aop update-config` `[BETA]`
+
+Overwrite the configuration of an existing AOP asset. Replaces the entire AOP configuration (prompt, agent config, structured output, etc.) with the provided values. Fields not included in the request body will be reset to their defaults, except user_notification_configs, which is preserved from the existing configuration when omitted; send an explicit null to clear it.
+
+`PUT /api/v0/aop/{asset_id}/config`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | No | Unique identifier of the AOP asset to update |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
+### `athena-intelligence-api api`
+
+#### `athena-intelligence-api api query-range-api-v0-tools-sheets-range-query-post`
+
+Query a range of cells from an Athena spreadsheet.
+
+`POST /api/v0/tools/sheets/range/query`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api api retry-aop-execution-api-v0-aop-retry-post`
 
 Retry a failed AOP execution.
 
@@ -162,9 +216,9 @@ type, then sends a new Inngest execution event. Auth: session owner or admin.
 
 ---
 
-### `athena assets`
+### `athena-intelligence-api assets`
 
-#### `athena assets archive` `[BETA]`
+#### `athena-intelligence-api assets archive` `[BETA]`
 
 Archive an asset by its ID. The asset will be hidden from active listings (e.g. GET /assets with default filters) but can still be retrieved directly by ID. For folders, all children are also archived recursively. For meetings, associated sub-assets (recordings, transcripts) are archived as well. Only the creator of the asset can archive it.
 
@@ -175,9 +229,19 @@ Archive an asset by its ID. The asset will be hidden from active listings (e.g. 
 | `--asset-id` | `string` | Yes |  |
 | `--asset-id` | `string` | No | Unique identifier of the asset to archive |
 
-#### `athena assets create` `[BETA]`
+#### `athena-intelligence-api assets convert-excel-to-sheet` `[BETA]`
 
-Create a new asset such as a spreadsheet, document, or folder in your workspace. This endpoint uses internal GraphQL mutations to create assets with proper permissions and workspace integration.
+Convert an uploaded Excel (.xlsx) asset into a new, editable Athena sheet asset — the same conversion the Athena UI performs. The new sheet is created alongside the source Excel asset. Pass run_async for large workbooks to get the sheet immediately and poll athena_metadata.conversionStatus for completion.
+
+`POST /api/v0/assets/convert-excel-to-sheet`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api assets create` `[BETA]`
+
+Create a new asset such as a spreadsheet, document, folder, database, or computer in your workspace. This endpoint uses internal GraphQL mutations to create assets with proper permissions and workspace integration. Computer assets return 202 after the initializing asset is committed; runtime provisioning continues asynchronously.
 
 `POST /api/v0/assets/create`
 
@@ -185,7 +249,7 @@ Create a new asset such as a spreadsheet, document, or folder in your workspace.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena assets create-project` `[BETA]`
+#### `athena-intelligence-api assets create-project` `[BETA]`
 
 Create a new project with custom metadata. Projects can be typed (e.g., 'candidate', 'user', 'company') and include flexible custom metadata for storing additional information.
 
@@ -195,17 +259,28 @@ Create a new project with custom metadata. Projects can be typed (e.g., 'candida
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena assets edit-project` `[BETA]`
+#### `athena-intelligence-api assets download` `[BETA]`
 
-Edit an existing project's metadata. All fields are optional - only provided fields will be updated. Custom metadata is merged with existing metadata (new keys added, existing keys updated).
+Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type.
 
-`POST /api/v0/assets/edit_project`
+`GET /api/v0/assets/{asset_id}/download`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | No | Unique identifier of the asset to download |
+
+#### `athena-intelligence-api assets duplicate` `[BETA]`
+
+Duplicate an asset using the same duplication service used by the Athena UI. Optionally target a workspace and/or destination folder.
+
+`POST /api/v0/assets/duplicate`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena assets get` `[BETA]`
+#### `athena-intelligence-api assets get` `[BETA]`
 
 Retrieve a single asset by its ID. Returns comprehensive metadata including creation info, tags, timestamps, media type, and AI-generated summary.
 
@@ -216,7 +291,30 @@ Retrieve a single asset by its ID. Returns comprehensive metadata including crea
 | `--asset-id` | `string` | Yes |  |
 | `--asset-id` | `string` | No | Unique identifier of the asset to retrieve |
 
-#### `athena assets list` `[BETA]`
+#### `athena-intelligence-api assets get-activity-delta` `[BETA]`
+
+Admin only. Report what changed between two Keryx clocks — for spreadsheets, the per-cell before/after values; for documents, the inserted and deleted text; for presentations, the affected slides. Take the clocks from the activity endpoint. Computed by the same differ the in-app Activity pane renders, so the payload matches what a user sees. Always inspect delta.coverage: caps and non-decodable bulk regions are reported there rather than silently omitted.
+
+`GET /api/v0/assets/{asset_id}/activity/delta`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--from` | `integer` | Yes | Start clock, from an activity item's from_clock. |
+| `--to` | `integer` | Yes | End clock, from the same activity item's to_clock. |
+
+#### `athena-intelligence-api assets get-activity-deltas` `[BETA]`
+
+Admin only. Batch form of the activity-delta endpoint: diff several clock ranges in one request. Prefer this when walking a whole log — one call computes every range in a single pass over the document instead of one request each (up to 25 per call). Results come back in request order, and a range that could not be read carries its own `error` instead of failing the batch. Same payload and `coverage` semantics as the single-range endpoint.
+
+`POST /api/v0/assets/{asset_id}/activity/deltas`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api assets list` `[BETA]`
 
 Retrieve a paginated list of assets with optional filtering and sorting. Assets include documents, presentations, spreadsheets, images, videos, and other file types managed by Athena Intelligence.
 
@@ -226,18 +324,133 @@ Retrieve a paginated list of assets with optional filtering and sorting. Assets 
 |------|------|----------|-------------|
 | `--limit` | `integer` | No | Maximum number of assets to return per page (1-500) |
 | `--offset` | `integer` | No | Number of assets to skip for pagination |
-| `--filters` | `string` | No | JSON string of filter criteria. Supports: created_by_id, created_by_email, tags, created_after/before, updated_after/before, title_substring, is_archived, is_hidden, athena_metadata, media_type, athena_converted_type, athena_original_type, summary_ready, summary_status |
+| `--filters` | `string` | No | JSON string of filter criteria. Supports: created_by_id, created_by_email, tags, created_after/before, updated_after/before, title_substring, is_archived, is_hidden, athena_metadata, media_type, athena_converted_type, athena_original_type, summary_ready, summary_status, workspace_id |
 | `--sort` | `string` | No | JSON string of sort criteria: [{"field": "updated_at", "direction": "desc"}]. Supported fields: created_by_id, created_by_email, created_at, updated_at, is_archived, is_hidden, summary_ready, summary_status |
+| `--workspace-id` | `string` | No | Workspace to list assets from. Caller must be a member. |
 | `--limit` | `string` | No | Maximum number of assets to return per page. Must be between 1 and 500. |
 | `--offset` | `string` | No | Number of assets to skip from the beginning of the result set for pagination. |
-| `--filters` | `string` | No | JSON string containing filter criteria. Supported filters: created_by_id, created_by_email, tags (object), created_after/created_before (ISO dates), updated_after/updated_before (ISO dates), title_substring, is_archived (boolean), is_hidden (boolean), athena_metadata (object), media_type, athena_converted_type, athena_original_type, summary_ready (boolean), summary_status. Admin users can also filter by workspace_id and workspace_name. |
+| `--filters` | `string` | No | JSON string containing filter criteria. Supported filters: created_by_id, created_by_email, tags (object), created_after/created_before (ISO dates), updated_after/updated_before (ISO dates), title_substring, is_archived (boolean), is_hidden (boolean), athena_metadata (object), media_type, athena_converted_type, athena_original_type, summary_ready (boolean), summary_status, workspace_id. Admin users can also filter by workspace_name. |
+| `--workspace-id` | `string` | No | Optional workspace to list assets from. The caller must be a member of the workspace unless they are an admin. |
 | `--sort` | `string` | No | JSON string containing sort criteria as an array of objects with 'field' and 'direction' properties. Supported fields: created_by_id, created_by_email, created_at, updated_at, is_archived, is_hidden, summary_ready, summary_status. Admin users can also sort by workspace_id and workspace_name. Direction can be 'asc' or 'desc'. |
+
+#### `athena-intelligence-api assets list-activity` `[BETA]`
+
+Admin only. List the edit history of a collaborative asset, newest first: who edited it, when, and under which agent/session attribution. Works for every collaborative asset type. Each item's from_clock/to_clock identify the edit for the companion delta endpoint, which reports what actually changed.
+
+`GET /api/v0/assets/{asset_id}/activity`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--limit` | `integer` | No | Maximum items to return. |
+| `--to-clock` | `string` | No | Return only items at or before this clock. Pass the previous response's next_page_to_clock to page backwards through history. |
+
+#### `athena-intelligence-api assets move` `[BETA]`
+
+Move an asset into a folder or to the workspace root. The asset ID determines the workspace used for authorization; parent_folder_id must belong to the same workspace.
+
+`POST /api/v0/assets/{asset_id}/move`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | No | Unique identifier of the asset to move |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api assets rename` `[BETA]`
+
+Update an asset's display title. This supports folders and all other asset types the caller can edit, and applies the same rename side effects as the Athena application.
+
+`PATCH /api/v0/assets/{asset_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | No | Unique identifier of the asset to rename |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api assets share` `[BETA]`
+
+Share an asset with specific users by email. Only users who have edit access to the asset can share it. You can share with individual users (granting 'view' or 'edit' permission). Sharing with a user who does not have an account will result in an error for that recipient, but other recipients will still be processed.
+
+`POST /api/v0/assets/{asset_id}/share`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | No | Unique identifier of the asset to share |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api assets update-workspace-access` `[BETA]`
+
+Update the workspace-level access on an asset. Only users who have edit access to the asset and permission to share with the workspace can use this endpoint. Set 'view' or 'edit' to grant workspace-wide access.
+
+`PUT /api/v0/assets/{asset_id}/workspace-access`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | No | Unique identifier of the asset |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
 
-### `athena databases`
+### `athena-intelligence-api collab-agents`
 
-#### `athena databases delete` `[BETA]`
+#### `athena-intelligence-api collab-agents send-message` `[BETA]`
+
+Submit a message to a collab agent through its Programmatic channel. The agent must have the channel explicitly enabled (programmaticEnabled) and must be shared with the caller. With wait=false (default) the submission is queued and the endpoint returns 202 immediately; the resulting session appears in Athena under the caller's account. With wait=true the request long-polls: the connection stays open while the agent runs and the final agent message is returned verbatim in the reply field — size client timeouts for multi-minute runs. Submissions from the same caller with the same clientThreadKey continue one conversation until 24 hours of inactivity.
+
+`POST /api/v0/collab-agents/{asset_id}/messages`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | No | Asset id of the collab agent to message |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
+### `athena-intelligence-api computer`
+
+#### `athena-intelligence-api computer create-ssh-access` `[BETA]`
+
+Generate a time-limited SSH access token for a computer asset. Returns a full SSH command and token that can be used to connect to the computer's underlying VM and run commands. The computer must support SSH access and be in a running state.
+
+`POST /api/v0/computer/{asset_id}/ssh-access`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api computer deploy-computer` `[BETA]`
+
+Deploy a computer asset's running application to a shareable, persistent preview URL — the same action the Deploy button in the Olympus UI performs. Auto-starts the computer if it is stopped, validates that the requested port is reachable, records the deployment in the asset's metadata (so the UI stays in sync), and returns the Marathon preview URL for the exposed port. Call it with different ports to deploy multiple services from the same computer.
+
+`POST /api/v0/computer/{asset_id}/deploy`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api computer revoke-ssh-access` `[BETA]`
+
+Revoke a previously issued SSH access token for a computer asset. Use the token returned by create_ssh_access.
+
+`DELETE /api/v0/computer/{asset_id}/ssh-access`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
+### `athena-intelligence-api databases`
+
+#### `athena-intelligence-api databases delete` `[BETA]`
 
 Delete rows matching the filter conditions. Filter conditions are passed as query parameters using PostgREST syntax.
 
@@ -264,7 +477,7 @@ Delete rows matching the filter conditions. Filter conditions are passed as quer
 | `--force` | `boolean` | No | Set to true to delete all rows (required when no filters provided) |
 | `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
 
-#### `athena databases execute-sql` `[BETA]`
+#### `athena-intelligence-api databases execute-sql` `[BETA]`
 
 Execute a SQL statement against the database. SELECT queries return columns and rows. Non-SELECT statements (CREATE, INSERT, UPDATE, DELETE, ALTER, DROP, etc.) return execution statuses.
 
@@ -275,7 +488,7 @@ Execute a SQL statement against the database. SELECT queries return columns and 
 | `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena databases get-status` `[BETA]`
+#### `athena-intelligence-api databases get-status` `[BETA]`
 
 Check if a database is running, suspended, or starting up. Poll this endpoint to determine when a serverless database is ready.
 
@@ -292,7 +505,7 @@ Check if a database is running, suspended, or starting up. Poll this endpoint to
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 
-#### `athena databases get-table-schema` `[BETA]`
+#### `athena-intelligence-api databases get-table-schema` `[BETA]`
 
 Get the schema for a specific table, including column names, types, nullability, and default values. Useful for agent tooling and dynamic form generation.
 
@@ -303,7 +516,7 @@ Get the schema for a specific table, including column names, types, nullability,
 | `--asset-id` | `string` | Yes |  |
 | `--table-name` | `string` | Yes |  |
 
-#### `athena databases insert` `[BETA]`
+#### `athena-intelligence-api databases insert` `[BETA]`
 
 Insert one or more rows into a table.
 
@@ -315,7 +528,7 @@ Insert one or more rows into a table.
 | `--table-name` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena databases list-tables` `[BETA]`
+#### `athena-intelligence-api databases list-tables` `[BETA]`
 
 Get a list of all tables in the database with optional row counts.
 
@@ -325,7 +538,7 @@ Get a list of all tables in the database with optional row counts.
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 
-#### `athena databases select` `[BETA]`
+#### `athena-intelligence-api databases select` `[BETA]`
 
 Query rows from a table in the database. Supports filtering, ordering, and pagination using PostgREST-style query parameters.
 
@@ -352,7 +565,7 @@ Query rows from a table in the database. Supports filtering, ordering, and pagin
 | `--limit` | `integer` | No | Maximum number of rows to return |
 | `--offset` | `integer` | No | Number of rows to skip |
 
-#### `athena databases update` `[BETA]`
+#### `athena-intelligence-api databases update` `[BETA]`
 
 Update rows matching the filter conditions. Filter conditions are passed as query parameters using PostgREST syntax.
 
@@ -381,9 +594,68 @@ Update rows matching the filter conditions. Filter conditions are passed as quer
 
 ---
 
-### `athena query`
+### `athena-intelligence-api meetings`
 
-#### `athena query execute-snippet` `[BETA]`
+#### `athena-intelligence-api meetings download` `[BETA]`
+
+Download a meeting artifact. By default streams a ZIP archive containing metadata.json plus every available artifact (video recording, raw transcript, formatted transcript, chat). Pass the artifact parameter to download a single artifact instead.
+
+`GET /api/v0/meetings/{asset_id}/download`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--artifact` | `zip | recording | transcript | formatted_transcript | chat` | No | Which artifact to download: 'zip' (full export), 'recording', 'transcript', 'formatted_transcript', or 'chat' |
+| `--asset-id` | `string` | No | Unique identifier of the meeting asset to download |
+| `--artifact` | `string` | No | Which artifact to download: 'zip' (full export, default), 'recording' (MP4), 'transcript' (JSON), 'formatted_transcript' (JSON), or 'chat' (JSON). |
+
+#### `athena-intelligence-api meetings get` `[BETA]`
+
+Retrieve a single meeting by its asset ID, including status, AI summary, participants, and the asset IDs of its downloadable artifacts (recording, transcripts, chat).
+
+`GET /api/v0/meetings/{asset_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | No | Unique identifier of the meeting asset to retrieve |
+
+#### `athena-intelligence-api meetings list` `[BETA]`
+
+Retrieve a paginated list of meetings with optional keyword search (across title, AI summary, and cached transcript text), participant email filtering, attendee domain filtering, date range filtering, and sorting.
+
+`GET /api/v0/meetings`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--query` | `string` | No | Keyword to search across meeting title, AI summary, and cached transcript text |
+| `--participant-emails` | `string` | No | Participant email(s) to filter by. Repeat the parameter or pass a comma-separated list. |
+| `--participant-match` | `any | all` | No | Whether a meeting must include any or all of the given participant emails |
+| `--participant-domains` | `string` | No | Attendee email domain(s) to filter by (e.g. 'acme.com'). Repeat the parameter or pass a comma-separated list. |
+| `--domain-match` | `any | all` | No | Whether a meeting must include attendees from any or all of the given domains |
+| `--created-after` | `string` | No | Only include meetings created at or after this ISO 8601 timestamp |
+| `--created-before` | `string` | No | Only include meetings created at or before this ISO 8601 timestamp |
+| `--sort-by` | `created_at | updated_at | title` | No | Field to sort by |
+| `--sort-direction` | `asc | desc` | No | Sort direction |
+| `--limit` | `integer` | No | Maximum number of meetings to return per page (1-500) |
+| `--offset` | `integer` | No | Number of meetings to skip for pagination |
+| `--query` | `string` | No | Keyword to search across meeting title, AI summary, and cached transcript text. |
+| `--participant-emails` | `string` | No | Filter meetings by participant email(s). Repeat the parameter or pass a comma-separated list. |
+| `--participant-match` | `string` | No | Whether a meeting must include any or all of the given participant emails. |
+| `--participant-domains` | `string` | No | Filter meetings by attendee email domain(s). Repeat the parameter or pass a comma-separated list. |
+| `--domain-match` | `string` | No | Whether a meeting must include attendees from any or all of the given domains. |
+| `--created-after` | `string` | No | Only include meetings created at or after this ISO 8601 timestamp. |
+| `--created-before` | `string` | No | Only include meetings created at or before this ISO 8601 timestamp. |
+| `--sort-by` | `string` | No | Field to sort by: created_at, updated_at, or title. |
+| `--sort-direction` | `string` | No | Sort direction: asc or desc. |
+| `--limit` | `string` | No | Maximum number of meetings to return per page. Must be between 1 and 500. |
+| `--offset` | `string` | No | Number of meetings to skip from the beginning of the result set for pagination. |
+
+---
+
+### `athena-intelligence-api query`
+
+#### `athena-intelligence-api query execute-snippet` `[BETA]`
 
 Get the result of an SQL query over given assets.
 
@@ -395,9 +667,9 @@ Get the result of an SQL query over given assets.
 
 ---
 
-### `athena semantic-model`
+### `athena-intelligence-api semantic-model`
 
-#### `athena semantic-model generate-token` `[BETA]`
+#### `athena-intelligence-api semantic-model generate-token` `[BETA]`
 
 Generate a short-lived JWT token for direct access to the semantic model's Cube REST API. Use this token to query /cubejs-api/v1/load and /cubejs-api/v1/meta directly. Token expires after 1 hour. The token carries only the model ID and schema hash — database credentials are NOT included and are resolved server-side by Cube via callback.
 
@@ -407,7 +679,7 @@ Generate a short-lived JWT token for direct access to the semantic model's Cube 
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 
-#### `athena semantic-model get-meta` `[BETA]`
+#### `athena-intelligence-api semantic-model get-meta` `[BETA]`
 
 Get metadata for a semantic model including all cubes, measures, dimensions, segments, and joins.
 
@@ -417,7 +689,7 @@ Get metadata for a semantic model including all cubes, measures, dimensions, seg
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 
-#### `athena semantic-model query` `[BETA]`
+#### `athena-intelligence-api semantic-model query` `[BETA]`
 
 Execute a metric query against a semantic model. Specify measures, optional dimensions, filters, and time dimensions. Returns structured data rows.
 
@@ -430,9 +702,76 @@ Execute a metric query against a semantic model. Specify measures, optional dime
 
 ---
 
-### `athena threads`
+### `athena-intelligence-api sessions`
 
-#### `athena threads batch-stop` `[BETA]`
+#### `athena-intelligence-api sessions download` `[BETA]`
+
+Download a session's message history. Formats: 'trace' (default — every message fully serialized, including tool calls, tool results, reasoning, and token usage), 'messages' (just the user/agent conversation turns as plain text), 'markdown' (the conversation rendered as a readable transcript), or 'stats' (aggregate metrics: message/tool-call counts, token usage, duration). All formats return JSON except 'markdown', which returns text/markdown.
+
+`GET /api/v0/sessions/{asset_id}/download`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--export-format` | `trace | messages | markdown | stats` | No | Which representation to download: 'trace' (full trace with all tool calls), 'messages' (user/agent turns only), 'markdown' (readable transcript), or 'stats' (aggregate metrics) |
+| `--asset-id` | `string` | No | Unique identifier of the session asset to download |
+| `--export-format` | `string` | No | Which representation to download: 'trace' (full trace, default), 'messages' (user/agent turns only), 'markdown' (readable transcript), or 'stats' (aggregate metrics). |
+
+#### `athena-intelligence-api sessions get` `[BETA]`
+
+Retrieve a single session by its asset ID, including state, originating channel, agent/model, message count, and cost.
+
+`GET /api/v0/sessions/{asset_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | No | Unique identifier of the session asset to retrieve |
+
+#### `athena-intelligence-api sessions list` `[BETA]`
+
+Retrieve a paginated list of agent sessions (conversations) with optional title search, state filtering, source channel filtering, date range filtering, and sorting. By default, AOP/workflow runs and branched sub-sessions are excluded.
+
+`GET /api/v0/sessions`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--query` | `string` | No | Keyword to search session titles (case-insensitive) |
+| `--state` | `string` | No | Execution state(s) to filter by (e.g. 'running', 'completed'). Repeat the parameter or pass a comma-separated list. |
+| `--source-channel` | `string` | No | Originating channel(s) to filter by (e.g. 'web', 'api', 'agent_email'). Repeat the parameter or pass a comma-separated list. |
+| `--session-type` | `string` | No | Session kind(s) to include: 'session', 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list. |
+| `--app-id` | `string` | No | Only include sessions belonging to this application identifier |
+| `--include-sub-sessions` | `boolean` | No | Include branched sub-sessions (excluded by default) |
+| `--include-task-sessions` | `boolean` | No | Include AOP/workflow task runs (excluded by default) |
+| `--aop-asset-id` | `string` | No | Only include task sessions originating from this AOP asset identifier |
+| `--trigger-type` | `string` | No | Trigger type(s) to filter by (e.g. 'schedule', 'api', 'email'). Repeat the parameter or pass a comma-separated list. |
+| `--created-after` | `string` | No | Only include sessions created at or after this ISO 8601 timestamp |
+| `--created-before` | `string` | No | Only include sessions created at or before this ISO 8601 timestamp |
+| `--sort-by` | `updated_at | created_at | title` | No | Field to sort by |
+| `--sort-direction` | `asc | desc` | No | Sort direction |
+| `--limit` | `integer` | No | Maximum number of sessions to return per page (1-500) |
+| `--offset` | `integer` | No | Number of sessions to skip for pagination |
+| `--query` | `string` | No | Keyword to search session titles (case-insensitive). |
+| `--state` | `string` | No | Filter sessions by execution state(s), e.g. 'running' or 'completed'. Repeat the parameter or pass a comma-separated list. |
+| `--source-channel` | `string` | No | Filter sessions by originating channel(s), e.g. 'web', 'api', 'agent_email', 'agent_slack'. Repeat the parameter or pass a comma-separated list. |
+| `--session-type` | `string` | No | Filter by session kind(s): 'session' (chat), 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list. |
+| `--app-id` | `string` | No | Only include sessions belonging to this application identifier. |
+| `--include-sub-sessions` | `string` | No | Include branched sub-sessions (excluded by default). |
+| `--include-task-sessions` | `string` | No | Include AOP/workflow task runs (excluded by default). |
+| `--aop-asset-id` | `string` | No | Only include task sessions originating from this AOP asset identifier. |
+| `--trigger-type` | `string` | No | Filter task sessions by trigger type(s), e.g. 'schedule', 'api', or 'email'. Repeat the parameter or pass a comma-separated list. |
+| `--created-after` | `string` | No | Only include sessions created at or after this ISO 8601 timestamp. |
+| `--created-before` | `string` | No | Only include sessions created at or before this ISO 8601 timestamp. |
+| `--sort-by` | `string` | No | Field to sort by: updated_at, created_at, or title. |
+| `--sort-direction` | `string` | No | Sort direction: asc or desc. |
+| `--limit` | `string` | No | Maximum number of sessions to return per page. Must be between 1 and 500. |
+| `--offset` | `string` | No | Number of sessions to skip from the beginning of the result set for pagination. |
+
+---
+
+### `athena-intelligence-api threads`
+
+#### `athena-intelligence-api threads batch-stop` `[BETA]`
 
 Stop multiple running thread executions in a single request. This endpoint accepts thread IDs (the same IDs used with the single-thread stop endpoint). Each thread is stopped independently - failures for individual threads do not affect other threads in the batch.
 
@@ -442,7 +781,7 @@ Stop multiple running thread executions in a single request. This endpoint accep
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena threads batch-stop-by-asset-id` `[BETA]`
+#### `athena-intelligence-api threads batch-stop-by-asset-id` `[BETA]`
 
 Stop multiple running thread executions by asset ID in a single request. This is useful for stopping many AOP executions at once from the UI. Each thread is stopped independently - failures for individual threads do not affect other threads in the batch.
 
@@ -452,7 +791,7 @@ Stop multiple running thread executions by asset ID in a single request. This is
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena threads get-status` `[BETA]`
+#### `athena-intelligence-api threads get-status` `[BETA]`
 
 Check the status of a thread execution by thread ID. Returns thread status and associated conversation asset information for tracking progress.
 
@@ -462,7 +801,7 @@ Check the status of a thread execution by thread ID. Returns thread status and a
 |------|------|----------|-------------|
 | `--thread-id` | `string` | Yes | The unique thread ID to check status for |
 
-#### `athena threads stop` `[BETA]`
+#### `athena-intelligence-api threads stop` `[BETA]`
 
 Stop a running thread execution. This will stop the thread if it is currently running and mark it as cancelled.
 
@@ -474,9 +813,29 @@ Stop a running thread execution. This will stop the thread if it is currently ru
 
 ---
 
-### `athena tools`
+### `athena-intelligence-api toolkits`
 
-#### `athena tools data-frame` `[BETA]`
+#### `athena-intelligence-api toolkits get` `[BETA]`
+
+Get a single toolkit by identifier or alias.
+
+`GET /api/v0/toolkits/{toolkit_key}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--toolkit-key` | `string` | Yes |  |
+
+#### `athena-intelligence-api toolkits list` `[BETA]`
+
+List the toolkits available in this workspace. A toolkit is a named group of related tools.
+
+`GET /api/v0/toolkits`
+
+---
+
+### `athena-intelligence-api tools`
+
+#### `athena-intelligence-api tools data-frame` `[BETA]`
 
 Get Tabular Data from Object
 
@@ -491,20 +850,13 @@ Get Tabular Data from Object
 | `--sheet-name` | `string` | No | only for excel files |
 | `--separator` | `string` | No | only for csv files |
 
-#### `athena tools execute`
+#### `athena-intelligence-api tools get-asset-capabilities` `[BETA]`
 
-Execute a serverless function by providing a tool name and arguments.
+List the read_asset capabilities for every supported asset type: available output formats, the default format, accepted and preferred anchors, and the pagination protocol. Static metadata; no asset access required.
 
-This endpoint is admin-only and restricted to users with
-@athenaintel.com email addresses.
+`GET /api/v0/tools/asset/capabilities`
 
-`POST /api/v0/tools/execute`
-
-| Flag | Type | Required | Description |
-|------|------|----------|-------------|
-| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
-
-#### `athena tools get-asset-chunks` `[BETA]`
+#### `athena-intelligence-api tools get-asset-chunks` `[BETA]`
 
 Get the chunks of a file.
 
@@ -514,7 +866,7 @@ Get the chunks of a file.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools get-asset-content` `[BETA]`
+#### `athena-intelligence-api tools get-asset-content` `[BETA]`
 
 Get the content of an asset.
 
@@ -523,8 +875,9 @@ Get the content of an asset.
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
+| `--include-comments` | `boolean` | No |  |
 
-#### `athena tools get-asset-screenshot` `[BETA]`
+#### `athena-intelligence-api tools get-asset-screenshot` `[BETA]`
 
 Get a screenshot of a specific page from an asset.
 
@@ -535,17 +888,28 @@ Get a screenshot of a specific page from an asset.
 | `--asset-id` | `string` | Yes |  |
 | `--page-number` | `integer` | No |  |
 
-#### `athena tools get-raw-file-data`
+#### `athena-intelligence-api tools get-definition` `[BETA]`
 
-Alias for /tools/file/raw-data - Get the raw file data for given asset.
+Get one tool's definition and argument schema.
 
-`GET /api/v0/tools/raw-data`
+`GET /api/v0/tools/{tool_id}`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
+| `--tool-id` | `string` | Yes |  |
 
-#### `athena tools list-contents` `[BETA]`
+#### `athena-intelligence-api tools invoke` `[BETA]`
+
+Invoke a tool synchronously and return its result. Policy refusals (unknown tool, not permitted, needs approval, wrong surface) are HTTP errors; a tool that runs and fails returns 200 with success=false.
+
+`POST /api/v0/tools/{tool_id}/invoke`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--tool-id` | `string` | Yes |  |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools list-contents` `[BETA]`
 
 List contents of an asset (Folder, Collection, Project) or entire workspace in a tree structure.
 
@@ -557,9 +921,20 @@ List contents of an asset (Folder, Collection, Project) or entire workspace in a
 | `--include-asset-details` | `boolean` | No |  |
 | `--include-system-files` | `boolean` | No |  |
 
-#### `athena tools raw-data` `[BETA]`
+#### `athena-intelligence-api tools list-definitions` `[BETA]`
 
-Get the raw file data for given asset.
+List tools with their argument schemas. Filter by toolkit, or to only those the caller can invoke over HTTP.
+
+`GET /api/v0/tools`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--toolkit` | `string` | No | Only return tools in this toolkit (identifier or alias). |
+| `--invocable-only` | `boolean` | No | Only return tools the caller can currently invoke over HTTP. |
+
+#### `athena-intelligence-api tools raw-data` `[BETA]`
+
+Stream an asset's raw file data. Prefer GET /api/v0/assets/{asset_id}/download for downloads: it converts native collaborative assets to their canonical Office format (documents to .docx, spreadsheets to .xlsx, presentations to .pptx), prefers original over converted bytes, sets a Content-Disposition filename, and fails with an HTTP error instead of degrading to a text summary of the asset.
 
 `GET /api/v0/tools/file/raw-data`
 
@@ -567,28 +942,39 @@ Get the raw file data for given asset.
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 
-#### `athena tools save-asset` `[BETA]`
+#### `athena-intelligence-api tools read-asset` `[BETA]`
 
-Save a file as an asset in the user's workspace.
+Read one or more assets with citation-style anchors, output format selection (text/json/image), and pagination. Each result discloses the asset type's read capabilities and returns a structured teaching error when a read fails. Mirrors the agent's read_asset tool.
+
+`POST /api/v0/tools/asset/read`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools save-asset` `[BETA]`
+
+Save a file as an asset in the target workspace.
 
 `POST /api/v0/tools/file/save`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--parent-folder-id` | `string` | No | Identifier of the folder into which the asset should be saved |
+| `--workspace-id` | `string` | No | Identifier of the workspace to save the asset into. Defaults to the caller's current workspace. The caller must be a member of the specified workspace. |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
 
-### `athena tools calendar`
+### `athena-intelligence-api tools calendar`
 
-#### `athena tools calendar create-event` `[BETA]`
+#### `athena-intelligence-api tools calendar create-event` `[BETA]`
 
 Coming soon! Create new calendar events.
 
 `POST /api/v0/tools/calendar/events`
 
-#### `athena tools calendar list-events` `[BETA]`
+#### `athena-intelligence-api tools calendar list-events` `[BETA]`
 
 Coming soon! List calendar events with optional filtering.
 
@@ -596,21 +982,21 @@ Coming soon! List calendar events with optional filtering.
 
 ---
 
-### `athena tools email`
+### `athena-intelligence-api tools email`
 
-#### `athena tools email create-draft` `[BETA]`
+#### `athena-intelligence-api tools email create-draft` `[BETA]`
 
 Coming soon! Create email drafts with specified content and recipients.
 
 `POST /api/v0/tools/email/draft`
 
-#### `athena tools email search` `[BETA]`
+#### `athena-intelligence-api tools email search` `[BETA]`
 
 Coming soon! Search through emails with configurable filters.
 
 `GET /api/v0/tools/email/search`
 
-#### `athena tools email send` `[BETA]`
+#### `athena-intelligence-api tools email send` `[BETA]`
 
 Coming soon! Send emails to specified recipients.
 
@@ -618,9 +1004,9 @@ Coming soon! Send emails to specified recipients.
 
 ---
 
-### `athena tools sheets`
+### `athena-intelligence-api tools sheets`
 
-#### `athena tools sheets clear-formatting` `[BETA]`
+#### `athena-intelligence-api tools sheets clear-formatting` `[BETA]`
 
 Clear formatting from cells in an Athena spreadsheet.
 
@@ -630,7 +1016,7 @@ Clear formatting from cells in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets clear-range` `[BETA]`
+#### `athena-intelligence-api tools sheets clear-range` `[BETA]`
 
 Clear a range of cells in an Athena spreadsheet.
 
@@ -640,7 +1026,7 @@ Clear a range of cells in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets create-tab` `[BETA]`
+#### `athena-intelligence-api tools sheets create-tab` `[BETA]`
 
 Create a new tab in an Athena spreadsheet.
 
@@ -650,7 +1036,7 @@ Create a new tab in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets create-table` `[BETA]`
+#### `athena-intelligence-api tools sheets create-table` `[BETA]`
 
 Create a table in an Athena spreadsheet.
 
@@ -660,7 +1046,7 @@ Create a table in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets delete-cells` `[BETA]`
+#### `athena-intelligence-api tools sheets delete-cells` `[BETA]`
 
 Delete cells from an Athena spreadsheet.
 
@@ -670,7 +1056,7 @@ Delete cells from an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets delete-column` `[BETA]`
+#### `athena-intelligence-api tools sheets delete-column` `[BETA]`
 
 Delete columns from an Athena spreadsheet.
 
@@ -680,7 +1066,7 @@ Delete columns from an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets delete-table-column` `[BETA]`
+#### `athena-intelligence-api tools sheets delete-table-column` `[BETA]`
 
 Delete a column from a table within an Athena spreadsheet.
 
@@ -690,7 +1076,7 @@ Delete a column from a table within an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets duplicate-sheet` `[BETA]`
+#### `athena-intelligence-api tools sheets duplicate-sheet` `[BETA]`
 
 Duplicate an existing sheet in an Athena spreadsheet.
 
@@ -700,7 +1086,7 @@ Duplicate an existing sheet in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets format-range` `[BETA]`
+#### `athena-intelligence-api tools sheets format-range` `[BETA]`
 
 Apply formatting to a range of cells in an Athena spreadsheet.
 
@@ -710,7 +1096,7 @@ Apply formatting to a range of cells in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets get-table` `[BETA]`
+#### `athena-intelligence-api tools sheets get-table` `[BETA]`
 
 Retrieve table data from an Athena spreadsheet.
 
@@ -720,7 +1106,7 @@ Retrieve table data from an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets insert-column` `[BETA]`
+#### `athena-intelligence-api tools sheets insert-column` `[BETA]`
 
 Insert a column in an Athena spreadsheet.
 
@@ -730,7 +1116,7 @@ Insert a column in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets insert-row` `[BETA]`
+#### `athena-intelligence-api tools sheets insert-row` `[BETA]`
 
 Insert a row in an Athena spreadsheet.
 
@@ -740,7 +1126,7 @@ Insert a row in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets insert-table-column` `[BETA]`
+#### `athena-intelligence-api tools sheets insert-table-column` `[BETA]`
 
 Insert a column in a table within an Athena spreadsheet.
 
@@ -750,7 +1136,7 @@ Insert a column in a table within an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets insert-table-row` `[BETA]`
+#### `athena-intelligence-api tools sheets insert-table-row` `[BETA]`
 
 Insert rows into a table in an Athena spreadsheet.
 
@@ -760,17 +1146,7 @@ Insert rows into a table in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets query-range`
-
-Query a range of cells from an Athena spreadsheet.
-
-`POST /api/v0/tools/sheets/range/query`
-
-| Flag | Type | Required | Description |
-|------|------|----------|-------------|
-| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
-
-#### `athena tools sheets update-cell` `[BETA]`
+#### `athena-intelligence-api tools sheets update-cell` `[BETA]`
 
 Update a single cell in an Athena spreadsheet.
 
@@ -780,7 +1156,7 @@ Update a single cell in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets update-range` `[BETA]`
+#### `athena-intelligence-api tools sheets update-range` `[BETA]`
 
 Update a range of cells in an Athena spreadsheet.
 
@@ -790,7 +1166,7 @@ Update a range of cells in an Athena spreadsheet.
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
-#### `athena tools sheets update-table` `[BETA]`
+#### `athena-intelligence-api tools sheets update-table` `[BETA]`
 
 Update an existing table in an Athena spreadsheet.
 
@@ -802,9 +1178,9 @@ Update an existing table in an Athena spreadsheet.
 
 ---
 
-### `athena tools structured-data-extractor`
+### `athena-intelligence-api tools structured-data-extractor`
 
-#### `athena tools structured-data-extractor invoke` `[BETA]`
+#### `athena-intelligence-api tools structured-data-extractor invoke` `[BETA]`
 
 Extract structured data.
 
@@ -836,9 +1212,9 @@ You can configure these behaviors with the `map` and `reduce` fields.
 
 ---
 
-### `athena tools tasks`
+### `athena-intelligence-api tools tasks`
 
-#### `athena tools tasks run-task` `[BETA]`
+#### `athena-intelligence-api tools tasks run-task` `[BETA]`
 
 Run a [task](https://resources.athenaintel.com/docs/task-studio/home) and wait for the result.
 
@@ -852,13 +1228,59 @@ Executes a serverless function script or flow synchronously. Server handles poll
 
 ---
 
-### `athena users`
+### `athena-intelligence-api users`
 
-#### `athena users get-current-user`
+#### `athena-intelligence-api users me` `[BETA]`
 
-Returns basic information about the authenticated user including name, email, and workspace details.
+Returns basic information about the authenticated user including name, email, workspace details, and all workspaces the user has access to.
 
 `GET /api/v0/me`
+
+---
+
+### `athena-intelligence-api workspaces`
+
+#### `athena-intelligence-api workspaces get-configuration` `[BETA]`
+
+Retrieve the configuration for a workspace. Includes disclaimer settings. Requires workspace owner or admin permissions.
+
+`GET /api/v0/workspaces/{workspace_id}/configuration`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes |  |
+
+#### `athena-intelligence-api workspaces get-tool-registry` `[BETA]`
+
+Retrieve the persisted per-workspace Tool Registry policy. The response contains explicit tool overrides; environment feature flags, billing restrictions, and disabled tags may further restrict effective availability. Requires workspace owner or admin permissions.
+
+`GET /api/v0/workspaces/{workspace_id}/tool-registry`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes |  |
+
+#### `athena-intelligence-api workspaces update-configuration` `[BETA]`
+
+Update workspace configuration settings. Currently supports updating the workspace disclaimer. Only the fields provided will be updated; other configuration keys are preserved. Requires workspace owner or admin permissions.
+
+`PUT /api/v0/workspaces/{workspace_id}/configuration`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes |  |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api workspaces update-tool-registry` `[BETA]`
+
+Update the default visibility or one per-tool override for a workspace. Requests are partial and idempotent, making this endpoint suitable for configuration automation across many workspaces. Base tools cannot be disabled. Requires workspace owner or admin permissions.
+
+`PATCH /api/v0/workspaces/{workspace_id}/tool-registry`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes |  |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
 
