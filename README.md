@@ -43,7 +43,7 @@ cargo build --release
 Set the following environment variable(s) before using the CLI:
 
 ```bash
-export ATHENA_INTELLIGENCE_API_API_KEY="<your api key>"
+export ATHENA_API_KEY="<your api key>"
 ```
 
 A `.env` file in the working directory is also supported — the CLI auto-loads it on startup.

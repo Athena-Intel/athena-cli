@@ -114,7 +114,7 @@ use athena_intelligence_api_sdk::api::*;
 Custom commands automatically inherit the CLI's authentication.
 The following auth schemes are configured:
 
-- **APIKeyHeader** (header): env `ATHENA_INTELLIGENCE_API_API_KEY`
+- **APIKeyHeader** (header): env `ATHENA_API_KEY`
 
 No manual auth wiring is needed in custom command handlers.
 
