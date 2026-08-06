@@ -940,7 +940,7 @@ List the (non-suspended) members of this run's workspace with their names, email
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
 
 #### `athena-intelligence-api tools agent-identity who-am-i` `[BETA]`
 
@@ -950,7 +950,7 @@ Describe the identity of THIS run: the acting user (name, email, user id), the r
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
 
 ---
 
