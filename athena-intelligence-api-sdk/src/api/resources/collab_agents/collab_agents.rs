@@ -17,6 +17,7 @@ impl CollabAgentsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Asset id of the collab agent to message
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns

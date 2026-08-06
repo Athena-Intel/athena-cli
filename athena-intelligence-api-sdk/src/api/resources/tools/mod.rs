@@ -2,6 +2,8 @@ use crate::api::*;
 use crate::{ApiError, ByteStream, ClientConfig, HttpClient, QueryBuilder, RequestOptions};
 use reqwest::Method;
 
+pub mod agent_identity;
+pub use agent_identity::AgentIdentityClient;
 pub mod calendar;
 pub use calendar::CalendarClient;
 pub mod email;
@@ -14,6 +16,7 @@ pub mod tasks;
 pub use tasks::TasksClient;
 pub struct ToolsClient {
     pub http_client: HttpClient,
+    pub agent_identity: AgentIdentityClient,
     pub calendar: CalendarClient,
     pub email: EmailClient,
     pub sheets: SheetsClient,
@@ -25,6 +28,7 @@ impl ToolsClient {
     pub fn new(config: ClientConfig) -> Result<Self, ApiError> {
         Ok(Self {
             http_client: HttpClient::new(config.clone())?,
+            agent_identity: AgentIdentityClient::new(config.clone())?,
             calendar: CalendarClient::new(config.clone())?,
             email: EmailClient::new(config.clone())?,
             sheets: SheetsClient::new(config.clone())?,

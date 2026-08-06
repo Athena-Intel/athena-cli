@@ -83,6 +83,7 @@ with the following sub-clients:
 | `client.threads` | `athena_intelligence_api_sdk::api::ThreadsClient` | threads operations |
 | `client.toolkits` | `athena_intelligence_api_sdk::api::ToolkitsClient` | toolkits operations |
 | `client.tools` | `athena_intelligence_api_sdk::api::ToolsClient` | tools operations |
+| `client.agent_identity` | `athena_intelligence_api_sdk::api::AgentIdentityClient` | agent_identity operations |
 | `client.calendar` | `athena_intelligence_api_sdk::api::CalendarClient` | calendar operations |
 | `client.email` | `athena_intelligence_api_sdk::api::EmailClient` | email operations |
 | `client.sheets` | `athena_intelligence_api_sdk::api::SheetsClient` | sheets operations |

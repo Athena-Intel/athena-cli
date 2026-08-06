@@ -92,6 +92,7 @@ impl AopClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the AOP asset
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -117,6 +118,7 @@ impl AopClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the AOP asset to update
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns

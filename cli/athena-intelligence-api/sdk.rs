@@ -76,6 +76,7 @@ pub fn client(ctx: &AppContext) -> athena_intelligence_api_sdk::api::ApiClient {
         toolkits: athena_intelligence_api_sdk::api::ToolkitsClient { http_client: http_client.clone() },
         tools: athena_intelligence_api_sdk::api::ToolsClient {
             http_client: http_client.clone(),
+            agent_identity: athena_intelligence_api_sdk::api::resources::tools::AgentIdentityClient { http_client: http_client.clone() },
             calendar: athena_intelligence_api_sdk::api::resources::tools::CalendarClient { http_client: http_client.clone() },
             email: athena_intelligence_api_sdk::api::resources::tools::EmailClient { http_client: http_client.clone() },
             sheets: athena_intelligence_api_sdk::api::resources::tools::SheetsClient { http_client: http_client.clone() },

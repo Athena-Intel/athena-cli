@@ -65,6 +65,7 @@ impl MeetingsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the meeting asset to retrieve
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -90,6 +91,7 @@ impl MeetingsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the meeting asset to download
     /// * `artifact` - Which artifact to download: 'zip' (full export), 'recording', 'transcript', 'formatted_transcript', or 'chat'
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///

@@ -153,6 +153,7 @@ impl AssetsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the asset to retrieve
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -178,6 +179,7 @@ impl AssetsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the asset to rename
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -292,6 +294,7 @@ impl AssetsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the asset to archive
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -317,6 +320,7 @@ impl AssetsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the asset to download
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -342,6 +346,7 @@ impl AssetsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the asset to move
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -368,6 +373,7 @@ impl AssetsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the asset to share
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -394,6 +400,7 @@ impl AssetsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the asset
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns

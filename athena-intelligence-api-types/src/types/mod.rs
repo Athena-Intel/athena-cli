@@ -5,7 +5,7 @@
 //!
 //! ## Type Categories
 //!
-//! - **Request/Response Types**: 144 types for API operations
+//! - **Request/Response Types**: 147 types for API operations
 //! - **Model Types**: 73 types for data representation
 
 pub mod databases_insert_data_request_data;
@@ -189,6 +189,9 @@ pub mod update_workspace_tool_registry_request_in;
 pub mod drive_agent_request;
 pub mod research_agent_request;
 pub mod sql_agent_request;
+pub mod check_access_input;
+pub mod list_workspace_members_input;
+pub mod who_am_i_input;
 pub mod update_sheet_cell_request;
 pub mod delete_cells_request;
 pub mod delete_column_request;
@@ -407,6 +410,9 @@ pub use update_workspace_tool_registry_request_in::UpdateWorkspaceToolRegistryRe
 pub use drive_agent_request::DriveAgentRequest;
 pub use research_agent_request::ResearchAgentRequest;
 pub use sql_agent_request::SqlAgentRequest;
+pub use check_access_input::CheckAccessInput;
+pub use list_workspace_members_input::ListWorkspaceMembersInput;
+pub use who_am_i_input::WhoAmIInput;
 pub use update_sheet_cell_request::UpdateSheetCellRequest;
 pub use delete_cells_request::DeleteCellsRequest;
 pub use delete_column_request::DeleteColumnRequest;

@@ -76,6 +76,7 @@ impl SessionsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the session asset to retrieve
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -101,6 +102,7 @@ impl SessionsClient {
     ///
     /// # Arguments
     ///
+    /// * `asset_id` - Unique identifier of the session asset to download
     /// * `export_format` - Which representation to download: 'trace' (full trace with all tool calls), 'messages' (user/agent turns only), 'markdown' (readable transcript), or 'stats' (aggregate metrics)
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///

@@ -22,6 +22,7 @@ Full command reference for `athena-intelligence-api`.
 - [`athena-intelligence-api threads`](#athena-intelligence-api-threads)
 - [`athena-intelligence-api toolkits`](#athena-intelligence-api-toolkits)
 - [`athena-intelligence-api tools`](#athena-intelligence-api-tools)
+- [`athena-intelligence-api tools agent-identity`](#athena-intelligence-api-tools-agent-identity)
 - [`athena-intelligence-api tools calendar`](#athena-intelligence-api-tools-calendar)
 - [`athena-intelligence-api tools email`](#athena-intelligence-api-tools-email)
 - [`athena-intelligence-api tools sheets`](#athena-intelligence-api-tools-sheets)
@@ -172,8 +173,7 @@ Retrieve the full configuration of an AOP asset by its ID. Returns prompt, agent
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Unique identifier of the AOP asset |
+| `--asset-id` | `string` | Yes | Unique identifier of the AOP asset |
 
 #### `athena-intelligence-api aop update-config` `[BETA]`
 
@@ -183,8 +183,7 @@ Overwrite the configuration of an existing AOP asset. Replaces the entire AOP co
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Unique identifier of the AOP asset to update |
+| `--asset-id` | `string` | Yes | Unique identifier of the AOP asset to update |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
@@ -226,8 +225,7 @@ Archive an asset by its ID. The asset will be hidden from active listings (e.g. 
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Unique identifier of the asset to archive |
+| `--asset-id` | `string` | Yes | Unique identifier of the asset to archive |
 
 #### `athena-intelligence-api assets convert-excel-to-sheet` `[BETA]`
 
@@ -267,8 +265,7 @@ Download an asset's file exactly as Athena stores or serves it — no type coerc
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Unique identifier of the asset to download |
+| `--asset-id` | `string` | Yes | Unique identifier of the asset to download |
 
 #### `athena-intelligence-api assets duplicate` `[BETA]`
 
@@ -288,8 +285,7 @@ Retrieve a single asset by its ID. Returns comprehensive metadata including crea
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Unique identifier of the asset to retrieve |
+| `--asset-id` | `string` | Yes | Unique identifier of the asset to retrieve |
 
 #### `athena-intelligence-api assets get-activity-delta` `[BETA]`
 
@@ -327,11 +323,6 @@ Retrieve a paginated list of assets with optional filtering and sorting. Assets 
 | `--filters` | `string` | No | JSON string of filter criteria. Supports: created_by_id, created_by_email, tags, created_after/before, updated_after/before, title_substring, is_archived, is_hidden, athena_metadata, media_type, athena_converted_type, athena_original_type, summary_ready, summary_status, workspace_id |
 | `--sort` | `string` | No | JSON string of sort criteria: [{"field": "updated_at", "direction": "desc"}]. Supported fields: created_by_id, created_by_email, created_at, updated_at, is_archived, is_hidden, summary_ready, summary_status |
 | `--workspace-id` | `string` | No | Workspace to list assets from. Caller must be a member. |
-| `--limit` | `string` | No | Maximum number of assets to return per page. Must be between 1 and 500. |
-| `--offset` | `string` | No | Number of assets to skip from the beginning of the result set for pagination. |
-| `--filters` | `string` | No | JSON string containing filter criteria. Supported filters: created_by_id, created_by_email, tags (object), created_after/created_before (ISO dates), updated_after/updated_before (ISO dates), title_substring, is_archived (boolean), is_hidden (boolean), athena_metadata (object), media_type, athena_converted_type, athena_original_type, summary_ready (boolean), summary_status, workspace_id. Admin users can also filter by workspace_name. |
-| `--workspace-id` | `string` | No | Optional workspace to list assets from. The caller must be a member of the workspace unless they are an admin. |
-| `--sort` | `string` | No | JSON string containing sort criteria as an array of objects with 'field' and 'direction' properties. Supported fields: created_by_id, created_by_email, created_at, updated_at, is_archived, is_hidden, summary_ready, summary_status. Admin users can also sort by workspace_id and workspace_name. Direction can be 'asc' or 'desc'. |
 
 #### `athena-intelligence-api assets list-activity` `[BETA]`
 
@@ -353,8 +344,7 @@ Move an asset into a folder or to the workspace root. The asset ID determines th
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Unique identifier of the asset to move |
+| `--asset-id` | `string` | Yes | Unique identifier of the asset to move |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 #### `athena-intelligence-api assets rename` `[BETA]`
@@ -365,8 +355,7 @@ Update an asset's display title. This supports folders and all other asset types
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Unique identifier of the asset to rename |
+| `--asset-id` | `string` | Yes | Unique identifier of the asset to rename |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 #### `athena-intelligence-api assets share` `[BETA]`
@@ -377,8 +366,7 @@ Share an asset with specific users by email. Only users who have edit access to 
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Unique identifier of the asset to share |
+| `--asset-id` | `string` | Yes | Unique identifier of the asset to share |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 #### `athena-intelligence-api assets update-workspace-access` `[BETA]`
@@ -389,8 +377,7 @@ Update the workspace-level access on an asset. Only users who have edit access t
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Unique identifier of the asset |
+| `--asset-id` | `string` | Yes | Unique identifier of the asset |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
@@ -405,8 +392,7 @@ Submit a message to a collab agent through its Programmatic channel. The agent m
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Asset id of the collab agent to message |
+| `--asset-id` | `string` | Yes | Asset id of the collab agent to message |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
@@ -604,10 +590,8 @@ Download a meeting artifact. By default streams a ZIP archive containing metadat
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | Yes | Unique identifier of the meeting asset to download |
 | `--artifact` | `zip | recording | transcript | formatted_transcript | chat` | No | Which artifact to download: 'zip' (full export), 'recording', 'transcript', 'formatted_transcript', or 'chat' |
-| `--asset-id` | `string` | No | Unique identifier of the meeting asset to download |
-| `--artifact` | `string` | No | Which artifact to download: 'zip' (full export, default), 'recording' (MP4), 'transcript' (JSON), 'formatted_transcript' (JSON), or 'chat' (JSON). |
 
 #### `athena-intelligence-api meetings get` `[BETA]`
 
@@ -617,8 +601,7 @@ Retrieve a single meeting by its asset ID, including status, AI summary, partici
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Unique identifier of the meeting asset to retrieve |
+| `--asset-id` | `string` | Yes | Unique identifier of the meeting asset to retrieve |
 
 #### `athena-intelligence-api meetings list` `[BETA]`
 
@@ -639,17 +622,6 @@ Retrieve a paginated list of meetings with optional keyword search (across title
 | `--sort-direction` | `asc | desc` | No | Sort direction |
 | `--limit` | `integer` | No | Maximum number of meetings to return per page (1-500) |
 | `--offset` | `integer` | No | Number of meetings to skip for pagination |
-| `--query` | `string` | No | Keyword to search across meeting title, AI summary, and cached transcript text. |
-| `--participant-emails` | `string` | No | Filter meetings by participant email(s). Repeat the parameter or pass a comma-separated list. |
-| `--participant-match` | `string` | No | Whether a meeting must include any or all of the given participant emails. |
-| `--participant-domains` | `string` | No | Filter meetings by attendee email domain(s). Repeat the parameter or pass a comma-separated list. |
-| `--domain-match` | `string` | No | Whether a meeting must include attendees from any or all of the given domains. |
-| `--created-after` | `string` | No | Only include meetings created at or after this ISO 8601 timestamp. |
-| `--created-before` | `string` | No | Only include meetings created at or before this ISO 8601 timestamp. |
-| `--sort-by` | `string` | No | Field to sort by: created_at, updated_at, or title. |
-| `--sort-direction` | `string` | No | Sort direction: asc or desc. |
-| `--limit` | `string` | No | Maximum number of meetings to return per page. Must be between 1 and 500. |
-| `--offset` | `string` | No | Number of meetings to skip from the beginning of the result set for pagination. |
 
 ---
 
@@ -712,10 +684,8 @@ Download a session's message history. Formats: 'trace' (default — every messag
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
+| `--asset-id` | `string` | Yes | Unique identifier of the session asset to download |
 | `--export-format` | `trace | messages | markdown | stats` | No | Which representation to download: 'trace' (full trace with all tool calls), 'messages' (user/agent turns only), 'markdown' (readable transcript), or 'stats' (aggregate metrics) |
-| `--asset-id` | `string` | No | Unique identifier of the session asset to download |
-| `--export-format` | `string` | No | Which representation to download: 'trace' (full trace, default), 'messages' (user/agent turns only), 'markdown' (readable transcript), or 'stats' (aggregate metrics). |
 
 #### `athena-intelligence-api sessions get` `[BETA]`
 
@@ -725,8 +695,7 @@ Retrieve a single session by its asset ID, including state, originating channel,
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--asset-id` | `string` | Yes |  |
-| `--asset-id` | `string` | No | Unique identifier of the session asset to retrieve |
+| `--asset-id` | `string` | Yes | Unique identifier of the session asset to retrieve |
 
 #### `athena-intelligence-api sessions list` `[BETA]`
 
@@ -751,21 +720,6 @@ Retrieve a paginated list of agent sessions (conversations) with optional title 
 | `--sort-direction` | `asc | desc` | No | Sort direction |
 | `--limit` | `integer` | No | Maximum number of sessions to return per page (1-500) |
 | `--offset` | `integer` | No | Number of sessions to skip for pagination |
-| `--query` | `string` | No | Keyword to search session titles (case-insensitive). |
-| `--state` | `string` | No | Filter sessions by execution state(s), e.g. 'running' or 'completed'. Repeat the parameter or pass a comma-separated list. |
-| `--source-channel` | `string` | No | Filter sessions by originating channel(s), e.g. 'web', 'api', 'agent_email', 'agent_slack'. Repeat the parameter or pass a comma-separated list. |
-| `--session-type` | `string` | No | Filter by session kind(s): 'session' (chat), 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list. |
-| `--app-id` | `string` | No | Only include sessions belonging to this application identifier. |
-| `--include-sub-sessions` | `string` | No | Include branched sub-sessions (excluded by default). |
-| `--include-task-sessions` | `string` | No | Include AOP/workflow task runs (excluded by default). |
-| `--aop-asset-id` | `string` | No | Only include task sessions originating from this AOP asset identifier. |
-| `--trigger-type` | `string` | No | Filter task sessions by trigger type(s), e.g. 'schedule', 'api', or 'email'. Repeat the parameter or pass a comma-separated list. |
-| `--created-after` | `string` | No | Only include sessions created at or after this ISO 8601 timestamp. |
-| `--created-before` | `string` | No | Only include sessions created at or before this ISO 8601 timestamp. |
-| `--sort-by` | `string` | No | Field to sort by: updated_at, created_at, or title. |
-| `--sort-direction` | `string` | No | Sort direction: asc or desc. |
-| `--limit` | `string` | No | Maximum number of sessions to return per page. Must be between 1 and 500. |
-| `--offset` | `string` | No | Number of sessions to skip from the beginning of the result set for pagination. |
 
 ---
 
@@ -962,6 +916,40 @@ Save a file as an asset in the target workspace.
 |------|------|----------|-------------|
 | `--parent-folder-id` | `string` | No | Identifier of the folder into which the asset should be saved |
 | `--workspace-id` | `string` | No | Identifier of the workspace to save the asset into. Defaults to the caller's current workspace. The caller must be a member of the specified workspace. |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
+### `athena-intelligence-api tools agent-identity`
+
+#### `athena-intelligence-api tools agent-identity check-access` `[BETA]`
+
+Check whether a member of this run's workspace (by email) can view or edit a specific asset, and report the basis for the answer (creator, explicit share, workspace share, drive membership). Read-only — it never changes any permission.
+
+`POST /api/v0/tools/agent-identity/check-access`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools agent-identity list-workspace-members` `[BETA]`
+
+List the (non-suspended) members of this run's workspace with their names, emails, and optionally their workspace roles. Available only when the acting user belongs to the workspace.
+
+`POST /api/v0/tools/agent-identity/list-workspace-members`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools agent-identity who-am-i` `[BETA]`
+
+Describe the identity of THIS run: the acting user (name, email, user id), the run workspace, and — when running as a collab agent — the agent's own identity: title, owner, workspace, reserved email address, phone number and its calling/texting status, enabled channels (SMS, voice, meetings, meeting voice, comments pane, programmatic), Slack binding, and calendar feed availability.
+
+`POST /api/v0/tools/agent-identity/who-am-i`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
