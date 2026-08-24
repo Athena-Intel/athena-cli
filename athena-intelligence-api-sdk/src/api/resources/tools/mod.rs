@@ -8,6 +8,8 @@ pub mod calendar;
 pub use calendar::CalendarClient;
 pub mod email;
 pub use email::EmailClient;
+pub mod olympus_drive;
+pub use olympus_drive::OlympusDriveClient;
 pub mod sheets;
 pub use sheets::SheetsClient;
 pub mod structured_data_extractor;
@@ -19,6 +21,7 @@ pub struct ToolsClient {
     pub agent_identity: AgentIdentityClient,
     pub calendar: CalendarClient,
     pub email: EmailClient,
+    pub olympus_drive: OlympusDriveClient,
     pub sheets: SheetsClient,
     pub structured_data_extractor: StructuredDataExtractorClient,
     pub tasks: TasksClient,
@@ -31,6 +34,7 @@ impl ToolsClient {
             agent_identity: AgentIdentityClient::new(config.clone())?,
             calendar: CalendarClient::new(config.clone())?,
             email: EmailClient::new(config.clone())?,
+            olympus_drive: OlympusDriveClient::new(config.clone())?,
             sheets: SheetsClient::new(config.clone())?,
             structured_data_extractor: StructuredDataExtractorClient::new(config.clone())?,
             tasks: TasksClient::new(config.clone())?,

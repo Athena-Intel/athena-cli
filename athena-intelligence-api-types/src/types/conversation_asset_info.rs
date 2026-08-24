@@ -35,7 +35,7 @@ pub struct ConversationAssetInfo {
     /// List of linked project assets
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linked_projects: Option<Vec<HashMap<String, serde_json::Value>>>,
-    /// Complete list of messages in the conversation from checkpoints
+    /// Complete list of messages in the conversation from checkpoints. May be null for active status polls when lightweight reads are enabled; terminal responses include messages by default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub messages: Option<Vec<ConversationMessage>>,
     /// Model used in conversation

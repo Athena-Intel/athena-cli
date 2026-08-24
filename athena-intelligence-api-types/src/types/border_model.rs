@@ -11,8 +11,9 @@ pub struct BorderModel {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color_theme: Option<ThemeColor>,
     pub style: BorderStyle,
-    #[serde(default)]
-    pub width: i64,
+    /// Border width in pixels (defaults to 1).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<i64>,
 }
 
 impl BorderModel {
@@ -54,13 +55,12 @@ impl BorderModelBuilder {
     /// Consumes the builder and constructs a [`BorderModel`].
     /// This method will fail if any of the following fields are not set:
     /// - [`style`](BorderModelBuilder::style)
-    /// - [`width`](BorderModelBuilder::width)
     pub fn build(self) -> Result<BorderModel, BuildError> {
         Ok(BorderModel {
             color_hex: self.color_hex,
             color_theme: self.color_theme,
             style: self.style.ok_or_else(|| BuildError::missing_field("style"))?,
-            width: self.width.ok_or_else(|| BuildError::missing_field("width"))?,
+            width: self.width,
         })
     }
 }

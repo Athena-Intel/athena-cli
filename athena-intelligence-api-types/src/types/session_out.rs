@@ -36,6 +36,9 @@ pub struct SessionOut {
     /// Whether this is a branched sub-session of another session
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_sub_session: Option<bool>,
+    /// Whether the session is unread for the calling user: it changed since they last opened it, or they never opened it and it did not originate from the web app
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_unread: Option<bool>,
     /// Plain-text preview of the most recent message, when available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_message_preview: Option<String>,
@@ -103,6 +106,7 @@ pub struct SessionOutBuilder {
     failure_reason_v2: Option<String>,
     id: Option<String>,
     is_sub_session: Option<bool>,
+    is_unread: Option<bool>,
     last_message_preview: Option<String>,
     model: Option<String>,
     num_messages: Option<i64>,
@@ -168,6 +172,11 @@ impl SessionOutBuilder {
 
     pub fn is_sub_session(mut self, value: bool) -> Self {
         self.is_sub_session = Some(value);
+        self
+    }
+
+    pub fn is_unread(mut self, value: bool) -> Self {
+        self.is_unread = Some(value);
         self
     }
 
@@ -265,6 +274,7 @@ impl SessionOutBuilder {
             failure_reason_v2: self.failure_reason_v2,
             id: self.id.ok_or_else(|| BuildError::missing_field("id"))?,
             is_sub_session: self.is_sub_session,
+            is_unread: self.is_unread,
             last_message_preview: self.last_message_preview,
             model: self.model,
             num_messages: self.num_messages,

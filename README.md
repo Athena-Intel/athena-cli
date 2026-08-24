@@ -78,8 +78,6 @@ athena-intelligence-api <resource> <method> --json '{"key": "value"}'
 
 See [reference.md](./reference.md) for the full command reference.
 
-For practical operator workflows, see [docs/athena-cli-learning.md](./docs/athena-cli-learning.md).
-
 ## Advanced
 
 ### Common flags
@@ -129,3 +127,4 @@ Generate shell completion scripts:
 ```bash
 athena-intelligence-api completion <bash|zsh|fish|powershell>
 ```
+

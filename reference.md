@@ -25,6 +25,7 @@ Full command reference for `athena-intelligence-api`.
 - [`athena-intelligence-api tools agent-identity`](#athena-intelligence-api-tools-agent-identity)
 - [`athena-intelligence-api tools calendar`](#athena-intelligence-api-tools-calendar)
 - [`athena-intelligence-api tools email`](#athena-intelligence-api-tools-email)
+- [`athena-intelligence-api tools olympus-drive`](#athena-intelligence-api-tools-olympus-drive)
 - [`athena-intelligence-api tools sheets`](#athena-intelligence-api-tools-sheets)
 - [`athena-intelligence-api tools structured-data-extractor`](#athena-intelligence-api-tools-structured-data-extractor)
 - [`athena-intelligence-api tools tasks`](#athena-intelligence-api-tools-tasks)
@@ -699,7 +700,7 @@ Retrieve a single session by its asset ID, including state, originating channel,
 
 #### `athena-intelligence-api sessions list` `[BETA]`
 
-Retrieve a paginated list of agent sessions (conversations) with optional title search, state filtering, source channel filtering, date range filtering, and sorting. By default, AOP/workflow runs and branched sub-sessions are excluded.
+Retrieve a paginated list of agent sessions (conversations) with optional title search, state filtering, source channel filtering, date range filtering, and sorting. By default, AOP/workflow runs and branched sub-sessions are excluded, and only sessions in the caller's current workspace are visible — pass `workspace_id` to list sessions in another workspace the caller belongs to.
 
 `GET /api/v0/sessions`
 
@@ -713,6 +714,7 @@ Retrieve a paginated list of agent sessions (conversations) with optional title 
 | `--include-sub-sessions` | `boolean` | No | Include branched sub-sessions (excluded by default) |
 | `--include-task-sessions` | `boolean` | No | Include AOP/workflow task runs (excluded by default) |
 | `--aop-asset-id` | `string` | No | Only include task sessions originating from this AOP asset identifier |
+| `--workspace-id` | `string` | No | Workspace to list sessions from. Defaults to the caller's current workspace; any other workspace the caller is a member of can be requested explicitly. |
 | `--trigger-type` | `string` | No | Trigger type(s) to filter by (e.g. 'schedule', 'api', 'email'). Repeat the parameter or pass a comma-separated list. |
 | `--created-after` | `string` | No | Only include sessions created at or after this ISO 8601 timestamp |
 | `--created-before` | `string` | No | Only include sessions created at or before this ISO 8601 timestamp |
@@ -720,6 +722,26 @@ Retrieve a paginated list of agent sessions (conversations) with optional title 
 | `--sort-direction` | `asc | desc` | No | Sort direction |
 | `--limit` | `integer` | No | Maximum number of sessions to return per page (1-500) |
 | `--offset` | `integer` | No | Number of sessions to skip for pagination |
+
+#### `athena-intelligence-api sessions mark-read` `[BETA]`
+
+Record that the calling user has read the session as of now, clearing its unread indicator. Idempotent: repeated calls only move the read receipt forward.
+
+`POST /api/v0/sessions/{asset_id}/read`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the session asset to mark as read |
+
+#### `athena-intelligence-api sessions mark-unread` `[BETA]`
+
+Clear the calling user's read receipt so the session shows as unread again. Idempotent: repeated calls leave the session unread.
+
+`POST /api/v0/sessions/{asset_id}/unread`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the session asset to mark as unread |
 
 ---
 
@@ -754,6 +776,7 @@ Check the status of a thread execution by thread ID. Returns thread status and a
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--thread-id` | `string` | Yes | The unique thread ID to check status for |
+| `--include-messages` | `string` | No | Whether to materialize checkpoint messages. By default, deployments with lightweight active reads enabled omit messages while a run is scheduled, queued, or running, and include them once it is terminal. Set true to force messages or false to skip them. |
 
 #### `athena-intelligence-api threads stop` `[BETA]`
 
@@ -989,6 +1012,120 @@ Coming soon! Search through emails with configurable filters.
 Coming soon! Send emails to specified recipients.
 
 `POST /api/v0/tools/email/send`
+
+---
+
+### `athena-intelligence-api tools olympus-drive`
+
+#### `athena-intelligence-api tools olympus-drive add-assets-to-favorites` `[BETA]`
+
+Add selected assets to the user's favorites for quick access. Requires that the user has access to each asset (created by user, shared with workspace, or explicitly shared with user).
+
+`POST /api/v0/tools/olympus-drive/add-assets-to-favorites`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools olympus-drive athena-resources-search` `[BETA]`
+
+Searches Athena resources documentation at resources.athenaintel.com. Contains information about getting started, agents, integrations, applications, use cases, and AOPs. Use this to answer questions about Athena/Olympus features. Provide links to users for the relevant documentation as well.
+
+`POST /api/v0/tools/olympus-drive/athena-resources-search`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools olympus-drive create-new-folder` `[BETA]`
+
+Creates a new folder in the workspace. Accepts a folder name and optional parent folder ID as input.
+
+`POST /api/v0/tools/olympus-drive/create-new-folder`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools olympus-drive duplicate-asset` `[BETA]`
+
+Creates a copy of an existing asset. Accepts an asset ID and optional new title as input. Supports documents, spreadsheets, PDFs, images, collections, and AOPs.
+
+`POST /api/v0/tools/olympus-drive/duplicate-asset`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools olympus-drive in-depth-analysis` `[BETA]`
+
+Performs comprehensive analysis across multiple assets, extracting insights and patterns to address complex queries. Capable of comparing content within the asset, identifying relationships, and synthesizing information. Accepts a list of asset IDs and a detailed query as input. Do NOT use this tool unless the user explicitly asks for an in-depth analysis, or read_asset does not work for the given asset(s). Prefer read_asset first.
+
+`POST /api/v0/tools/olympus-drive/in-depth-analysis`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools olympus-drive join-meeting` `[BETA]`
+
+Join a meeting by providing its URL (Zoom, Google Meet, or Microsoft Teams). Automatically searches your calendar for a matching event and extracts keywords from the event title, description, and attendees. Sends an Athena bot to join the meeting for recording and transcription.
+
+`POST /api/v0/tools/olympus-drive/join-meeting`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools olympus-drive list-contents` `[BETA]`
+
+Lists contents of an asset (Folder, Collection, Project) or the workspace. Accepts asset_id as input. Optional parameters: include_asset_details (default false), include_system_files (default false), page (default 1).
+
+`POST /api/v0/tools/olympus-drive/list-contents`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools olympus-drive move-assets-to-folder` `[BETA]`
+
+Moves assets to a specified folder. Accepts asset IDs and folder ID as input.
+
+`POST /api/v0/tools/olympus-drive/move-assets-to-folder`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools olympus-drive query-meetings` `[BETA]`
+
+Search and filter meeting assets by participant emails, date range, and keywords in summaries. Returns meetings where all specified participant emails are present.
+
+`POST /api/v0/tools/olympus-drive/query-meetings`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools olympus-drive rename-assets` `[BETA]`
+
+Renames existing assets. Accepts asset IDs and new names as input.
+
+`POST /api/v0/tools/olympus-drive/rename-assets`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena-intelligence-api tools olympus-drive search-assets` `[BETA]`
+
+Search for assets in the workspace by name or content. Accepts a search query as input.
+
+`POST /api/v0/tools/olympus-drive/search-assets`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
 
 ---
 

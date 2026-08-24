@@ -29,6 +29,9 @@ pub struct SessionsListQueryRequest {
     /// Only include task sessions originating from this AOP asset identifier
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aop_asset_id: Option<String>,
+    /// Workspace to list sessions from. Defaults to the caller's current workspace; any other workspace the caller is a member of can be requested explicitly.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
     /// Trigger type(s) to filter by (e.g. 'schedule', 'api', 'email'). Repeat the parameter or pass a comma-separated list.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger_type: Option<Vec<String>>,
@@ -69,6 +72,7 @@ pub struct SessionsListQueryRequestBuilder {
     include_sub_sessions: Option<bool>,
     include_task_sessions: Option<bool>,
     aop_asset_id: Option<String>,
+    workspace_id: Option<String>,
     trigger_type: Option<Vec<String>>,
     created_after: Option<DateTime<FixedOffset>>,
     created_before: Option<DateTime<FixedOffset>>,
@@ -119,6 +123,11 @@ impl SessionsListQueryRequestBuilder {
         self
     }
 
+    pub fn workspace_id(mut self, value: impl Into<String>) -> Self {
+        self.workspace_id = Some(value.into());
+        self
+    }
+
     pub fn trigger_type(mut self, value: Vec<String>) -> Self {
         self.trigger_type = Some(value);
         self
@@ -165,6 +174,7 @@ impl SessionsListQueryRequestBuilder {
             include_sub_sessions: self.include_sub_sessions,
             include_task_sessions: self.include_task_sessions,
             aop_asset_id: self.aop_asset_id,
+            workspace_id: self.workspace_id,
             trigger_type: self.trigger_type,
             created_after: self.created_after,
             created_before: self.created_before,
