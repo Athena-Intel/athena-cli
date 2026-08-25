@@ -34,3 +34,11 @@ docs/athena-cli-learning.md
 # but "so far survived" is not a contract — the learning guide above is what
 # relying on that looks like.
 install.sh
+
+# Deleted, and the generator must not bring it back. The CLI generator's
+# template emits this cargo-dist config, but nothing in this repo invokes
+# cargo-dist — releases are cut by .github/workflows/release.yml, which does the
+# same job explicitly (and still builds with [profile.dist] from Cargo.toml).
+# It was removed in #18 and the very next regeneration (#19) re-created it from
+# the template; this entry is what makes the removal stick.
+dist-workspace.toml

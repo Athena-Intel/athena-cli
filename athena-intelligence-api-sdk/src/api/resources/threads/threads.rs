@@ -1,5 +1,5 @@
 use crate::api::*;
-use crate::{ApiError, ClientConfig, HttpClient, RequestOptions};
+use crate::{ApiError, ClientConfig, HttpClient, QueryBuilder, RequestOptions};
 use reqwest::Method;
 
 pub struct ThreadsClient {
@@ -68,6 +68,7 @@ impl ThreadsClient {
     /// # Arguments
     ///
     /// * `thread_id` - The unique thread ID to check status for
+    /// * `include_messages` - Whether to materialize checkpoint messages. By default, deployments with lightweight active reads enabled omit messages while a run is scheduled, queued, or running, and include them once it is terminal. Set true to force messages or false to skip them.
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -76,6 +77,7 @@ impl ThreadsClient {
     pub async fn get_status(
         &self,
         thread_id: &str,
+        request: &GetStatusQueryRequest,
         options: Option<RequestOptions>,
     ) -> Result<ThreadStatusResponseOut, ApiError> {
         self.http_client
@@ -83,7 +85,9 @@ impl ThreadsClient {
                 Method::GET,
                 &format!("api/v0/threads/{}/status", thread_id),
                 None,
-                None,
+                QueryBuilder::new()
+                    .serialize("include_messages", request.include_messages.clone())
+                    .build(),
                 options,
             )
             .await

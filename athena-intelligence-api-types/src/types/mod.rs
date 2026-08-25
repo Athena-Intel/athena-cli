@@ -5,7 +5,7 @@
 //!
 //! ## Type Categories
 //!
-//! - **Request/Response Types**: 147 types for API operations
+//! - **Request/Response Types**: 159 types for API operations
 //! - **Model Types**: 73 types for data representation
 
 pub mod databases_insert_data_request_data;
@@ -192,6 +192,17 @@ pub mod sql_agent_request;
 pub mod check_access_input;
 pub mod list_workspace_members_input;
 pub mod who_am_i_input;
+pub mod add_assets_to_favorites_input;
+pub mod athena_resources_search_input;
+pub mod create_new_asset_input;
+pub mod duplicate_asset_input;
+pub mod in_depth_analysis_input;
+pub mod join_meeting_input;
+pub mod list_contents_input;
+pub mod move_asset_to_folder_input;
+pub mod query_meetings_input;
+pub mod rename_asset_input;
+pub mod search_assets_input;
 pub mod update_sheet_cell_request;
 pub mod delete_cells_request;
 pub mod delete_column_request;
@@ -221,6 +232,7 @@ pub mod meetings_download_query_request;
 pub mod execute_snippet_query_request;
 pub mod sessions_list_query_request;
 pub mod sessions_download_query_request;
+pub mod get_status_query_request;
 pub mod list_definitions_query_request;
 pub mod get_asset_content_query_request;
 pub mod get_asset_screenshot_query_request;
@@ -413,6 +425,17 @@ pub use sql_agent_request::SqlAgentRequest;
 pub use check_access_input::CheckAccessInput;
 pub use list_workspace_members_input::ListWorkspaceMembersInput;
 pub use who_am_i_input::WhoAmIInput;
+pub use add_assets_to_favorites_input::AddAssetsToFavoritesInput;
+pub use athena_resources_search_input::AthenaResourcesSearchInput;
+pub use create_new_asset_input::CreateNewAssetInput;
+pub use duplicate_asset_input::DuplicateAssetInput;
+pub use in_depth_analysis_input::InDepthAnalysisInput;
+pub use join_meeting_input::JoinMeetingInput;
+pub use list_contents_input::ListContentsInput;
+pub use move_asset_to_folder_input::MoveAssetToFolderInput;
+pub use query_meetings_input::QueryMeetingsInput;
+pub use rename_asset_input::RenameAssetInput;
+pub use search_assets_input::SearchAssetsInput;
 pub use update_sheet_cell_request::UpdateSheetCellRequest;
 pub use delete_cells_request::DeleteCellsRequest;
 pub use delete_column_request::DeleteColumnRequest;
@@ -442,6 +465,7 @@ pub use meetings_download_query_request::MeetingsDownloadQueryRequest;
 pub use execute_snippet_query_request::ExecuteSnippetQueryRequest;
 pub use sessions_list_query_request::SessionsListQueryRequest;
 pub use sessions_download_query_request::SessionsDownloadQueryRequest;
+pub use get_status_query_request::GetStatusQueryRequest;
 pub use list_definitions_query_request::ListDefinitionsQueryRequest;
 pub use get_asset_content_query_request::GetAssetContentQueryRequest;
 pub use get_asset_screenshot_query_request::GetAssetScreenshotQueryRequest;

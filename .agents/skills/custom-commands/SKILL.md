@@ -86,6 +86,7 @@ with the following sub-clients:
 | `client.agent_identity` | `athena_intelligence_api_sdk::api::AgentIdentityClient` | agent_identity operations |
 | `client.calendar` | `athena_intelligence_api_sdk::api::CalendarClient` | calendar operations |
 | `client.email` | `athena_intelligence_api_sdk::api::EmailClient` | email operations |
+| `client.olympus_drive` | `athena_intelligence_api_sdk::api::OlympusDriveClient` | olympus_drive operations |
 | `client.sheets` | `athena_intelligence_api_sdk::api::SheetsClient` | sheets operations |
 | `client.structured_data_extractor` | `athena_intelligence_api_sdk::api::StructuredDataExtractorClient` | structured_data_extractor operations |
 | `client.tasks` | `athena_intelligence_api_sdk::api::TasksClient` | tasks operations |
