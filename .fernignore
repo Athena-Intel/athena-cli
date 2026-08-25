@@ -14,3 +14,23 @@ cli/athena-intelligence-api/custom.rs
 # regeneration — including build-cli.yml, the workflow that builds and releases
 # the binaries, and the only thing that would have caught the loss above.
 .github/
+
+# README.md is generator-emitted (a template — the one that shipped literal
+# `<org>/<repo>` placeholders for two months). It is hand-written now: install
+# instructions, the truncation warning, the env-var migration note, the release
+# process. Without this entry every regeneration reverts it to the template;
+# regeneration PR #16 demonstrated exactly that by stripping the hand-added
+# learning-guide link.
+README.md
+
+# Hand-written operator guide. The generator owns the docs/ directory and
+# deletes files there it did not emit — regeneration PR #16 deleted this exact
+# file two regenerations after it was merged in #15.
+docs/athena-cli-learning.md
+
+# The installer published at raw.githubusercontent.com/.../main/install.sh and
+# consumed by every release's install instructions. Never generated. Root-level
+# unknown files have so far survived regeneration (dist-workspace.toml did),
+# but "so far survived" is not a contract — the learning guide above is what
+# relying on that looks like.
+install.sh

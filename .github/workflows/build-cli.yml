@@ -1,3 +1,15 @@
+# Per-PR verification: does the CLI compile, pass its tests, and lint cleanly on
+# every platform we ship?
+#
+# Releases are NOT built here — see release.yml, which runs on `v*` tags and
+# publishes to GitHub Releases. This workflow's artifacts are for testing a
+# branch before it is tagged.
+#
+# Previously this ran `cargo build` alone, on macOS and Windows only. That left
+# two gaps: the repo's own unit tests (wiremock + serial_test are dev-deps, and
+# custom.rs carries real tests) never ran in CI, and nothing ever compiled for
+# Linux even though dist-workspace.toml claimed four Linux targets — so CI could
+# not have caught a Linux-only break in the deep-agent sandbox or a container.
 name: Build CLI Binaries
 
 on:
@@ -12,48 +24,160 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Fast, single-platform gate. Fails a PR in ~1 minute on a formatting or lint
+  # error instead of after seven build jobs.
+  check:
+    name: fmt + clippy + test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Formatting is checked only on the files we own. Everything else in this
+      # repo is generated, and holding a code generator's output to rustfmt
+      # would fail the build for reasons no one here can fix.
+      # rustfmt is invoked directly, NOT via `cargo fmt`: cargo fmt resolves the
+      # crate's module tree and would drag the generated main.rs in with it,
+      # failing the build on the code generator's formatting rather than ours.
+      - name: rustfmt (hand-written files only)
+        run: rustfmt --check --edition 2021 cli/athena-intelligence-api/custom.rs
+
+      # clippy runs over the whole crate, but only findings in the files we own
+      # are allowed to fail the build.
+      #
+      # `cargo clippy -- -D warnings` was the obvious first attempt and it is
+      # wrong: `src/` is generated, and CI's `stable` toolchain moves. It failed
+      # on a `question_mark` lint at src/openapi/parser.rs:3496 that clippy
+      # 1.98.0 emits and 1.96.0 did not — generated code, no one here can fix
+      # it, and every future clippy release would break the build the same way.
+      #
+      # So: parse clippy's JSON, keep only diagnostics whose primary span is in
+      # a hand-written file, and fail on those. Generated-code findings are
+      # printed for information and ignored.
+      - name: clippy (hand-written files only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo clippy --bin athena --all-features --message-format=json \
+            > clippy.json 2> clippy.stderr || true
+          cat clippy.stderr
+
+          python3 - <<'PYEOF'
+          import json
+
+          OWNED = ("cli/athena-intelligence-api/custom.rs",)
+          owned, other = [], 0
+
+          with open("clippy.json") as fh:
+              for line in fh:
+                  line = line.strip()
+                  if not line:
+                      continue
+                  try:
+                      record = json.loads(line)
+                  except json.JSONDecodeError:
+                      continue
+                  msg = record.get("message")
+                  if not isinstance(msg, dict):
+                      continue
+                  if msg.get("level") not in ("warning", "error"):
+                      continue
+                  spans = [s for s in msg.get("spans", []) if s.get("is_primary")]
+                  if not spans:
+                      continue
+                  if any(s["file_name"].endswith(OWNED) for s in spans):
+                      owned.append(msg.get("rendered") or msg.get("message"))
+                  else:
+                      other += 1
+
+          if other:
+              print(f"note: {other} clippy finding(s) in generated code — ignored.")
+          if owned:
+              print(f"\n{len(owned)} clippy finding(s) in hand-written code:\n")
+              for r in owned:
+                  print(r)
+              raise SystemExit(1)
+          print("clippy: no findings in hand-written code.")
+          PYEOF
+
+      - name: test
+        run: cargo test --bin athena --locked
+
   build:
-    name: Build ${{ matrix.artifact-name }}
+    name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: macos-14
-            artifact-name: athena-macos-x64
-            rust-target: x86_64-apple-darwin
-            binary-path: target/x86_64-apple-darwin/release/athena
+            target: aarch64-apple-darwin
           - os: macos-14
-            artifact-name: athena-macos-arm64
-            rust-target: aarch64-apple-darwin
-            binary-path: target/aarch64-apple-darwin/release/athena
+            target: x86_64-apple-darwin
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          # See release.yml: musl needs rustls, because a static musl binary
+          # cannot link the system OpenSSL that native-tls requires.
+          #
+          # aarch64-unknown-linux-musl is deliberately absent. It fails to link:
+          # keyring -> dbus-secret-service -> vendored libdbus-sys compiles C
+          # that references libgcc's outline-atomics helpers
+          # (`undefined reference to __aarch64_ldadd4_sync`), which musl's
+          # self-contained link set does not provide. x86_64 musl links fine.
+          # Fixing it means making the keyring dependency conditional, which is
+          # generated-Cargo.toml surface and belongs in its own change.
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            tls: rustls
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
           - os: windows-latest
-            artifact-name: athena-windows-x64.exe
-            rust-target: ""
-            binary-path: target/release/athena.exe
+            target: x86_64-pc-windows-msvc
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
 
-      - name: Install Rust target
-        if: matrix.rust-target != ''
-        run: rustup target add "${{ matrix.rust-target }}"
+      - name: Install musl toolchain
+        if: endsWith(matrix.target, '-musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      - name: Build CLI
+      - name: Build
         shell: bash
         run: |
           set -euo pipefail
-          if [ -n "${{ matrix.rust-target }}" ]; then
-            cargo build --release --locked --bin athena --target "${{ matrix.rust-target }}"
-          else
-            cargo build --release --locked --bin athena
+          flags=(--release --locked --bin athena --target "${{ matrix.target }}")
+          if [ "${{ matrix.tls }}" = "rustls" ]; then
+            flags+=(--no-default-features --features rustls)
+          fi
+          cargo build "${flags[@]}"
+
+      # Cheap smoke test: prove the thing we just built actually runs, and is
+      # not the generator's 0.0.0 placeholder. Skipped when cross-compiled.
+      - name: Smoke test
+        if: matrix.os != 'ubuntu-24.04-arm' || runner.arch == 'ARM64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="target/${{ matrix.target }}/release/athena"
+          [ "${{ matrix.os }}" = "windows-latest" ] && bin="$bin.exe"
+          "$bin" --version
+          "$bin" --help > /dev/null
+          if "$bin" --version | grep -q ' 0\.0\.0$'; then
+            echo "::error::Built binary reports version 0.0.0 — the generator placeholder was not overlaid." >&2
+            exit 1
           fi
 
       - name: Package binary
@@ -61,10 +185,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          cp "${{ matrix.binary-path }}" "artifacts/${{ matrix.artifact-name }}"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp "target/${{ matrix.target }}/release/athena.exe" "artifacts/athena-${{ matrix.target }}.exe"
+          else
+            cp "target/${{ matrix.target }}/release/athena" "artifacts/athena-${{ matrix.target }}"
+          fi
 
-      - name: Upload binary
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact-name }}
-          path: artifacts/${{ matrix.artifact-name }}
+          name: athena-${{ matrix.target }}
+          path: artifacts/*

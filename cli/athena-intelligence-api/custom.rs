@@ -53,6 +53,13 @@ struct ReadAssetArgs {
     /// Password for reading password-protected Office files
     #[arg(long)]
     password: Option<String>,
+    /// Follow `next_offset` until the whole asset has been read, concatenating
+    /// the windows into a single result. Single asset id only.
+    #[arg(long)]
+    page_all: bool,
+    /// Maximum number of windows to fetch when --page-all is set
+    #[arg(long, default_value_t = 50)]
+    page_limit: usize,
 }
 
 #[derive(clap::Args)]
@@ -137,6 +144,69 @@ fn teaching_error(err: &AssetReadError) -> CliError {
     CliError::Validation(message)
 }
 
+/// The read_asset window envelope that Agora embeds *inside* `result.content`
+/// for large text reads.
+///
+/// This is the trap this type exists to close: a read that returns only the
+/// first 50,000 characters is a **successful** response. Nothing in the HTTP
+/// status, the CLI exit code, or the top level of the JSON says the content is
+/// partial — the only signal is `truncated: true` buried in a JSON string
+/// nested inside `content`. A caller who does not know to look for it gets a
+/// silent partial read and cannot tell it from a complete one.
+#[derive(Debug, Deserialize)]
+struct ContentWindow {
+    #[serde(default)]
+    truncated: bool,
+    #[serde(default)]
+    next_offset: Option<u64>,
+    #[serde(default)]
+    total_length: Option<u64>,
+    #[serde(default)]
+    window_end: Option<u64>,
+    #[serde(default)]
+    content: Option<String>,
+}
+
+/// Parse the nested window envelope out of a result's `content`, if present.
+///
+/// Returns `None` for every read whose content is not a windowed text payload
+/// (images, structured JSON, short reads) — those are never truncated.
+fn content_window(result: &AssetReadResult) -> Option<ContentWindow> {
+    serde_json::from_str::<ContentWindow>(&result.content).ok()
+}
+
+/// Append `?offset=` / `&offset=` to a parameterized asset id, replacing any
+/// offset the caller already supplied.
+fn with_offset(asset_id: &str, offset: u64) -> String {
+    let (base, query) = match asset_id.split_once('?') {
+        Some((base, query)) => (base, Some(query)),
+        None => (asset_id, None),
+    };
+    let mut params: Vec<String> = query
+        .into_iter()
+        .flat_map(|q| q.split('&'))
+        .filter(|p| !p.is_empty() && !p.starts_with("offset="))
+        .map(str::to_string)
+        .collect();
+    params.push(format!("offset={offset}"));
+    format!("{base}?{}", params.join("&"))
+}
+
+fn read_once(
+    ctx: &AppContext,
+    asset_ids: &[String],
+    password: &Option<String>,
+) -> Result<AssetReadResponse, CliError> {
+    let client = super::sdk::client(ctx);
+    let body = serde_json::json!({ "asset_ids": asset_ids, "password": password });
+    super::sdk::block_on(
+        client
+            .tools
+            .http_client
+            .execute_request::<AssetReadResponse>(Method::POST, READ_PATH, Some(body), None, None),
+    )
+}
+
 fn handle_read_asset(args: ReadAssetArgs, ctx: &AppContext) -> Result<(), CliError> {
     if args.asset_ids.len() > MAX_BATCH {
         return Err(CliError::Validation(format!(
@@ -144,17 +214,30 @@ fn handle_read_asset(args: ReadAssetArgs, ctx: &AppContext) -> Result<(), CliErr
             args.asset_ids.len()
         )));
     }
+    if args.page_all && args.asset_ids.len() != 1 {
+        return Err(CliError::Validation(format!(
+            "--page-all reads one asset at a time ({} ids given); it concatenates \
+             that asset's windows into a single result.",
+            args.asset_ids.len()
+        )));
+    }
+    if args.page_limit == 0 {
+        return Err(CliError::Validation(
+            "--page-limit must be at least 1.".to_string(),
+        ));
+    }
 
-    let client = super::sdk::client(ctx);
-    let body = serde_json::json!({ "asset_ids": args.asset_ids, "password": args.password });
-    let response: AssetReadResponse = super::sdk::block_on(
-        client
-            .tools
-            .http_client
-            .execute_request::<AssetReadResponse>(Method::POST, READ_PATH, Some(body), None, None),
-    )?;
+    let mut response = read_once(ctx, &args.asset_ids, &args.password)?;
+
+    if args.page_all {
+        follow_windows(ctx, &args, &mut response)?;
+    }
 
     print_json(&response);
+
+    if !args.page_all {
+        warn_if_truncated(&response);
+    }
 
     // For a single-asset read, surface a failed read as a non-zero exit so
     // callers do not have to inspect the JSON envelope.
@@ -170,6 +253,121 @@ fn handle_read_asset(args: ReadAssetArgs, ctx: &AppContext) -> Result<(), CliErr
     }
 
     Ok(())
+}
+
+/// Follow `next_offset` until the read is complete, splicing each window's text
+/// back into the first result's content envelope.
+fn follow_windows(
+    ctx: &AppContext,
+    args: &ReadAssetArgs,
+    response: &mut AssetReadResponse,
+) -> Result<(), CliError> {
+    let Some(first) = response.results.first() else {
+        return Ok(());
+    };
+    if first.is_error {
+        return Ok(());
+    }
+    let Some(window) = content_window(first) else {
+        return Ok(());
+    };
+    if !window.truncated {
+        return Ok(());
+    }
+
+    let mut text = window.content.unwrap_or_default();
+    let mut next = window.next_offset;
+    let mut windows = 1usize;
+    let total = window.total_length;
+
+    while let Some(offset) = next {
+        if windows >= args.page_limit {
+            eprintln!(
+                "warning: stopped after {} windows (--page-limit). The asset is still \
+                 incomplete; re-run with a higher --page-limit or resume at offset={}.",
+                args.page_limit, offset
+            );
+            break;
+        }
+
+        let page = read_once(
+            ctx,
+            &[with_offset(&args.asset_ids[0], offset)],
+            &args.password,
+        )?;
+        let Some(result) = page.results.first() else {
+            break;
+        };
+        if let Some(error) = result.error.as_ref().filter(|_| result.is_error) {
+            return Err(teaching_error(error));
+        }
+        let Some(window) = content_window(result) else {
+            break;
+        };
+
+        text.push_str(window.content.as_deref().unwrap_or_default());
+        windows += 1;
+        next = if window.truncated {
+            window.next_offset
+        } else {
+            None
+        };
+    }
+
+    // Rewrite the envelope so the emitted JSON describes what the caller
+    // actually received: one complete read, not a first window.
+    let end = total.unwrap_or(text.chars().count() as u64);
+    let merged = serde_json::json!({
+        "asset_id": response.results[0].asset_id,
+        "content": text,
+        "total_length": total,
+        "offset": 0,
+        "window_end": end,
+        "truncated": next.is_some(),
+        "next_offset": next,
+        "windows_fetched": windows,
+    });
+    response.results[0].content = serde_json::to_string_pretty(&merged)
+        .unwrap_or_else(|_| response.results[0].content.clone());
+
+    Ok(())
+}
+
+/// Warn on stderr when a read came back partial.
+///
+/// Goes to stderr so it never contaminates piped JSON on stdout, and names the
+/// exact follow-up command rather than just reporting the fact.
+fn warn_if_truncated(response: &AssetReadResponse) {
+    for result in &response.results {
+        let Some(window) = content_window(result) else {
+            continue;
+        };
+        if !window.truncated {
+            continue;
+        }
+        let end = window
+            .window_end
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "?".to_string());
+        let total = window
+            .total_length
+            .map(|t| t.to_string())
+            .unwrap_or_else(|| "?".to_string());
+        eprintln!(
+            "warning: {} is TRUNCATED — you have characters 0-{} of {}.",
+            result.asset_id, end, total
+        );
+        if let Some(offset) = window.next_offset {
+            eprintln!(
+                "         Read the whole asset with:  athena read-asset '{}' --page-all",
+                result.asset_id
+            );
+            eprintln!(
+                "         Or fetch the next window:   athena read-asset '{}'",
+                with_offset(&result.asset_id, offset)
+            );
+        }
+    }
 }
 
 fn handle_read_asset_capabilities(
@@ -239,15 +437,10 @@ pub fn register(app: CliApp) -> CliApp {
                     .required(true)
                     .help("Asset id to download"),
             )
-            .arg(
-                clap::Arg::new("output")
-                    .short('o')
-                    .long("output")
-                    .help(
-                        "Destination file path, directory, or '-' for stdout \
+            .arg(clap::Arg::new("output").short('o').long("output").help(
+                "Destination file path, directory, or '-' for stdout \
                          (default: server-provided filename in the current directory)",
-                    ),
-            ),
+            )),
         Box::new(|matches, ctx| {
             let ctx = ctx
                 .downcast_ref::<AppContext>()
@@ -311,7 +504,9 @@ pub fn register(app: CliApp) -> CliApp {
             .arg(
                 clap::Arg::new("source-channel")
                     .long("source-channel")
-                    .help("Filter by originating channel(s), comma-separated (e.g. web,agent_slack)"),
+                    .help(
+                        "Filter by originating channel(s), comma-separated (e.g. web,agent_slack)",
+                    ),
             )
             .arg(
                 clap::Arg::new("page-size")
@@ -387,7 +582,7 @@ fn browse_meetings(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(), C
         }
 
         // Build the selection list: meetings first, then navigation entries.
-        let mut labels: Vec<String> = items.iter().map(|m| format_meeting_row(m)).collect();
+        let mut labels: Vec<String> = items.iter().map(format_meeting_row).collect();
         let meeting_count = labels.len();
         let mut nav: Vec<&str> = Vec::new();
         if has_more {
@@ -445,7 +640,10 @@ fn browse_meetings(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(), C
 
 /// Fetch one page of meetings via the spec-driven executor (same auth,
 /// retries, and --base-url handling as the generated `meetings list`).
-fn fetch_meetings_page(ctx: &AppContext, state: &BrowseState) -> Result<serde_json::Value, CliError> {
+fn fetch_meetings_page(
+    ctx: &AppContext,
+    state: &BrowseState,
+) -> Result<serde_json::Value, CliError> {
     let method = ctx.find_method("meetings", "list")?;
     let mut params = serde_json::Map::new();
     params.insert("limit".into(), state.page_size.into());
@@ -536,7 +734,10 @@ fn meeting_actions(
 
         match actions[choice] {
             ("Show JSON", _) => {
-                println!("{}", serde_json::to_string_pretty(meeting).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(meeting).unwrap_or_default()
+                );
             }
             ("Print asset id", _) => {
                 println!("{asset_id}");
@@ -621,8 +822,9 @@ fn download_to_file(
                 });
             }
 
-            let mut file = std::fs::File::create(dest)
-                .map_err(|e| CliError::Other(anyhow::anyhow!("cannot create {}: {e}", dest.display())))?;
+            let mut file = std::fs::File::create(dest).map_err(|e| {
+                CliError::Other(anyhow::anyhow!("cannot create {}: {e}", dest.display()))
+            })?;
             while let Some(chunk) = response
                 .chunk()
                 .await
@@ -882,7 +1084,7 @@ fn browse_sessions(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(), C
         }
 
         // Build the selection list: sessions first, then navigation entries.
-        let mut labels: Vec<String> = items.iter().map(|s| format_session_row(s)).collect();
+        let mut labels: Vec<String> = items.iter().map(format_session_row).collect();
         let session_count = labels.len();
         let mut nav: Vec<&str> = Vec::new();
         if has_more {
@@ -1002,7 +1204,10 @@ fn session_actions(
 
         match labels[choice] {
             "Show JSON" => {
-                println!("{}", serde_json::to_string_pretty(session).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(session).unwrap_or_default()
+                );
             }
             "Print asset id" => {
                 println!("{asset_id}");
@@ -1018,9 +1223,7 @@ fn session_actions(
                 eprintln!("{}", style(format!("Downloading {export_format}…")).dim());
                 download_to_file(
                     ctx,
-                    &format!(
-                        "api/v0/sessions/{asset_id}/download?export_format={export_format}"
-                    ),
+                    &format!("api/v0/sessions/{asset_id}/download?export_format={export_format}"),
                     &dest,
                 )?;
                 eprintln!("{}", style(format!("Saved {}", dest.display())).green());
@@ -1060,9 +1263,7 @@ mod tests {
     #[test]
     fn content_disposition_percent_encoded_filename() {
         assert_eq!(
-            filename_from_content_disposition(
-                "attachment; filename=\"Fidelity%20Sheet.xlsx\""
-            ),
+            filename_from_content_disposition("attachment; filename=\"Fidelity%20Sheet.xlsx\""),
             Some("Fidelity Sheet.xlsx".to_string()),
         );
     }
@@ -1109,5 +1310,77 @@ mod tests {
             extension_for_content_type("application/x-unknown; charset=utf-8"),
             ".bin",
         );
+    }
+
+    #[test]
+    fn with_offset_appends_to_a_bare_asset_id() {
+        assert_eq!(with_offset("asset_abc", 50000), "asset_abc?offset=50000");
+    }
+
+    #[test]
+    fn with_offset_preserves_existing_query_params() {
+        assert_eq!(
+            with_offset("asset_abc?format=text", 100),
+            "asset_abc?format=text&offset=100"
+        );
+    }
+
+    #[test]
+    fn with_offset_replaces_a_stale_offset() {
+        // Following next_offset must not accumulate offsets, or the second
+        // window silently re-reads the first.
+        assert_eq!(
+            with_offset("asset_abc?offset=50000&format=text", 100000),
+            "asset_abc?format=text&offset=100000"
+        );
+    }
+
+    #[test]
+    fn content_window_detects_a_truncated_read() {
+        let result = AssetReadResult {
+            asset_id: "asset_abc".to_string(),
+            asset_type: None,
+            format: "text".to_string(),
+            content: serde_json::json!({
+                "content": "partial",
+                "total_length": 75744,
+                "offset": 0,
+                "window_end": 50000,
+                "truncated": true,
+                "next_offset": 50000
+            })
+            .to_string(),
+            structured_content: None,
+            is_error: false,
+            error: None,
+            warning: None,
+            anchor_guidance: None,
+            format_guidance: None,
+            read_capabilities: None,
+        };
+        let window = content_window(&result).expect("windowed content should parse");
+        assert!(window.truncated);
+        assert_eq!(window.next_offset, Some(50000));
+        assert_eq!(window.total_length, Some(75744));
+    }
+
+    #[test]
+    fn content_window_is_none_for_plain_text_content() {
+        // Non-windowed reads (images, short text) must not be mistaken for
+        // truncated ones.
+        let result = AssetReadResult {
+            asset_id: "asset_abc".to_string(),
+            asset_type: None,
+            format: "text".to_string(),
+            content: "just some text".to_string(),
+            structured_content: None,
+            is_error: false,
+            error: None,
+            warning: None,
+            anchor_guidance: None,
+            format_guidance: None,
+            read_capabilities: None,
+        };
+        assert!(content_window(&result).is_none());
     }
 }

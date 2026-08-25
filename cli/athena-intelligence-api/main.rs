@@ -9,7 +9,7 @@ use fern_cli_sdk::openapi::OpenApiBinding;
 use fern_cli_sdk::auth::{ApiKeyAuth, AuthCredentialSource};
 
 fn main() {
-    let app = CliApp::new("athena-intelligence-api")
+    let app = CliApp::new("athena")
         .auth(ApiKeyAuth::new("APIKeyHeader").source(AuthCredentialSource::any(vec![AuthCredentialSource::cli("api-key"), AuthCredentialSource::from_env("ATHENA_API_KEY")])))
         .binding(
             OpenApiBinding::new()

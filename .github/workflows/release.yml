@@ -1,0 +1,225 @@
+# Tag-triggered release: build every supported target, publish one GitHub
+# Release with checksums, and expose a stable install URL.
+#
+# Why this exists at all: for the whole life of this repo the only way to obtain
+# the CLI was to find a green `build-cli.yml` run and unzip its artifact. There
+# were no tags and no releases, while README.md advertised a `curl | sh`
+# installer that had never been published (its URL still contained the literal
+# placeholders `<org>/<repo>`).
+#
+# Why not cargo-dist: `dist-workspace.toml` configured cargo-dist for 7 targets
+# and two installers, but no workflow ever invoked it, so none of it ran. Rather
+# than keep a second, unexercised release mechanism, this workflow does the same
+# job explicitly. `[profile.dist]` in Cargo.toml is still the profile used here
+# (`--profile dist`, lto = "thin"), so that part of the old config lives on.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (must already exist)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Fail before spending 7 build jobs if the tag and Cargo.toml disagree.
+  # Regeneration resets the crate version to 0.0.0 on every cycle, so a release
+  # cut from a freshly regenerated main would otherwise ship binaries that
+  # report a version nobody can trace back to a tag.
+  verify-version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag must match Cargo.toml version
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          tag_version="${tag#v}"
+          crate_version="$(
+            sed -n '/^\[package\]/,/^\[/p' Cargo.toml \
+              | sed -n 's/^version = "\(.*\)"/\1/p' | head -1
+          )"
+
+          echo "tag=$tag_version  Cargo.toml=$crate_version"
+          if [ "$tag_version" != "$crate_version" ]; then
+            echo "::error::Tag $tag implies version $tag_version but Cargo.toml says $crate_version." >&2
+            echo "::error::Bump the version in Cargo.toml (and keep the regenerate-cli.yml overlay in sync) before tagging." >&2
+            exit 1
+          fi
+          if [ "$crate_version" = "0.0.0" ]; then
+            echo "::error::Cargo.toml version is 0.0.0 — the generator's placeholder. Set a real version." >&2
+            exit 1
+          fi
+          echo "version=$tag_version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: verify-version
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: macos-14
+            target: x86_64-apple-darwin
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          # musl builds use rustls, not native-tls: a static musl binary cannot
+          # link the system OpenSSL that native-tls needs. This is exactly what
+          # the `rustls` feature in Cargo.toml was added for.
+          #
+          # There is no aarch64-unknown-linux-musl build: the vendored libdbus
+          # that keyring pulls in references libgcc outline-atomics helpers musl
+          # does not provide, so it fails to link. aarch64 Linux users get the
+          # gnu build; install.sh says so explicitly on a musl aarch64 host.
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            tls: rustls
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install musl toolchain
+        if: endsWith(matrix.target, '-musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          flags=(--profile dist --locked --bin athena --target "${{ matrix.target }}")
+          if [ "${{ matrix.tls }}" = "rustls" ]; then
+            flags+=(--no-default-features --features rustls)
+          fi
+          cargo build "${flags[@]}"
+
+      - name: Package
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.verify-version.outputs.version }}"
+          name="athena-${version}-${{ matrix.target }}"
+          mkdir -p "staging/$name"
+
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp "target/${{ matrix.target }}/dist/athena.exe" "staging/$name/"
+          else
+            cp "target/${{ matrix.target }}/dist/athena" "staging/$name/"
+          fi
+          cp README.md LICENSE reference.md "staging/$name/"
+
+          mkdir -p artifacts
+          cd staging
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a "../artifacts/$name.zip" "$name" >/dev/null
+            asset="$name.zip"
+          else
+            tar -czf "../artifacts/$name.tar.gz" "$name"
+            asset="$name.tar.gz"
+          fi
+          cd ..
+
+          # Per-asset checksum, merged into one SHA256SUMS file by the release job.
+          if command -v sha256sum >/dev/null; then
+            (cd artifacts && sha256sum "$asset" > "$asset.sha256")
+          else
+            (cd artifacts && shasum -a 256 "$asset" > "$asset.sha256")
+          fi
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: artifacts/*
+
+  release:
+    needs: [verify-version, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloaded
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Collect checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd downloaded
+          cat *.sha256 > SHA256SUMS
+          rm -f *.sha256
+          ls -la
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          version="${{ needs.verify-version.outputs.version }}"
+
+          notes="$(mktemp)"
+          cat > "$notes" <<EOF
+          ## Install
+
+          **macOS / Linux**
+
+          \`\`\`bash
+          curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sh
+          \`\`\`
+
+          **Windows / manual** — download the archive for your platform below, extract it,
+          and put \`athena\` on your \`PATH\`.
+
+          Verify what you downloaded against \`SHA256SUMS\`.
+
+          ## Verify
+
+          \`\`\`bash
+          athena --version   # athena $version
+          athena auth login
+          athena users me
+          \`\`\`
+          EOF
+
+          gh release create "$tag" \
+            --title "athena $version" \
+            --notes-file "$notes" \
+            --verify-tag \
+            downloaded/*

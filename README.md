@@ -1,131 +1,240 @@
 # Athena Intelligence API CLI
 
-Command-line interface for the Athena Intelligence API.
+`athena` is the command-line interface to the Athena Intelligence API. It is generated
+from the same OpenAPI spec as the [Python](https://pypi.org/project/athenaintel/) and
+[TypeScript](https://www.npmjs.com/package/@athenaintel/sdk) SDKs, so every public API
+operation is available as a subcommand.
 
 ## Table of contents
 
 - [Installation](#installation)
 - [Authentication](#authentication)
 - [Quick start](#quick-start)
-- [Usage](#usage)
+- [Reading assets](#reading-assets)
 - [Documentation](#documentation)
 - [Advanced](#advanced)
-  - [Common flags](#common-flags)
-  - [Environment variables](#environment-variables)
-  - [Output formats](#output-formats)
-  - [Shell completion](#shell-completion)
 
 ## Installation
 
-### Shell (macOS / Linux)
+### macOS / Linux
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/<org>/<repo>/releases/latest/download/athena-intelligence-api-installer.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Athena-Intel/athena-cli/main/install.sh | sh
 ```
 
-### PowerShell (Windows)
+This repository is private, so the installer needs a token that can read its
+releases:
 
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://github.com/<org>/<repo>/releases/latest/download/athena-intelligence-api-installer.ps1 | iex"
+```bash
+GITHUB_TOKEN="$(gh auth token)" \
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/Athena-Intel/athena-cli/main/install.sh)"
 ```
+
+The installer picks the right build for your platform — including the static
+**musl** build on Alpine and other non-glibc systems — and installs to
+`~/.local/bin`. It **verifies the download against `SHA256SUMS` and refuses to
+install if it cannot**, since piping a script into `sh` means the binary it
+fetches gets executed.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ATHENA_INSTALL_DIR` | `$HOME/.local/bin` | Where to put the binary |
+| `ATHENA_VERSION` | latest release | Install a specific version |
+| `ATHENA_BIN_NAME` | `athena` | Installed command name |
+| `ATHENA_SKIP_CHECKSUM` | unset | Set to `1` to install without verifying the download (not advised) |
+
+> **If `athena` is already a shell alias, install under another name.**
+> `alias athena='cd ~/code/athena'` is a natural alias for anyone working in the
+> monorepo, and a shell alias silently shadows the binary — the alias simply
+> wins, with no error. Use `ATHENA_BIN_NAME=athena-cli sh -c "$(curl …)"`. The
+> installer warns you if it detects this after installing.
+
+### Windows
+
+Download `athena-<version>-x86_64-pc-windows-msvc.zip` from the
+[latest release](https://github.com/Athena-Intel/athena-cli/releases/latest),
+extract it, and put `athena.exe` on your `PATH`.
 
 ### Build from source
 
-If you prefer to build from source, install the [Rust toolchain](https://rustup.rs/) and run:
+```bash
+cargo build --release --bin athena
+./target/release/athena --help
+```
+
+For a self-contained binary with no system OpenSSL dependency (containers,
+cross-compilation, musl):
 
 ```bash
-cargo build --release
-./target/release/athena-intelligence-api --help
+cargo build --release --bin athena --no-default-features --features rustls
 ```
+
+### Supported platforms
+
+| OS | Architectures |
+|---|---|
+| macOS | `aarch64`, `x86_64` |
+| Linux (glibc) | `aarch64`, `x86_64` |
+| Linux (musl, static) | `x86_64` |
+| Windows | `x86_64` |
+
+`aarch64` musl is not published — it fails to link, because the vendored libdbus
+that `keyring` pulls in references libgcc atomics helpers musl does not provide.
+Build from source with `--features rustls` if you need it.
 
 ## Authentication
 
-Set the following environment variable(s) before using the CLI:
+Either store a key in your OS keyring:
+
+```bash
+athena auth login       # prompts, stores in the keyring
+athena auth status      # shows every credential source it can see
+```
+
+…or supply it through the environment:
 
 ```bash
 export ATHENA_API_KEY="<your api key>"
 ```
 
-A `.env` file in the working directory is also supported — the CLI auto-loads it on startup.
+A `.env` file in the working directory is also auto-loaded on startup.
+
+Verify with:
+
+```bash
+athena users me
+```
 
 ## Quick start
 
-List available commands:
-
 ```bash
-athena-intelligence-api --help
+athena --help                       # every command group
+athena <resource> --help            # methods on one resource
+athena assets list                  # call an operation
+athena assets list --format table   # human-readable output
 ```
 
-Call an API endpoint:
+Request parameters can be flags or JSON:
 
 ```bash
-athena-intelligence-api <resource> <method>
+athena <resource> <method> --json '{"key": "value"}'
+athena <resource> <method> --json -          # read the body from stdin
+athena <resource> <method> --dry-run         # print the request, send nothing
 ```
 
-Run `athena-intelligence-api <resource> --help` to see available methods for a resource.
+## Reading assets
 
-## Usage
-
-Every API resource appears as a subcommand (e.g. `athena-intelligence-api <resource> <method>`). Run `athena-intelligence-api <resource> --help` to see available methods.
-
-Provide request parameters as flags or as JSON:
+`read-asset` exposes the same progressive-disclosure read the agent runtime
+uses — anchors, formats, and pagination:
 
 ```bash
-athena-intelligence-api <resource> <method> --json '{"key": "value"}'
+athena read-asset "asset_abc"
+athena read-asset "asset_abc?anchor=page&page=3&format=text"
+athena read-asset "asset_abc@4"                # a pinned version
+athena read-asset asset_a asset_b asset_c      # up to 10 per call
+athena read-asset-capabilities                 # what each asset type supports
 ```
+
+### Long assets are truncated — read the warning
+
+A large text read returns only the **first 50,000 characters**, and it does so
+as a *successful* response: nothing in the exit code or the top level of the
+JSON says the content is partial. The CLI detects this and warns on stderr:
+
+```
+warning: asset_abc is TRUNCATED — you have characters 0-50000 of 62976.
+         Read the whole asset with:  athena read-asset 'asset_abc' --page-all
+```
+
+Use `--page-all` to follow every window and concatenate them into one result:
+
+```bash
+athena read-asset "asset_abc" --page-all
+athena read-asset "asset_abc" --page-all --page-limit 200   # default 50
+```
+
+The warning goes to stderr, so it never contaminates JSON piped from stdout.
 
 ## Documentation
 
-See [reference.md](./reference.md) for the full command reference.
-
-For practical operator workflows, see [docs/athena-cli-learning.md](./docs/athena-cli-learning.md).
+- [reference.md](./reference.md) — full command reference, every operation and flag
+- [docs/athena-cli-learning.md](./docs/athena-cli-learning.md) — practical operator workflows
 
 ## Advanced
 
 ### Common flags
 
-These flags are available on every operation:
+Available on every operation:
 
 | Flag | Description |
 |------|-------------|
-| `--dry-run` | Validate the request locally and print the HTTP request without sending it |
-| `--json <JSON\|->` | Supply a request body as JSON (or `-` to read stdin) |
+| `--dry-run` | Validate the request locally and print it without sending |
+| `--json <JSON\|->` | Request body as JSON (or `-` to read stdin) |
 | `--params <JSON>` | Merge extra parameters as JSON (overrides individual flags) |
-| `--format <json\|table\|yaml\|csv>` | Output format (default `json`) |
-| `--output <PATH>` | Write binary responses to a file |
+| `--format <FORMAT>` | `json`, `table`, `yaml`, `csv`, `raw`, `jsonl`, `http` |
+| `--query <EXPR>` | JMESPath expression applied to the response |
 | `--base-url <URL>` | Override the API base URL |
 | `--page-all` | Auto-paginate and stream results as NDJSON |
-| `--page-limit <N>` | Max pages to fetch when auto-paginating (default `10`) |
-| `-q, --quiet` | Suppress stdout output on success (errors still go to stderr) |
+| `--page-limit <N>` | Max pages when auto-paginating (default `10`) |
+| `--schema` | Machine-readable JSON schema for this scope (agent-facing `--help`) |
+| `--debug` | Dump the HTTP request and response to stderr |
+| `-q, --quiet` | Suppress stdout on success (errors still go to stderr) |
 
 ### Environment variables
 
 | Variable | Description |
 |----------|-------------|
-| `ATHENA_INTELLIGENCE_API_BASE_URL` | Override the API base URL |
-| `ATHENA_INTELLIGENCE_API_CA_BUNDLE` | Path to PEM file with extra trust roots (or `SSL_CERT_FILE`) |
-| `ATHENA_INTELLIGENCE_API_INSECURE=1` | Skip TLS verification (debugging only) |
-| `ATHENA_INTELLIGENCE_API_PROXY` | HTTP(S) proxy URL |
-| `ATHENA_INTELLIGENCE_API_TIMEOUT_SECS` | Total request timeout in seconds |
+| `ATHENA_API_KEY` | API key |
+| `ATHENA_BASE_URL` | Override the API base URL |
+| `ATHENA_CA_BUNDLE` | PEM file with extra trust roots (or `SSL_CERT_FILE`) |
+| `ATHENA_INSECURE=1` | Skip TLS verification (debugging only) |
+| `ATHENA_PROXY` | HTTP(S) proxy URL |
+| `ATHENA_TIMEOUT_SECS` | Total request timeout in seconds |
+| `ATHENA_OUTPUT` | Default `--format` value |
 
-Standard environment variables (`HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` / `SSL_CERT_FILE`) are also honored.
+`HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` / `SSL_CERT_FILE` are also honored.
+
+> **Upgrading from a pre-0.1.0 build?** The command was previously named
+> `athena-intelligence-api` internally, which is what derived those variable
+> names. They are now `ATHENA_*` as shown above, and the keyring entry moved
+> from `athena-intelligence-api:APIKeyHeader` to `athena:APIKeyHeader` — run
+> `athena auth login` once to re-store your key. `ATHENA_API_KEY` is unchanged.
 
 ### Output formats
 
-Use the global `--format` flag to control output. Supported values: `json` (default), `table`, `yaml`, `csv`.
-
 ```bash
-# Pipe JSON output through jq
-athena-intelligence-api <resource> <method> --format json | jq
-
-# Machine-readable catalog of every operation
-athena-intelligence-api --help --format json | jq 'length'
+athena assets list --format table
+athena assets list --format json | jq
+athena assets list --query 'items[].{id: id, title: title}'
+athena --help --format json | jq 'length'     # catalog of every operation
 ```
 
 ### Shell completion
 
-Generate shell completion scripts:
+```bash
+athena completion <bash|zsh|fish|powershell>
+```
+
+### Targeting a different environment
 
 ```bash
-athena-intelligence-api completion <bash|zsh|fish|powershell>
+athena --base-url https://api.athenaintel.com <resource> <method>
 ```
+
+Only production is declared in the spec today, so non-production environments
+need an explicit `--base-url`.
+
+## Releasing
+
+Releases are cut from tags by [`.github/workflows/release.yml`](.github/workflows/release.yml):
+
+```bash
+# 1. bump the version in Cargo.toml (and keep the regenerate-cli.yml overlay in sync)
+# 2. tag and push
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The workflow refuses to release if the tag and `Cargo.toml` disagree, or if the
+version is still the generator's `0.0.0` placeholder. It builds all seven
+targets, publishes a GitHub Release with `SHA256SUMS`, and that is what
+`install.sh` reads.
