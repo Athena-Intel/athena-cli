@@ -131,6 +131,28 @@ athena <resource> <method> --json -          # read the body from stdin
 athena <resource> <method> --dry-run         # print the request, send nothing
 ```
 
+## Chatting with the agent
+
+`athena chat` talks to the general Athena agent from the terminal. With no
+prompt and a terminal attached it opens an interactive session where every turn
+reuses one thread, so the agent keeps the conversation's context:
+
+```bash
+athena chat
+athena chat "summarize the Q3 revenue asset"          # one turn, then exit
+athena chat -p "explain this" < notes.md              # piped stdin is appended
+git diff | athena chat "review this diff"
+athena chat --thread-id thread_abc "and the margins?" # resume a conversation
+```
+
+The reply goes to stdout; the thread id and tool activity go to stderr, so
+`athena chat "…" > answer.md` captures only the answer. `--model`,
+`--system-prompt`, `--tool`, and `--knowledge-asset` configure the run, and
+`--raw` prints the unmodified API response instead of the reply.
+
+Each turn is synchronous and can take minutes — raise `ATHENA_TIMEOUT_SECS` if
+you have shortened it. Browse past conversations with `athena sessions browse`.
+
 ## Reading assets
 
 `read-asset` exposes the same progressive-disclosure read the agent runtime
