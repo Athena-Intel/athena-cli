@@ -32,8 +32,8 @@ curl -fsSL https://raw.githubusercontent.com/Athena-Intel/athena-cli/main/instal
 Pin a version with `ATHENA_VERSION=0.3.1`, or download an archive by hand from
 the [releases page](https://github.com/Athena-Intel/athena-cli/releases).
 
-The installer picks the right build for your platform — including the static
-**musl** build on Alpine and other non-glibc systems — and installs to
+The installer picks the right build for your platform — on x86_64 Linux
+always the static **musl** build, which runs on any distribution — and installs to
 `~/.local/bin`. It **verifies the download against `SHA256SUMS` and refuses to
 install if it cannot**, since piping a script into `sh` means the binary it
 fetches gets executed.
@@ -78,6 +78,10 @@ cargo build --release --bin athena --no-default-features --features rustls
 | macOS | `aarch64`, `x86_64` |
 | Linux (glibc) | `aarch64`, `x86_64` |
 | Linux (musl, static) | `x86_64` |
+
+glibc builds are compiled on Ubuntu 22.04 runners and need glibc 2.35 or newer
+(Ubuntu 22.04, Debian 12, and later). The installer uses the musl build on x86_64
+for that reason; arm64 Linux has no musl build and gets the glibc one.
 | Windows | `x86_64` |
 
 `aarch64` musl is not published — it fails to link, because the vendored libdbus

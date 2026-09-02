@@ -79,7 +79,12 @@ jobs:
             target: aarch64-apple-darwin
           - os: macos-14
             target: x86_64-apple-darwin
-          - os: ubuntu-24.04
+          # gnu builds are dynamically linked against the glibc of the runner that
+          # builds them and refuse to start on anything older ("GLIBC_2.39 not
+          # found" on Ubuntu 22.04 / Debian 12 was the 0.3.1 failure). Build them
+          # on the oldest runner GitHub offers so glibc 2.35+ can run them. The
+          # musl build is static and does not care which runner builds it.
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
           # musl builds use rustls, not native-tls: a static musl binary cannot
           # link the system OpenSSL that native-tls needs. This is exactly what
@@ -92,7 +97,7 @@ jobs:
           - os: ubuntu-24.04
             target: x86_64-unknown-linux-musl
             tls: rustls
-          - os: ubuntu-24.04-arm
+          - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
           - os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -108,7 +113,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
+          # The runner image is part of the key: C objects that the vendored
+          # libdbus compiles on 24.04 reference glibc 2.38+ symbols
+          # (`__isoc23_strtol`) and fail to link when restored on 22.04.
+          key: ${{ matrix.os }}-${{ matrix.target }}
 
       - name: Install musl toolchain
         if: endsWith(matrix.target, '-musl')

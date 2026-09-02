@@ -89,23 +89,21 @@ esac
 case "$os" in
   Darwin) target="${arch}-apple-darwin" ;;
   Linux)
-    # Prefer the static musl build on any distro without glibc (Alpine, and
-    # most scratch/distroless container bases). Getting this wrong produces a
-    # binary that installs cleanly and then fails at exec time with a linker
-    # error.
-    if [ -f /etc/alpine-release ] || ! ldd /bin/sh 2>/dev/null | grep -q 'libc\.so'; then
-      if [ "$arch" = "aarch64" ]; then
-        # There is no aarch64 musl build to offer: it fails to link (vendored
-        # libdbus, via keyring, references libgcc outline-atomics helpers musl
-        # does not provide). Say so rather than 404 on the download.
-        die "aarch64 musl (this looks like Alpine on ARM) is not published yet.
+    # x86_64 always gets the static musl build: it runs on every distribution.
+    # The gnu build is linked against the glibc of the runner that built it and
+    # refuses to start on older systems ("GLIBC_2.xx not found").
+    if [ "$arch" = "x86_64" ]; then
+      target="x86_64-unknown-linux-musl"
+    elif [ -f /etc/alpine-release ] || ! ldd /bin/sh 2>/dev/null | grep -q 'libc\.so'; then
+      die "aarch64 musl (this looks like Alpine on ARM) is not published yet.
 Build from source instead:
   cargo build --release --bin athena --no-default-features --features rustls
 Tracked in https://github.com/$REPO/issues/17"
-      fi
-      target="${arch}-unknown-linux-musl"
     else
-      target="${arch}-unknown-linux-gnu"
+      # No aarch64 musl build exists (see release.yml), so arm64 Linux gets the
+      # glibc build. Releases are built on the oldest GitHub runner so it runs on
+      # Ubuntu 22.04 / Debian 12 (glibc 2.35) and newer.
+      target="aarch64-unknown-linux-gnu"
     fi
     ;;
   MINGW*|MSYS*|CYGWIN*)
