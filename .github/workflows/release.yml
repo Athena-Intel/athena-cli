@@ -206,11 +206,16 @@ jobs:
           cat > "$notes" <<EOF
           ## Install
 
-          **macOS / Linux** — this repo is private, so the script fetch and the
-          asset downloads both need auth; this authenticates both:
+          **Homebrew (macOS / Linux)**
 
           \`\`\`bash
-          GITHUB_TOKEN="\$(gh auth token)" sh -c "\$(gh api repos/${{ github.repository }}/contents/install.sh -H 'Accept: application/vnd.github.raw')"
+          brew install athena-intel/athena/athena
+          \`\`\`
+
+          **macOS / Linux**
+
+          \`\`\`bash
+          curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sh
           \`\`\`
 
           **Windows / manual** — download the archive for your platform below, extract it,
@@ -222,7 +227,7 @@ jobs:
 
           \`\`\`bash
           athena --version   # athena $version
-          athena auth login
+          athena login
           athena users me
           \`\`\`
           EOF

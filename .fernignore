@@ -39,6 +39,7 @@ install.sh
 # template emits this cargo-dist config, but nothing in this repo invokes
 # cargo-dist — releases are cut by .github/workflows/release.yml, which does the
 # same job explicitly (and still builds with [profile.dist] from Cargo.toml).
-# It was removed in #18 and the very next regeneration (#19) re-created it from
+# It was removed in PR #18 and the very next regeneration (PR #19, both in the
+# archived pre-2026-09-02 repository) re-created it from
 # the template; this entry is what makes the removal stick.
 dist-workspace.toml

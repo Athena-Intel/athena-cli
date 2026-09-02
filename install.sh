@@ -98,7 +98,7 @@ case "$os" in
       die "aarch64 musl (this looks like Alpine on ARM) is not published yet.
 Build from source instead:
   cargo build --release --bin athena --no-default-features --features rustls
-Tracked in https://github.com/$REPO/issues/17"
+Tracked in https://github.com/$REPO/issues/1"
     else
       # No aarch64 musl build exists (see release.yml), so arm64 Linux gets the
       # glibc build. Releases are built on the oldest GitHub runner so it runs on
