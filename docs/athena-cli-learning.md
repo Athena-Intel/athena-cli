@@ -34,7 +34,7 @@ Do not paste the key into chat, commit it, or include it in debug output. `auth 
 
 ## Discover the command surface
 
-Use help before writing a script. Generated operations use resource/method syntax; custom commands include `read-asset`, `read-asset-capabilities`, and the interactive `meetings browse` companion.
+Use help before writing a script. Generated operations use resource/method syntax; custom commands include `read-asset`, `read-asset-capabilities`, `assets download`, the interactive `meetings browse` / `sessions browse` companions, and the `ssh` family for computer assets (`ssh <computer>`, `ssh setup`, `ssh config`, `ssh token` — see the README's "SSH into a computer" section).
 
 ```bash
 athena --help
