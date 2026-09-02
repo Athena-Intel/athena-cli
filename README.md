@@ -17,28 +17,20 @@ operation is available as a subcommand.
 
 ## Installation
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install athena-intel/athena/athena
+```
+
 ### macOS / Linux
-
-This repository is private, which constrains both fetches: raw.githubusercontent.com
-returns 404 for the script itself without auth, and the release assets need a token
-too. This one command authenticates both (requires the `gh` CLI, logged in):
-
-```bash
-GITHUB_TOKEN="$(gh auth token)" sh -c "$(gh api repos/Athena-Intel/athena-cli/contents/install.sh -H 'Accept: application/vnd.github.raw')"
-```
-
-Without `gh`, fetch the script with any token that can read the repo:
-
-```bash
-curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-  https://raw.githubusercontent.com/Athena-Intel/athena-cli/main/install.sh | sh
-```
-
-If the repository ever becomes public, the plain form works:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Athena-Intel/athena-cli/main/install.sh | sh
 ```
+
+Pin a version with `ATHENA_VERSION=0.3.1`, or download an archive by hand from
+the [releases page](https://github.com/Athena-Intel/athena-cli/releases).
 
 The installer picks the right build for your platform — including the static
 **musl** build on Alpine and other non-glibc systems — and installs to

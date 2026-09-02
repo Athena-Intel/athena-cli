@@ -47,18 +47,13 @@ DL_BASE="${ATHENA_DL_BASE:-https://github.com}"
 
 # Download one release asset by filename.
 #
-# Two routes, and the difference is not cosmetic. This repo is private, and
-# GitHub's browser download URL (github.com/<repo>/releases/download/...)
-# returns 404 on a private repo even with a valid Bearer token — verified
-# against a real private release before this was written. Private assets are
-# only served through the API asset endpoint with `Accept:
-# application/octet-stream`, which 302s to a signed URL (curl drops the
-# Authorization header on that cross-origin hop, which is exactly what the
-# signed URL requires).
-#
-# So: with a token, resolve the asset id out of the release JSON and use the
-# API route. Without a token, use the browser URL — the path that works if the
-# repo is ever public.
+# Two routes. The browser download URL (github.com/<repo>/releases/download/...)
+# needs no auth for a public release and is the default. With GITHUB_TOKEN set,
+# resolve the asset id out of the release JSON and use the API asset endpoint
+# with `Accept: application/octet-stream` instead — it 302s to a signed URL
+# (curl drops the Authorization header on that cross-origin hop, which is
+# exactly what the signed URL requires). The token route exists for callers
+# behind the unauthenticated GitHub API rate limit (60 requests/hour per IP).
 fetch_asset() {
   # $1 = asset filename, $2 = output path
   if [ -n "${GITHUB_TOKEN:-}" ]; then
@@ -132,10 +127,10 @@ release_json="$tmp/release.json"
 if [ -n "${ATHENA_VERSION:-}" ]; then
   version="${ATHENA_VERSION#v}"
   dl "$API_BASE/repos/$REPO/releases/tags/v${version}" -o "$release_json" \
-    || die "could not read release v${version}. This repo is private — export GITHUB_TOKEN (e.g. GITHUB_TOKEN=\"\$(gh auth token)\"), or check the version."
+    || die "could not read release v${version} — check the version at https://github.com/$REPO/releases (GITHUB_TOKEN is optional; it only raises the GitHub API rate limit)."
 else
   dl "$API_BASE/repos/$REPO/releases/latest" -o "$release_json" \
-    || die "could not determine the latest release. This repo is private — export GITHUB_TOKEN (e.g. GITHUB_TOKEN=\"\$(gh auth token)\"), or set ATHENA_VERSION explicitly."
+    || die "could not determine the latest release — set ATHENA_VERSION explicitly (GITHUB_TOKEN is optional; it only raises the GitHub API rate limit)."
   version="$(sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' "$release_json" | head -1)"
   [ -n "$version" ] || die "release JSON has no tag_name — cannot determine the version."
 fi
