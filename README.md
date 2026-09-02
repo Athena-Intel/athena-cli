@@ -11,6 +11,7 @@ operation is available as a subcommand.
 - [Authentication](#authentication)
 - [Quick start](#quick-start)
 - [Reading assets](#reading-assets)
+- [SSH into a computer](#ssh-into-a-computer)
 - [Documentation](#documentation)
 - [Advanced](#advanced)
 
@@ -93,20 +94,36 @@ Build from source with `--features rustls` if you need it.
 
 ## Authentication
 
-Either store a key in your OS keyring:
+Log in through your browser — there is no API key to copy:
 
 ```bash
-athena auth login       # prompts, stores in the keyring
+athena login            # prints a one-time code, opens the approval page, stores the key in your OS keyring
 athena auth status      # shows every credential source it can see
+athena logout           # removes the stored key
 ```
 
-…or supply it through the environment:
+`athena login` requests a short-lived code from Athena, opens
+`https://app.athenaintel.com/cli/authorize?code=XXXX-XXXX` in your browser, and
+polls until you click **Approve**. The resulting API key goes into the OS
+keyring (macOS Keychain, Windows Credential Manager, Linux secret-service, with
+a `0600` file fallback) — the same entry `athena auth status` reports on. Useful
+variations:
+
+```bash
+athena login --no-browser                    # print the URL instead of opening it (SSH sessions, containers)
+athena login --with-token                    # paste an existing API key from stdin instead
+athena --base-url https://<env-api> login    # log in to another environment; keep --base-url / ATHENA_BASE_URL set afterwards
+```
+
+For CI and scripts, supply the key through the environment instead:
 
 ```bash
 export ATHENA_API_KEY="<your api key>"
 ```
 
-A `.env` file in the working directory is also auto-loaded on startup.
+A `.env` file in the working directory is also auto-loaded on startup. An
+exported `ATHENA_API_KEY` (or `--api-key`) always wins over the keyring;
+`athena login` and `athena auth status` warn when that is the case.
 
 Verify with:
 
@@ -186,6 +203,60 @@ athena read-asset "asset_abc" --page-all --page-limit 200   # default 50
 
 The warning goes to stderr, so it never contaminates JSON piped from stdout.
 
+## SSH into a computer
+
+`athena ssh` opens a shell on a computer asset with your own SSH key. You need
+to be logged in first (`athena login`, or `ATHENA_API_KEY` in CI) — an
+unauthenticated call stops with ``Not logged in. Run `athena login` (or set
+ATHENA_API_KEY).`` Then, once per machine, create and register the key:
+
+```bash
+athena ssh setup          # creates ~/.ssh/athena_ed25519 if needed, registers the public key
+```
+
+Key-based access requires the public key to be registered under **Settings →
+SSH keys** in Athena — `setup` does exactly that (re-running it is safe, and
+`athena ssh <computer>` runs it for you the first time). Then:
+
+```bash
+athena ssh mybox                                        # by name…
+athena ssh asset_92492920-d118-42d3-95b4-00eccfe0754f   # …or by asset id
+athena ssh mybox -- -L 5432:localhost:5432 -N           # everything after -- goes to ssh
+athena ssh mybox -- uptime                              # run one command and exit
+```
+
+A stopped computer is started by the SSH gateway when you connect — the first
+prompt can take a minute or two. Names must match a computer you can see: an
+exact title match wins, then a unique case-insensitive match; anything
+ambiguous lists the candidates so you can pass the asset id instead. The `--`
+is required before ssh arguments — without it the CLI reports them as unknown
+flags.
+
+### VS Code / Cursor Remote-SSH
+
+```bash
+athena ssh config mybox other-box
+```
+
+writes `Host athena-mybox` and `Host athena-other-box` entries into a managed
+block of `~/.ssh/config`, delimited by `# >>> athena ssh (managed) >>>` and
+`# <<< athena ssh (managed) <<<`. Everything outside the block is preserved
+byte for byte, and re-running refreshes the entries for the same computers.
+After that `ssh athena-mybox` works from any terminal, and the host appears in
+the Remote-SSH host picker in VS Code and Cursor.
+
+### Token backup path
+
+Accounts without a registered key can use a short-lived access token instead:
+
+```bash
+athena ssh mybox --token --ttl 2h          # connect with a token (default 60m, max 1d)
+athena ssh token mybox --ttl 30m           # print {command, token, expires_in_minutes, expires_at}
+athena ssh token mybox --revoke <token>    # revoke a token early
+```
+
+`--ttl` accepts `30m`, `2h`, `1d`, or bare minutes (1-1440).
+
 ## Documentation
 
 - [reference.md](./reference.md) — full command reference, every operation and flag
@@ -229,7 +300,7 @@ Available on every operation:
 > `athena-intelligence-api` internally, which is what derived those variable
 > names. They are now `ATHENA_*` as shown above, and the keyring entry moved
 > from `athena-intelligence-api:APIKeyHeader` to `athena:APIKeyHeader` — run
-> `athena auth login` once to re-store your key. `ATHENA_API_KEY` is unchanged.
+> `athena login` once to store your key again. `ATHENA_API_KEY` is unchanged.
 
 ### Output formats
 

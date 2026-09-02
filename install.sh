@@ -213,5 +213,5 @@ fi
 
 echo "
 Next:
-  $BIN_NAME auth login
+  $BIN_NAME login
   $BIN_NAME users me"
