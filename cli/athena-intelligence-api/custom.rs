@@ -2968,17 +2968,24 @@ fn classify_poll(
         let wait = retry_after.unwrap_or(DEFAULT_POLL_INTERVAL);
         return PollStep::Retry(pace.delay(Some(wait)));
     }
+    // Rolling deploys: old and new pods share the load balancer for a few
+    // minutes, so a poll can land on a pod without the route (404) or on one
+    // that is draining or failing (any 5xx) seconds after `device/code`
+    // succeeded. Neither says anything about the approval — keep polling at
+    // the normal pace until the deadline. `device/code` keeps 404 fatal:
+    // before a code exists, 404 means the API does not serve this flow.
+    if status == 404 || (500..600).contains(&status) {
+        return PollStep::Retry(pace.delay(None));
+    }
     let error = parse_device_error(body).error;
-    match (status, error.as_str()) {
-        (503, _) | (_, "temporarily_unavailable" | "authorization_pending") => {
-            PollStep::Retry(pace.delay(None))
-        }
-        (_, "slow_down") => {
+    match error.as_str() {
+        "temporarily_unavailable" | "authorization_pending" => PollStep::Retry(pace.delay(None)),
+        "slow_down" => {
             pace.slow_down();
             PollStep::Retry(pace.delay(None))
         }
-        (_, "access_denied") => PollStep::Fail(CliError::Auth(ACCESS_DENIED.to_string())),
-        (_, "expired_token") => PollStep::Fail(CliError::Auth(CODE_EXPIRED.to_string())),
+        "access_denied" => PollStep::Fail(CliError::Auth(ACCESS_DENIED.to_string())),
+        "expired_token" => PollStep::Fail(CliError::Auth(CODE_EXPIRED.to_string())),
         _ => PollStep::Fail(api_failure(status, body)),
     }
 }
@@ -3994,6 +4001,12 @@ mod tests {
             .set_body_json(serde_json::json!({ "error": error, "detail": error }))
     }
 
+    /// FastAPI's 404 for an unknown route — what a pod that has not picked up
+    /// the device endpoints yet answers.
+    fn not_found() -> ResponseTemplate {
+        ResponseTemplate::new(404).set_body_json(serde_json::json!({ "detail": "Not Found" }))
+    }
+
     /// Mount `device/code` — exactly once, and only for requests with **no**
     /// `X-API-KEY` — plus a `device/token` that answers from `answers` in
     /// order (repeating the last). Returns the token poll counter.
@@ -4152,6 +4165,106 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     #[serial]
+    async fn login_retries_a_404_token_poll_during_a_rolling_deploy() {
+        // device/code has just succeeded, so a 404 from device/token is a pod
+        // that has not picked up the route yet — not a missing feature.
+        let server = MockServer::start().await;
+        let store = Arc::new(MockKeyringStore::new());
+        set_active_store(store.clone());
+        let polls = mount_device_endpoints(&server, vec![not_found(), approved()]).await;
+
+        browser_login(&plain_client(), &server.uri(), fast_login(None))
+            .await
+            .expect("an already-approved login must survive one stale pod");
+
+        assert_eq!(polls.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            store.get(CLI_NAME, API_KEY_SCHEME).unwrap().as_deref(),
+            Some("ak_live_test")
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[serial]
+    async fn login_retries_5xx_token_polls_then_succeeds() {
+        let server = MockServer::start().await;
+        set_active_store(Arc::new(MockKeyringStore::new()));
+        let polls = mount_device_endpoints(
+            &server,
+            vec![
+                ResponseTemplate::new(500).set_body_string("upstream error"),
+                ResponseTemplate::new(502).set_body_string("<html>bad gateway</html>"),
+                approved(),
+            ],
+        )
+        .await;
+
+        browser_login(&plain_client(), &server.uri(), fast_login(None))
+            .await
+            .expect("login should succeed once a healthy pod answers");
+
+        assert_eq!(polls.load(Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[serial]
+    async fn login_persistent_404_token_poll_ends_at_the_deadline() {
+        let server = MockServer::start().await;
+        let store = Arc::new(MockKeyringStore::new());
+        set_active_store(store.clone());
+        let polls = mount_device_endpoints(&server, vec![not_found()]).await;
+
+        // FAST polls every 10 ms, so a 200 ms budget yields several retries
+        // and then the deadline — never a 404 failure.
+        let err = browser_login(
+            &plain_client(),
+            &server.uri(),
+            fast_login(Some(Duration::from_millis(200))),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            matches!(err, CliError::Auth(ref msg) if msg == CODE_EXPIRED),
+            "{err:?}"
+        );
+        let polls = polls.load(Ordering::SeqCst);
+        assert!(polls >= 2, "kept polling through the 404s: {polls} poll(s)");
+        assert!(store.get(CLI_NAME, API_KEY_SCHEME).unwrap().is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[serial]
+    async fn login_fails_fast_when_device_code_is_404() {
+        // Before a code exists, a 404 on device/code means the API does not
+        // serve this flow — fail immediately, never poll.
+        let server = MockServer::start().await;
+        set_active_store(Arc::new(MockKeyringStore::new()));
+        Mock::given(method("POST"))
+            .and(path(format!("/{DEVICE_CODE_PATH}")))
+            .respond_with(not_found())
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("/{DEVICE_TOKEN_PATH}")))
+            .respond_with(approved())
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let err = browser_login(&plain_client(), &server.uri(), fast_login(None))
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(err, CliError::Api { code: 404, ref message, .. } if message == "Not Found"),
+            "{err:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[serial]
     async fn device_requests_carry_no_api_key_even_with_stale_credentials() {
         // A stale keyring key and an exported ATHENA_API_KEY must not reach the
         // unauthenticated device endpoints: both mocks only match requests
@@ -4228,11 +4341,24 @@ mod tests {
             classify_poll(429, "", None, &mut pace),
             PollStep::Retry(d) if d == Duration::from_secs(5)
         ));
-        // 503 / temporarily_unavailable: retry after the current interval.
-        assert!(matches!(
-            classify_poll(503, "<html>down</html>", None, &mut pace),
-            PollStep::Retry(d) if d == Duration::from_secs(10)
-        ));
+        // Rolling-deploy skew — a pod without the route (404) or a draining /
+        // failing one (any 5xx) — and temporarily_unavailable: retry after the
+        // current interval.
+        for (status, body) in [
+            (404, r#"{"detail":"Not Found"}"#),
+            (500, r#"{"detail":"boom"}"#),
+            (502, "<html>bad gateway</html>"),
+            (503, "<html>down</html>"),
+            (504, ""),
+        ] {
+            assert!(
+                matches!(
+                    classify_poll(status, body, None, &mut pace),
+                    PollStep::Retry(d) if d == Duration::from_secs(10)
+                ),
+                "{status} should be retried"
+            );
+        }
         assert!(matches!(
             classify_poll(400, &error_body("temporarily_unavailable"), None, &mut pace),
             PollStep::Retry(d) if d == Duration::from_secs(10)
@@ -4247,8 +4373,8 @@ mod tests {
             PollStep::Fail(CliError::Auth(msg)) if msg == CODE_EXPIRED
         ));
         assert!(matches!(
-            classify_poll(500, r#"{"detail":"boom"}"#, None, &mut pace),
-            PollStep::Fail(CliError::Api { code: 500, ref message, .. }) if message == "boom"
+            classify_poll(403, r#"{"detail":"Forbidden"}"#, None, &mut pace),
+            PollStep::Fail(CliError::Api { code: 403, ref message, .. }) if message == "Forbidden"
         ));
         assert!(matches!(
             classify_poll(400, &error_body("invalid_grant"), None, &mut pace),
