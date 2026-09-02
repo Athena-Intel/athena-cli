@@ -22,19 +22,25 @@ The README's generated release URL is a template. When working from source, `car
 
 ## Authenticate without exposing the key
 
-The CLI accepts `ATHENA_API_KEY`, the `--api-key` flag, or a macOS Keychain entry. A project-specific variable name is fine, but it must be mapped in the shell that launches the CLI:
+The everyday path is the browser login, which never shows you the key at all:
+
+```bash
+athena login            # one-time code → browser approval → key stored in the OS keyring
+athena auth status      # confirms which credential source is active without printing the secret
+athena logout           # removes the stored key
+```
+
+For CI, or a shell that cannot open a browser, the CLI also accepts `ATHENA_API_KEY`, the `--api-key` flag, or a pasted key (`athena login --with-token` reads it from stdin). A project-specific variable name is fine, but it must be mapped in the shell that launches the CLI:
 
 ```bash
 export ATHENA_API_KEY="$ATHENA_API_KEY_PROD_ALDRIN"
-printf '%s' "$ATHENA_API_KEY" | athena auth login --with-token
-athena auth status
 ```
 
-Do not paste the key into chat, commit it, or include it in debug output. `auth status` confirms whether a Keychain credential is active without printing the secret.
+Do not paste the key into chat, commit it, or include it in debug output. `auth status` confirms whether a keyring credential is active without printing the secret, and warns when an exported `ATHENA_API_KEY` is shadowing it.
 
 ## Discover the command surface
 
-Use help before writing a script. Generated operations use resource/method syntax; custom commands include `read-asset`, `read-asset-capabilities`, `assets download`, the interactive `meetings browse` / `sessions browse` companions, and the `ssh` family for computer assets (`ssh <computer>`, `ssh setup`, `ssh config`, `ssh token` — see the README's "SSH into a computer" section).
+Use help before writing a script. Generated operations use resource/method syntax; custom commands include `login` / `logout` (browser login and keyring cleanup), `read-asset`, `read-asset-capabilities`, `assets download`, the interactive `meetings browse` / `sessions browse` companions, and the `ssh` family for computer assets (`ssh <computer>`, `ssh setup`, `ssh config`, `ssh token` — see the README's "SSH into a computer" section).
 
 ```bash
 athena --help
@@ -125,7 +131,7 @@ Then create a cross-meeting rollup that separates repeated themes from newly int
 
 ## Troubleshooting checklist
 
-1. Run `athena auth status`; if no credential is active, map the shell variable to `ATHENA_API_KEY` or run `auth login --with-token`.
+1. Run `athena auth status`; if no credential is active, run `athena login` (or map the shell variable to `ATHENA_API_KEY`).
 2. Run `athena meetings list --help` and verify the exact flag names (`--query-param`, `--created-after`, `--participant-domains`).
 3. Start with `--format json` and inspect the full response before adding `jq` filters.
 4. If transcript IDs are null, try `read-asset <meeting-id>` before falling back to recording downloads.

@@ -94,20 +94,36 @@ Build from source with `--features rustls` if you need it.
 
 ## Authentication
 
-Either store a key in your OS keyring:
+Log in through your browser — there is no API key to copy:
 
 ```bash
-athena auth login       # prompts, stores in the keyring
+athena login            # prints a one-time code, opens the approval page, stores the key in your OS keyring
 athena auth status      # shows every credential source it can see
+athena logout           # removes the stored key
 ```
 
-…or supply it through the environment:
+`athena login` requests a short-lived code from Athena, opens
+`https://app.athenaintel.com/cli/authorize?code=XXXX-XXXX` in your browser, and
+polls until you click **Approve**. The resulting API key goes into the OS
+keyring (macOS Keychain, Windows Credential Manager, Linux secret-service, with
+a `0600` file fallback) — the same entry `athena auth status` reports on. Useful
+variations:
+
+```bash
+athena login --no-browser                    # print the URL instead of opening it (SSH sessions, containers)
+athena login --with-token                    # paste an existing API key from stdin instead
+athena --base-url https://<env-api> login    # log in to another environment; keep --base-url / ATHENA_BASE_URL set afterwards
+```
+
+For CI and scripts, supply the key through the environment instead:
 
 ```bash
 export ATHENA_API_KEY="<your api key>"
 ```
 
-A `.env` file in the working directory is also auto-loaded on startup.
+A `.env` file in the working directory is also auto-loaded on startup. An
+exported `ATHENA_API_KEY` (or `--api-key`) always wins over the keyring;
+`athena login` and `athena auth status` warn when that is the case.
 
 Verify with:
 
@@ -167,8 +183,10 @@ The warning goes to stderr, so it never contaminates JSON piped from stdout.
 
 ## SSH into a computer
 
-`athena ssh` opens a shell on a computer asset with your own SSH key. Once per
-machine, create and register the key:
+`athena ssh` opens a shell on a computer asset with your own SSH key. You need
+to be logged in first (`athena login`, or `ATHENA_API_KEY` in CI) — an
+unauthenticated call stops with ``Not logged in. Run `athena login` (or set
+ATHENA_API_KEY).`` Then, once per machine, create and register the key:
 
 ```bash
 athena ssh setup          # creates ~/.ssh/athena_ed25519 if needed, registers the public key
@@ -260,7 +278,7 @@ Available on every operation:
 > `athena-intelligence-api` internally, which is what derived those variable
 > names. They are now `ATHENA_*` as shown above, and the keyring entry moved
 > from `athena-intelligence-api:APIKeyHeader` to `athena:APIKeyHeader` — run
-> `athena auth login` once to re-store your key. `ATHENA_API_KEY` is unchanged.
+> `athena login` once to store your key again. `ATHENA_API_KEY` is unchanged.
 
 ### Output formats
 

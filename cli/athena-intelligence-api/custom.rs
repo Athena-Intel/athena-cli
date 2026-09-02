@@ -34,19 +34,38 @@
 //! `GET /api/v0/computer/{asset_id}/ssh-access`, and execs `ssh`. `ssh setup`
 //! creates and registers the key, `ssh config` writes `Host athena-<name>`
 //! entries into a managed block of `~/.ssh/config` (Remote-SSH), and `ssh
-//! token` mints or revokes a short-lived access token through the typed
-//! `computer.create_ssh_access` / `revoke_ssh_access` SDK methods — the
-//! backup path for accounts without a registered key. The `/me/ssh-keys` and
-//! `ssh-access` GET routes are not in the vendored spec yet, so they are
-//! called as raw paths through the wired SDK HTTP client.
+//! token` mints or revokes a short-lived access token — the backup path for
+//! accounts without a registered key. Every ssh-family request goes through
+//! the CLI executor with an explicit status check ([`api_json`]) rather than
+//! the typed SDK client: with the executor injected, the generated bridge
+//! skips the status check and deserializes a `401 {"detail":"Unauthorized"}`
+//! body into an all-defaults struct, so an unauthenticated call would read
+//! as success. The `/me/ssh-keys` and `ssh-access` GET routes are not in the
+//! vendored spec yet either way.
+//!
+//! `login` and `logout` are the credential commands. `athena login` runs a
+//! browser device-authorization flow (RFC 8628 style) against Agora's
+//! unauthenticated `POST /api/agent-cli/device/code` and `/device/token`
+//! endpoints: it prints a one-time code, opens the Olympus approval page,
+//! polls until the user approves, and stores the returned API key in the OS
+//! keyring at `athena:APIKeyHeader` — the slot the framework's
+//! `athena auth login --with-token` writes and the request-time chain
+//! (`--api-key` > `ATHENA_API_KEY` > keyring) reads. `athena login
+//! --with-token` is that paste path; `athena logout` clears the slot. Both are
+//! top-level on purpose: the framework intercepts `auth …` before custom
+//! commands run, so nothing may be registered under it. The device calls go
+//! through a plain `HttpConfig::build_client()` client, never the SDK
+//! executor, so a stale key is not attached to an unauthenticated login.
 
 use std::any::Any;
 use std::io::Write as _;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use dialoguer::console::{style, user_attended};
 use dialoguer::{theme::ColorfulTheme, Input, Select};
 use fern_cli_sdk::app::CliApp;
+use fern_cli_sdk::auth::active_store;
 use fern_cli_sdk::error::CliError;
 use fern_cli_sdk::openapi::AppContext;
 use fern_cli_sdk::sdk_executor::SdkRequestExecutor;
@@ -539,6 +558,19 @@ pub fn register(app: CliApp) -> CliApp {
                 .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
             browse_sessions(matches, ctx)
         }),
+    )
+    .command(
+        build_login_command(),
+        Box::new(|matches, ctx| {
+            let ctx = ctx
+                .downcast_ref::<AppContext>()
+                .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
+            handle_login(matches, ctx)
+        }),
+    )
+    .command(
+        build_logout_command(),
+        Box::new(|_matches, _ctx| handle_logout()),
     )
     .command(
         build_ssh_command(),
@@ -1280,6 +1312,56 @@ const SSH_KEYGEN_INSTALL_HINT: &str = "Install the OpenSSH client and re-run \
     (macOS: preinstalled; Debian/Ubuntu: `sudo apt install openssh-client`; \
     Windows: Settings → Apps → Optional features → OpenSSH Client).";
 
+/// Send one authenticated JSON request through the CLI executor (auth,
+/// retries, TLS, `--base-url`) and check the HTTP status here.
+///
+/// The typed SDK client is deliberately not used by the ssh family: with the
+/// CLI executor injected, the generated bridge hands every response body to
+/// serde without looking at the status, and because each field of the
+/// generated structs is defaulted, a `401 {"detail":"Unauthorized"}` becomes
+/// an empty asset or a key that reads as registered. Checking the status here
+/// is what lets [`with_login_hint`] turn a 401 into "Not logged in".
+fn api_json<T: serde::de::DeserializeOwned>(
+    ctx: &AppContext,
+    method: Method,
+    path: &str,
+    query: &[(String, String)],
+    body: Option<&serde_json::Value>,
+) -> Result<T, CliError> {
+    // Build against the spec's server URL; the executor applies the base-URL
+    // override (if any) at send time.
+    let root = ctx.spec().root_url.trim_end_matches('/').to_string();
+    let url = format!("{root}/{path}");
+    let executor = ctx.build_sdk_executor();
+
+    tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async move {
+            let mut request = reqwest::Client::new().request(method, &url).query(query);
+            if let Some(body) = body {
+                request = request.json(body);
+            }
+            let request = request
+                .build()
+                .map_err(|e| CliError::Other(anyhow::anyhow!("bad request: {e}")))?;
+            let response = SdkRequestExecutor::execute(&*executor, request)
+                .await
+                .map_err(|e| e.into_cli_error())?;
+            let status = response.status().as_u16();
+            let text = response.text().await.map_err(|e| {
+                CliError::Other(anyhow::anyhow!(
+                    "could not read the response from {path}: {e}"
+                ))
+            })?;
+            if !(200..300).contains(&status) {
+                return Err(api_failure(status, &text));
+            }
+            serde_json::from_str(&text).map_err(|e| {
+                CliError::Other(anyhow::anyhow!("unexpected response from {path}: {e}"))
+            })
+        })
+    })
+}
+
 /// `GET /api/v0/computer/{asset_id}/ssh-access` — where and as whom to connect.
 /// `username` is the computer's asset id; the gateway maps it to the
 /// caller's registered keys.
@@ -1444,7 +1526,7 @@ fn build_ssh_command() -> clap::Command {
 }
 
 fn handle_ssh(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(), CliError> {
-    match matches.subcommand() {
+    let result = match matches.subcommand() {
         None => ssh_connect(matches, ctx),
         Some(("setup", sub)) => ssh_setup(sub, ctx),
         Some(("config", sub)) => ssh_config(sub, ctx),
@@ -1452,7 +1534,9 @@ fn handle_ssh(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(), CliErr
         Some((other, _)) => Err(CliError::Validation(format!(
             "unknown ssh subcommand '{other}'"
         ))),
-    }
+    };
+    // First-run UX: an unauthenticated 401 names the fix instead of the raw body.
+    result.map_err(with_login_hint)
 }
 
 // ── computer resolution ──────────────────────────────────────────────────
@@ -1558,10 +1642,15 @@ fn computer_search_query(name: &str) -> Vec<(String, String)> {
 /// see. Names go through `GET /api/v0/assets` filtered to computer assets
 /// (case-insensitive title substring), then [`pick_computer_by_name`].
 fn resolve_computer(ctx: &AppContext, raw: &str) -> Result<ResolvedComputer, CliError> {
-    let client = super::sdk::client(ctx);
     match classify_computer_ref(raw)? {
         ComputerRef::AssetId(asset_id) => {
-            let asset = super::sdk::block_on(client.assets.get(&asset_id, None))?;
+            let asset: athena_intelligence_api_sdk::api::PublicAssetOut = api_json(
+                ctx,
+                Method::GET,
+                &format!("api/v0/assets/{asset_id}"),
+                &[],
+                None,
+            )?;
             if asset.athena_original_type != COMPUTER_ASSET_TYPE {
                 return Err(CliError::Validation(format!(
                     "{asset_id} is a {} asset, not a computer.",
@@ -1574,21 +1663,16 @@ fn resolve_computer(ctx: &AppContext, raw: &str) -> Result<ResolvedComputer, Cli
             })
         }
         ComputerRef::Name(name) => {
-            // Raw path rather than the typed `assets.list`: its QueryBuilder
+            // Raw query rather than the typed `assets.list`: its QueryBuilder
             // JSON-encodes the `filters` string a second time (`{\"a\":..}`),
             // which the server cannot parse and silently ignores — returning
             // every asset instead of the filtered computers.
-            let page = super::sdk::block_on(
-                client
-                    .assets
-                    .http_client
-                    .execute_request::<athena_intelligence_api_sdk::api::PaginatedAssetsOut>(
-                        Method::GET,
-                        "api/v0/assets",
-                        None,
-                        Some(computer_search_query(&name)),
-                        None,
-                    ),
+            let page: athena_intelligence_api_sdk::api::PaginatedAssetsOut = api_json(
+                ctx,
+                Method::GET,
+                "api/v0/assets",
+                &computer_search_query(&name),
+                None,
             )?;
             let candidates: Vec<ResolvedComputer> = page
                 .items
@@ -1604,18 +1688,12 @@ fn resolve_computer(ctx: &AppContext, raw: &str) -> Result<ResolvedComputer, Cli
 }
 
 fn fetch_ssh_access(ctx: &AppContext, asset_id: &str) -> Result<SshAccessInfo, CliError> {
-    let client = super::sdk::client(ctx);
-    super::sdk::block_on(
-        client
-            .computer
-            .http_client
-            .execute_request::<SshAccessInfo>(
-                Method::GET,
-                &format!("api/v0/computer/{asset_id}/ssh-access"),
-                None,
-                None,
-                None,
-            ),
+    api_json(
+        ctx,
+        Method::GET,
+        &format!("api/v0/computer/{asset_id}/ssh-access"),
+        &[],
+        None,
     )
 }
 
@@ -2015,14 +2093,7 @@ enum RegisterOutcome {
 }
 
 fn list_registered_keys(ctx: &AppContext) -> Result<Vec<SshKeyOut>, CliError> {
-    let client = super::sdk::client(ctx);
-    let listing = super::sdk::block_on(client.users.http_client.execute_request::<SshKeysOut>(
-        Method::GET,
-        SSH_KEYS_PATH,
-        None,
-        None,
-        None,
-    ))?;
+    let listing: SshKeysOut = api_json(ctx, Method::GET, SSH_KEYS_PATH, &[], None)?;
     Ok(listing.keys)
 }
 
@@ -2033,15 +2104,8 @@ fn register_public_key(
     public_key: &str,
     label: &str,
 ) -> Result<RegisterOutcome, CliError> {
-    let client = super::sdk::client(ctx);
     let body = serde_json::json!({ "public_key": public_key, "label": label });
-    match super::sdk::block_on(client.users.http_client.execute_request::<SshKeyOut>(
-        Method::POST,
-        SSH_KEYS_PATH,
-        Some(body),
-        None,
-        None,
-    )) {
+    match api_json::<SshKeyOut>(ctx, Method::POST, SSH_KEYS_PATH, &[], Some(&body)) {
         Ok(key) => Ok(RegisterOutcome::Registered(key)),
         Err(CliError::Api { code: 409, .. }) => Ok(RegisterOutcome::AlreadyRegistered),
         Err(e) => Err(e),
@@ -2245,11 +2309,22 @@ fn mint_token(
     asset_id: &str,
     ttl_minutes: u32,
 ) -> Result<athena_intelligence_api_sdk::api::SshAccessResponseOut, CliError> {
-    let client = super::sdk::client(ctx);
     let request = athena_intelligence_api_sdk::api::CreateSshAccessRequestIn {
         expires_in_minutes: Some(i64::from(ttl_minutes)),
     };
-    super::sdk::block_on(client.computer.create_ssh_access(asset_id, &request, None))
+    let body = encode_request(&request)?;
+    api_json(
+        ctx,
+        Method::POST,
+        &format!("api/v0/computer/{asset_id}/ssh-access"),
+        &[],
+        Some(&body),
+    )
+}
+
+fn encode_request<T: Serialize>(request: &T) -> Result<serde_json::Value, CliError> {
+    serde_json::to_value(request)
+        .map_err(|e| CliError::Other(anyhow::anyhow!("cannot encode the request body: {e}")))
 }
 
 // ── athena ssh <computer> ────────────────────────────────────────────────
@@ -2587,15 +2662,17 @@ fn ssh_token(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(), CliErro
     let computer = resolve_computer(ctx, raw)?;
 
     if let Some(token) = revoke {
-        let client = super::sdk::client(ctx);
         let request = athena_intelligence_api_sdk::api::RevokeSshAccessRequestIn {
             token: token.clone(),
         };
-        let revoked = super::sdk::block_on(client.computer.revoke_ssh_access(
-            &computer.asset_id,
-            &request,
-            None,
-        ))?;
+        let body = encode_request(&request)?;
+        let revoked: athena_intelligence_api_sdk::api::RevokeSshAccessResponseOut = api_json(
+            ctx,
+            Method::DELETE,
+            &format!("api/v0/computer/{}/ssh-access", computer.asset_id),
+            &[],
+            Some(&body),
+        )?;
         print_json(&revoked);
         return Ok(());
     }
@@ -2608,6 +2685,597 @@ fn ssh_token(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(), CliErro
         "expires_at": expires_at_from_now(minted.expires_in_minutes),
     }));
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// login / logout — browser device-authorization login, no pasted API keys
+// ---------------------------------------------------------------------------
+
+/// Keyring slot shared with the framework: `CliApp::new("athena")` in the
+/// generated `main.rs` is the service and `ApiKeyAuth::new("APIKeyHeader")`
+/// the account. `athena auth login --with-token` / `auth logout` / `auth
+/// status` and the request-time credential chain (`--api-key` >
+/// `ATHENA_API_KEY` > keyring) all read and write exactly this entry.
+const CLI_NAME: &str = "athena";
+const API_KEY_SCHEME: &str = "APIKeyHeader";
+/// Env vars that win over the keyring at request time — the same four the
+/// framework's `auth login` warns about (`<CLI>_<SCHEME>`, `<CLI>_TOKEN`,
+/// `<CLI>_API_KEY`, `<SCHEME>`).
+const SHADOWING_ENV_VARS: [&str; 4] = [
+    "ATHENA_APIKEYHEADER",
+    "ATHENA_TOKEN",
+    "ATHENA_API_KEY",
+    "APIKEYHEADER",
+];
+const DEVICE_CODE_PATH: &str = "api/agent-cli/device/code";
+const DEVICE_TOKEN_PATH: &str = "api/agent-cli/device/token";
+/// RFC 8628 §3.2 default when the server omits `interval`; also the back-off
+/// for a 429 without `Retry-After`.
+const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(5);
+const DEFAULT_CODE_LIFETIME: Duration = Duration::from_secs(900);
+/// Upper bound on how long `login` will wait, whatever the server says.
+const MAX_WAIT: Duration = Duration::from_secs(86_400);
+const NOT_LOGGED_IN: &str = "Not logged in. Run `athena login` (or set ATHENA_API_KEY).";
+const CODE_EXPIRED: &str = "The code expired before it was approved; run `athena login` again.";
+const ACCESS_DENIED: &str = "Authorization was denied in the browser.";
+
+/// Poll pacing knobs. Production floors the interval at one second so a
+/// server `interval: 0` can never busy-loop the token endpoint; tests shrink
+/// both so a full pending → slow_down → approved exchange takes milliseconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PollTiming {
+    /// Lower bound on the wait between polls.
+    floor: Duration,
+    /// How much `slow_down` adds to the interval (RFC 8628 §3.5: 5 s).
+    slow_down_step: Duration,
+}
+
+impl PollTiming {
+    const STANDARD: Self = Self {
+        floor: Duration::from_secs(1),
+        slow_down_step: Duration::from_secs(5),
+    };
+}
+
+/// The wait between `device/token` polls: the server's interval, floored,
+/// growing on every `slow_down`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PollPace {
+    interval: Duration,
+    timing: PollTiming,
+}
+
+impl PollPace {
+    fn new(server_interval: Duration, timing: PollTiming) -> Self {
+        Self {
+            interval: server_interval.max(timing.floor),
+            timing,
+        }
+    }
+
+    fn slow_down(&mut self) {
+        self.interval = self.interval.saturating_add(self.timing.slow_down_step);
+    }
+
+    /// Delay before the next poll: an explicit `Retry-After` when the server
+    /// sent one, otherwise the current interval — never below the floor.
+    fn delay(&self, retry_after: Option<Duration>) -> Duration {
+        retry_after.unwrap_or(self.interval).max(self.timing.floor)
+    }
+}
+
+/// `POST /api/agent-cli/device/code`.
+#[derive(Deserialize)]
+struct DeviceCodeOut {
+    device_code: String,
+    user_code: String,
+    verification_uri: String,
+    #[serde(default)]
+    verification_uri_complete: Option<String>,
+    #[serde(default = "default_code_lifetime_secs")]
+    expires_in: u64,
+    #[serde(default = "default_poll_interval_secs")]
+    interval: u64,
+}
+
+// Hand-written so a debug dump can never leak the device code.
+impl std::fmt::Debug for DeviceCodeOut {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeviceCodeOut")
+            .field("device_code", &"<redacted>")
+            .field("user_code", &self.user_code)
+            .field("verification_uri", &self.verification_uri)
+            .field("verification_uri_complete", &self.verification_uri_complete)
+            .field("expires_in", &self.expires_in)
+            .field("interval", &self.interval)
+            .finish()
+    }
+}
+
+fn default_code_lifetime_secs() -> u64 {
+    DEFAULT_CODE_LIFETIME.as_secs()
+}
+
+fn default_poll_interval_secs() -> u64 {
+    DEFAULT_POLL_INTERVAL.as_secs()
+}
+
+/// `POST /api/agent-cli/device/token` once the user has approved.
+#[derive(Deserialize)]
+struct DeviceTokenOut {
+    api_key: String,
+    #[serde(default)]
+    base_url: Option<String>,
+    #[serde(default)]
+    user: Option<DeviceTokenUser>,
+}
+
+// Hand-written so a debug dump can never leak the API key.
+impl std::fmt::Debug for DeviceTokenOut {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeviceTokenOut")
+            .field("api_key", &"<redacted>")
+            .field("base_url", &self.base_url)
+            .field("user", &self.user)
+            .finish()
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct DeviceTokenUser {
+    #[serde(default)]
+    email: Option<String>,
+}
+
+/// Error envelope of both device endpoints: `{"error": ..., "detail": ...}`.
+/// `detail` is a `Value` because FastAPI also emits it as a list for
+/// validation failures.
+#[derive(Debug, Default, Deserialize)]
+struct DeviceErrorOut {
+    #[serde(default)]
+    error: String,
+    #[serde(default)]
+    detail: Option<serde_json::Value>,
+}
+
+fn parse_device_error(body: &str) -> DeviceErrorOut {
+    serde_json::from_str(body).unwrap_or_default()
+}
+
+fn status_reason(status: u16) -> &'static str {
+    match status {
+        400 => "badRequest",
+        401 => "unauthorized",
+        403 => "forbidden",
+        404 => "notFound",
+        429 => "rateLimited",
+        500 => "internalServerError",
+        502 => "badGateway",
+        503 => "serviceUnavailable",
+        504 => "gatewayTimeout",
+        _ => "httpError",
+    }
+}
+
+/// Human-readable detail from a device-endpoint error body: `detail`, then
+/// `error`, then the (truncated) raw body, then just the status.
+fn api_failure(status: u16, body: &str) -> CliError {
+    let parsed = parse_device_error(body);
+    let detail = match parsed.detail {
+        Some(serde_json::Value::String(text)) if !text.trim().is_empty() => text,
+        Some(other) if !other.is_null() => other.to_string(),
+        _ if !parsed.error.is_empty() => parsed.error,
+        _ => truncate(body.trim(), 300),
+    };
+    let message = if detail.is_empty() {
+        format!("HTTP {status} from the API")
+    } else {
+        detail
+    };
+    CliError::Api {
+        code: status,
+        message,
+        reason: status_reason(status).to_string(),
+    }
+}
+
+/// One JSON POST with **no** credentials attached — the device endpoints are
+/// unauthenticated, and a stale keyring key or exported `ATHENA_API_KEY` must
+/// never ride along. Returns `(status, body, Retry-After)`.
+async fn post_json_unauthenticated(
+    client: &reqwest::Client,
+    url: &str,
+    body: &serde_json::Value,
+) -> Result<(u16, String, Option<Duration>), CliError> {
+    let response = client
+        .post(url)
+        .json(body)
+        .send()
+        .await
+        .map_err(|e| CliError::Other(anyhow::anyhow!("could not reach {url}: {e}")))?;
+    let status = response.status().as_u16();
+    let retry_after = response
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| {
+            fern_cli_sdk::http::parse_retry_after(value, std::time::SystemTime::now())
+        });
+    let body = response.text().await.map_err(|e| {
+        CliError::Other(anyhow::anyhow!(
+            "could not read the response from {url}: {e}"
+        ))
+    })?;
+    Ok((status, body, retry_after))
+}
+
+async fn request_device_code(
+    client: &reqwest::Client,
+    origin: &str,
+) -> Result<DeviceCodeOut, CliError> {
+    let url = format!("{origin}/{DEVICE_CODE_PATH}");
+    let body = serde_json::json!({
+        "client_name": local_hostname(),
+        "client_version": env!("CARGO_PKG_VERSION"),
+    });
+    let (status, text, retry_after) = post_json_unauthenticated(client, &url, &body).await?;
+    if status == 429 {
+        let wait = retry_after
+            .unwrap_or(DEFAULT_POLL_INTERVAL)
+            .as_secs()
+            .max(1);
+        return Err(CliError::Api {
+            code: 429,
+            message: format!("Too many login attempts from this client; try again in {wait} s."),
+            reason: status_reason(429).to_string(),
+        });
+    }
+    if !(200..300).contains(&status) {
+        return Err(api_failure(status, &text));
+    }
+    serde_json::from_str(&text).map_err(|e| {
+        CliError::Other(anyhow::anyhow!(
+            "the device-code response could not be read: {e}"
+        ))
+    })
+}
+
+/// What one `device/token` answer tells the poll loop to do.
+#[derive(Debug)]
+enum PollStep {
+    Approved(DeviceTokenOut),
+    /// Not approved yet — poll again after this delay.
+    Retry(Duration),
+    Fail(CliError),
+}
+
+fn classify_poll(
+    status: u16,
+    body: &str,
+    retry_after: Option<Duration>,
+    pace: &mut PollPace,
+) -> PollStep {
+    if (200..300).contains(&status) {
+        return match serde_json::from_str::<DeviceTokenOut>(body) {
+            Ok(token) => PollStep::Approved(token),
+            Err(e) => PollStep::Fail(CliError::Other(anyhow::anyhow!(
+                "the approval response could not be read: {e}"
+            ))),
+        };
+    }
+    if status == 429 {
+        // Rate limited: back off by Retry-After, defaulting to the RFC interval.
+        let wait = retry_after.unwrap_or(DEFAULT_POLL_INTERVAL);
+        return PollStep::Retry(pace.delay(Some(wait)));
+    }
+    let error = parse_device_error(body).error;
+    match (status, error.as_str()) {
+        (503, _) | (_, "temporarily_unavailable" | "authorization_pending") => {
+            PollStep::Retry(pace.delay(None))
+        }
+        (_, "slow_down") => {
+            pace.slow_down();
+            PollStep::Retry(pace.delay(None))
+        }
+        (_, "access_denied") => PollStep::Fail(CliError::Auth(ACCESS_DENIED.to_string())),
+        (_, "expired_token") => PollStep::Fail(CliError::Auth(CODE_EXPIRED.to_string())),
+        _ => PollStep::Fail(api_failure(status, body)),
+    }
+}
+
+async fn poll_for_approval(
+    client: &reqwest::Client,
+    origin: &str,
+    device_code: &str,
+    mut pace: PollPace,
+    deadline: Instant,
+) -> Result<DeviceTokenOut, CliError> {
+    let url = format!("{origin}/{DEVICE_TOKEN_PATH}");
+    let body = serde_json::json!({ "device_code": device_code });
+    let mut delay = pace.delay(None);
+    loop {
+        // Never sleep past the code's lifetime: the server would only answer
+        // `expired_token` anyway.
+        match Instant::now().checked_add(delay) {
+            Some(next) if next < deadline => {}
+            _ => return Err(CliError::Auth(CODE_EXPIRED.to_string())),
+        }
+        tokio::time::sleep(delay).await;
+        let (status, text, retry_after) = post_json_unauthenticated(client, &url, &body).await?;
+        match classify_poll(status, &text, retry_after, &mut pace) {
+            PollStep::Approved(token) => return Ok(token),
+            PollStep::Retry(next) => delay = next,
+            PollStep::Fail(err) => return Err(err),
+        }
+    }
+}
+
+/// How `athena login` should behave; tests inject a `PollTiming` that runs in
+/// milliseconds.
+#[derive(Debug, Clone, Copy)]
+struct LoginOptions {
+    no_browser: bool,
+    /// Give up after this long even while the code is still valid.
+    timeout: Option<Duration>,
+    timing: PollTiming,
+}
+
+/// What a successful login stored and learned.
+#[derive(Debug)]
+struct LoginOutcome {
+    email: Option<String>,
+    /// The API base URL the server says the key belongs to.
+    base_url: Option<String>,
+    backend: String,
+}
+
+/// Print the code and URL before the browser opens or anything awaits; the
+/// stderr lock is taken, written, and dropped inside this call.
+fn announce_device_code(user_code: &str, approval_url: &str, opening_browser: bool) {
+    let mut err = std::io::stderr().lock();
+    let _ = writeln!(
+        err,
+        "First, confirm this one-time code in your browser: {}",
+        style(user_code).cyan().bold()
+    );
+    if opening_browser {
+        let _ = writeln!(err, "Opening {approval_url}");
+    } else {
+        let _ = writeln!(err, "Open {approval_url} and enter the code");
+    }
+    let _ = writeln!(
+        err,
+        "{}",
+        style("Waiting for approval… (Ctrl-C to cancel)").dim()
+    );
+    let _ = err.flush();
+}
+
+/// The whole browser flow: request a code, show it, poll for approval, store
+/// the key in the keyring.
+async fn browser_login(
+    client: &reqwest::Client,
+    origin: &str,
+    options: LoginOptions,
+) -> Result<LoginOutcome, CliError> {
+    let code = request_device_code(client, origin).await?;
+    let approval_url = code
+        .verification_uri_complete
+        .clone()
+        .unwrap_or_else(|| code.verification_uri.clone());
+    let open_browser = !options.no_browser && user_attended();
+    announce_device_code(&code.user_code, &approval_url, open_browser);
+    if open_browser {
+        // Fire-and-forget: a failed launch leaves the user with the URL above.
+        let _ = webbrowser::open(&approval_url);
+    }
+
+    let lifetime = Duration::from_secs(code.expires_in).min(MAX_WAIT);
+    let budget = options
+        .timeout
+        .map_or(lifetime, |timeout| timeout.min(lifetime));
+    let deadline = Instant::now() + budget;
+    let pace = PollPace::new(Duration::from_secs(code.interval), options.timing);
+    let token = poll_for_approval(client, origin, &code.device_code, pace, deadline).await?;
+
+    let store = active_store();
+    store.set(CLI_NAME, API_KEY_SCHEME, &token.api_key)?;
+    Ok(LoginOutcome {
+        email: token.user.and_then(|user| user.email),
+        base_url: token.base_url,
+        backend: store.backend_label(),
+    })
+}
+
+fn trim_origin(url: &str) -> &str {
+    url.trim().trim_end_matches('/')
+}
+
+/// The API origin custom commands target: `--base-url` / `ATHENA_BASE_URL`
+/// when set, else the spec's server URL — without a trailing `/`.
+fn api_origin(base_url_override: Option<&str>, default_root: &str) -> String {
+    trim_origin(base_url_override.unwrap_or(default_root)).to_string()
+}
+
+/// When the key belongs to an environment other than the spec's default (a
+/// `--base-url` login, or a server reporting a different `base_url`), the
+/// user has to keep pointing the CLI there — nothing is persisted.
+fn environment_hint(base_url: Option<&str>, origin: &str, default_root: &str) -> Option<String> {
+    let env_url = trim_origin(base_url.unwrap_or(origin));
+    if env_url == trim_origin(origin) && env_url == trim_origin(default_root) {
+        return None;
+    }
+    Some(format!(
+        "This key is for {env_url}. Keep ATHENA_BASE_URL={env_url} (or --base-url) set when \
+         running athena — the CLI does not persist it."
+    ))
+}
+
+/// Name of the first exported env var that would win over the keyring at
+/// request time (`--api-key` > env > keyring), if any. Blank values don't
+/// count.
+fn first_shadowing_env<F>(lookup: F) -> Option<&'static str>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    SHADOWING_ENV_VARS
+        .iter()
+        .copied()
+        .find(|name| lookup(name).is_some_and(|value| !value.trim().is_empty()))
+}
+
+fn process_env(name: &str) -> Option<String> {
+    std::env::var(name).ok()
+}
+
+/// Success line plus the two footguns: a key bound to a non-default
+/// environment, and an env var that would shadow the keyring.
+fn report_login(outcome: &LoginOutcome, origin: &str, default_root: &str) {
+    let mut err = std::io::stderr().lock();
+    let who = outcome
+        .email
+        .as_deref()
+        .map(|email| format!(" as {email}"))
+        .unwrap_or_default();
+    let _ = writeln!(
+        err,
+        "{}",
+        style(format!("✓ Logged in{who} (stored in {})", outcome.backend)).green()
+    );
+    if let Some(hint) = environment_hint(outcome.base_url.as_deref(), origin, default_root) {
+        let _ = writeln!(err, "{}", style(hint).yellow());
+    }
+    if let Some(name) = first_shadowing_env(process_env) {
+        let _ = writeln!(
+            err,
+            "{}",
+            style(format!(
+                "⚠ `{name}` is set in this shell and will shadow the stored key. Unset it to \
+                 use the credential you just stored."
+            ))
+            .yellow()
+        );
+    }
+}
+
+fn build_login_command() -> clap::Command {
+    clap::Command::new("login")
+        .about("Log in through your browser (no API key to paste)")
+        .long_about(
+            "Requests a one-time code from Athena, opens your browser so you can approve this \
+             device, and stores the resulting API key in your OS keyring.\n\
+             Use --with-token to paste an existing API key instead, or --no-browser to print the \
+             approval URL without opening it.",
+        )
+        .arg(
+            clap::Arg::new("no-browser")
+                .long("no-browser")
+                .action(clap::ArgAction::SetTrue)
+                .help("Print the approval URL instead of opening a browser"),
+        )
+        .arg(
+            clap::Arg::new("with-token")
+                .long("with-token")
+                .action(clap::ArgAction::SetTrue)
+                .help("Paste an API key from stdin instead of using the browser"),
+        )
+        .arg(
+            clap::Arg::new("timeout")
+                .long("timeout")
+                .value_name("SECS")
+                .value_parser(clap::value_parser!(u64).range(1..=86_400))
+                .help("Stop waiting for approval after this many seconds (default: until the code expires, 15 min)"),
+        )
+}
+
+fn build_logout_command() -> clap::Command {
+    clap::Command::new("logout")
+        .about("Remove the stored API key from your OS keyring")
+        .long_about(
+            "Deletes the credential `athena login` stored (athena:APIKeyHeader) — the same entry \
+             `athena auth logout` removes. An exported ATHENA_API_KEY is left alone and keeps \
+             authenticating requests.",
+        )
+}
+
+fn handle_login(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(), CliError> {
+    if matches.get_flag("with-token") {
+        return fern_cli_sdk::auth::run_token_paste(CLI_NAME, API_KEY_SCHEME, None);
+    }
+    let default_root = ctx.spec().root_url.clone();
+    let origin = api_origin(ctx.base_url_override(), &default_root);
+    // A plain client: CA bundle, proxy, and timeouts from the environment,
+    // but no auth layer — see `post_json_unauthenticated`.
+    let client = ctx.http_config().build_client()?;
+    let options = LoginOptions {
+        no_browser: matches.get_flag("no-browser"),
+        timeout: matches
+            .get_one::<u64>("timeout")
+            .map(|secs| Duration::from_secs(*secs)),
+        timing: PollTiming::STANDARD,
+    };
+    let outcome = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(browser_login(&client, &origin, options))
+    })?;
+    report_login(&outcome, &origin, &default_root);
+    Ok(())
+}
+
+fn handle_logout() -> Result<(), CliError> {
+    let store = active_store();
+    let backend = store.backend_label();
+    let had_key = store.get(CLI_NAME, API_KEY_SCHEME)?.is_some();
+    store.delete(CLI_NAME, API_KEY_SCHEME)?;
+    let mut err = std::io::stderr().lock();
+    if had_key {
+        let _ = writeln!(
+            err,
+            "{}",
+            style(format!(
+                "✓ Logged out — removed {CLI_NAME}:{API_KEY_SCHEME} from {backend}."
+            ))
+            .green()
+        );
+    } else {
+        let _ = writeln!(
+            err,
+            "No stored credential for {CLI_NAME}:{API_KEY_SCHEME} in {backend} — nothing to remove."
+        );
+    }
+    if let Some(name) = first_shadowing_env(process_env) {
+        let _ = writeln!(
+            err,
+            "{}",
+            style(format!(
+                "Note: `{name}` is still set in this shell; requests keep authenticating with it \
+                 until you unset it."
+            ))
+            .yellow()
+        );
+    }
+    Ok(())
+}
+
+/// True when the API rejected the call as unauthenticated: a bare 401
+/// (`CliError::Api`), or the typed SDK's `UnauthorizedError`, which the
+/// generated `sdk::convert_api_error` wraps as `CliError::Other`.
+fn is_unauthenticated(err: &CliError) -> bool {
+    match err {
+        CliError::Api { code: 401, .. } => true,
+        CliError::Other(e) => format!("{e:#}").contains("UnauthorizedError:"),
+        _ => false,
+    }
+}
+
+/// First-run UX for the ssh family: an unauthenticated 401 becomes "Not
+/// logged in. Run `athena login` …" (exit code 2, auth) instead of the raw
+/// server body. Every other error passes through untouched.
+fn with_login_hint(err: CliError) -> CliError {
+    if is_unauthenticated(&err) {
+        CliError::Auth(NOT_LOGGED_IN.to_string())
+    } else {
+        err
+    }
 }
 
 // Keep the unused-import lint quiet if future edits drop the Any usage.
@@ -3264,5 +3932,545 @@ mod tests {
             text.contains("Registered:  yes (label \"athena-cli@laptop\")"),
             "{text}"
         );
+    }
+
+    // ── login / logout ───────────────────────────────────────────────────
+
+    use fern_cli_sdk::auth::{set_active_store, KeyringStore, MockKeyringStore};
+    use serial_test::serial;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const FAST: PollTiming = PollTiming {
+        floor: Duration::from_millis(10),
+        slow_down_step: Duration::from_millis(20),
+    };
+
+    fn fast_login(timeout: Option<Duration>) -> LoginOptions {
+        LoginOptions {
+            no_browser: true,
+            timeout,
+            timing: FAST,
+        }
+    }
+
+    /// The same client `handle_login` builds — TLS/proxy/timeouts from the
+    /// environment, no auth layer.
+    fn plain_client() -> reqwest::Client {
+        fern_cli_sdk::http::HttpConfig::new(CLI_NAME)
+            .unwrap()
+            .build_client()
+            .unwrap()
+    }
+
+    fn device_code_body() -> serde_json::Value {
+        serde_json::json!({
+            "device_code": "dc_secret",
+            "user_code": "WDJB-MJHT",
+            "verification_uri": "https://app.example.com/cli/authorize",
+            "verification_uri_complete": "https://app.example.com/cli/authorize?code=WDJB-MJHT",
+            "expires_in": 600,
+            "interval": 0,
+        })
+    }
+
+    fn approved_body() -> serde_json::Value {
+        serde_json::json!({
+            "api_key": "ak_live_test",
+            "token_type": "api_key",
+            "base_url": "https://api.example.com",
+            "user": {"id": "user_1", "email": "dev@example.com"},
+        })
+    }
+
+    fn approved() -> ResponseTemplate {
+        ResponseTemplate::new(200).set_body_json(approved_body())
+    }
+
+    fn device_error(error: &str) -> ResponseTemplate {
+        ResponseTemplate::new(400)
+            .set_body_json(serde_json::json!({ "error": error, "detail": error }))
+    }
+
+    /// Mount `device/code` — exactly once, and only for requests with **no**
+    /// `X-API-KEY` — plus a `device/token` that answers from `answers` in
+    /// order (repeating the last). Returns the token poll counter.
+    async fn mount_device_endpoints(
+        server: &MockServer,
+        answers: Vec<ResponseTemplate>,
+    ) -> Arc<AtomicU32> {
+        Mock::given(method("POST"))
+            .and(path(format!("/{DEVICE_CODE_PATH}")))
+            .and(|request: &wiremock::Request| !request.headers.contains_key("x-api-key"))
+            .and(|request: &wiremock::Request| {
+                let body: serde_json::Value = request.body_json().unwrap_or_default();
+                body["client_name"].is_string()
+                    && body["client_version"] == env!("CARGO_PKG_VERSION")
+            })
+            .respond_with(ResponseTemplate::new(200).set_body_json(device_code_body()))
+            .expect(1)
+            .mount(server)
+            .await;
+
+        let polls = Arc::new(AtomicU32::new(0));
+        let counter = polls.clone();
+        let answers = Arc::new(answers);
+        Mock::given(method("POST"))
+            .and(path(format!("/{DEVICE_TOKEN_PATH}")))
+            .and(|request: &wiremock::Request| !request.headers.contains_key("x-api-key"))
+            .respond_with(move |_request: &wiremock::Request| {
+                let n = counter.fetch_add(1, Ordering::SeqCst) as usize;
+                answers[n.min(answers.len() - 1)].clone()
+            })
+            .mount(server)
+            .await;
+        polls
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[serial]
+    async fn login_stores_the_key_after_pending_slow_down_approved() {
+        let server = MockServer::start().await;
+        let store = Arc::new(MockKeyringStore::new());
+        set_active_store(store.clone());
+        let polls = mount_device_endpoints(
+            &server,
+            vec![
+                device_error("authorization_pending"),
+                device_error("slow_down"),
+                approved(),
+            ],
+        )
+        .await;
+
+        let outcome = browser_login(&plain_client(), &server.uri(), fast_login(None))
+            .await
+            .expect("login should succeed");
+
+        assert_eq!(polls.load(Ordering::SeqCst), 3, "exactly three token polls");
+        assert_eq!(
+            store.get(CLI_NAME, API_KEY_SCHEME).unwrap().as_deref(),
+            Some("ak_live_test")
+        );
+        assert_eq!(outcome.email.as_deref(), Some("dev@example.com"));
+        assert_eq!(outcome.base_url.as_deref(), Some("https://api.example.com"));
+        assert_eq!(outcome.backend, "mock (in-memory)");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[serial]
+    async fn login_access_denied_is_an_auth_error_and_stores_nothing() {
+        let server = MockServer::start().await;
+        let store = Arc::new(MockKeyringStore::new());
+        set_active_store(store.clone());
+        let polls = mount_device_endpoints(&server, vec![device_error("access_denied")]).await;
+
+        let err = browser_login(&plain_client(), &server.uri(), fast_login(None))
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(err, CliError::Auth(ref msg) if msg == ACCESS_DENIED),
+            "{err:?}"
+        );
+        assert_eq!(polls.load(Ordering::SeqCst), 1);
+        assert!(store.get(CLI_NAME, API_KEY_SCHEME).unwrap().is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[serial]
+    async fn login_expired_token_is_an_auth_error() {
+        let server = MockServer::start().await;
+        let store = Arc::new(MockKeyringStore::new());
+        set_active_store(store.clone());
+        mount_device_endpoints(&server, vec![device_error("expired_token")]).await;
+
+        let err = browser_login(&plain_client(), &server.uri(), fast_login(None))
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(err, CliError::Auth(ref msg) if msg == CODE_EXPIRED),
+            "{err:?}"
+        );
+        assert!(store.get(CLI_NAME, API_KEY_SCHEME).unwrap().is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[serial]
+    async fn login_honours_retry_after_on_429() {
+        let server = MockServer::start().await;
+        set_active_store(Arc::new(MockKeyringStore::new()));
+        let polls = mount_device_endpoints(
+            &server,
+            vec![
+                ResponseTemplate::new(429)
+                    .insert_header("Retry-After", "1")
+                    .set_body_json(serde_json::json!({ "error": "rate_limited" })),
+                approved(),
+            ],
+        )
+        .await;
+
+        let started = Instant::now();
+        browser_login(&plain_client(), &server.uri(), fast_login(None))
+            .await
+            .expect("login should succeed after the back-off");
+
+        assert_eq!(polls.load(Ordering::SeqCst), 2);
+        assert!(
+            started.elapsed() >= Duration::from_secs(1),
+            "Retry-After: 1 was not honoured ({:?})",
+            started.elapsed()
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[serial]
+    async fn login_gives_up_at_the_timeout_without_polling() {
+        let server = MockServer::start().await;
+        set_active_store(Arc::new(MockKeyringStore::new()));
+        let polls =
+            mount_device_endpoints(&server, vec![device_error("authorization_pending")]).await;
+
+        let err = browser_login(
+            &plain_client(),
+            &server.uri(),
+            fast_login(Some(Duration::ZERO)),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            matches!(err, CliError::Auth(ref msg) if msg == CODE_EXPIRED),
+            "{err:?}"
+        );
+        assert_eq!(polls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[serial]
+    async fn device_requests_carry_no_api_key_even_with_stale_credentials() {
+        // A stale keyring key and an exported ATHENA_API_KEY must not reach the
+        // unauthenticated device endpoints: both mocks only match requests
+        // without X-API-KEY, and device/code expects exactly one.
+        let server = MockServer::start().await;
+        let store = Arc::new(MockKeyringStore::new());
+        store.set(CLI_NAME, API_KEY_SCHEME, "stale-key").unwrap();
+        set_active_store(store.clone());
+        std::env::set_var("ATHENA_API_KEY", "stale-env-key");
+        mount_device_endpoints(&server, vec![approved()]).await;
+
+        let result = browser_login(&plain_client(), &server.uri(), fast_login(None)).await;
+        std::env::remove_var("ATHENA_API_KEY");
+
+        result.expect("login should succeed");
+        assert_eq!(
+            store.get(CLI_NAME, API_KEY_SCHEME).unwrap().as_deref(),
+            Some("ak_live_test"),
+            "the stale key is replaced"
+        );
+    }
+
+    #[test]
+    fn poll_pace_floors_slows_down_and_honours_retry_after() {
+        let mut pace = PollPace::new(Duration::ZERO, PollTiming::STANDARD);
+        assert_eq!(
+            pace.delay(None),
+            Duration::from_secs(1),
+            "interval 0 is floored at 1 s"
+        );
+        pace.slow_down();
+        assert_eq!(pace.delay(None), Duration::from_secs(6));
+
+        let mut pace = PollPace::new(Duration::from_secs(5), PollTiming::STANDARD);
+        assert_eq!(pace.delay(None), Duration::from_secs(5));
+        pace.slow_down();
+        assert_eq!(pace.delay(None), Duration::from_secs(10));
+        pace.slow_down();
+        assert_eq!(pace.delay(None), Duration::from_secs(15));
+        assert_eq!(
+            pace.delay(Some(Duration::from_secs(2))),
+            Duration::from_secs(2),
+            "Retry-After overrides the interval"
+        );
+        assert_eq!(
+            pace.delay(Some(Duration::ZERO)),
+            Duration::from_secs(1),
+            "Retry-After: 0 still respects the floor"
+        );
+    }
+
+    fn error_body(error: &str) -> String {
+        serde_json::json!({ "error": error, "detail": "why" }).to_string()
+    }
+
+    #[test]
+    fn classify_poll_maps_every_wire_answer() {
+        let mut pace = PollPace::new(Duration::from_secs(5), PollTiming::STANDARD);
+
+        assert!(matches!(
+            classify_poll(400, &error_body("authorization_pending"), None, &mut pace),
+            PollStep::Retry(d) if d == Duration::from_secs(5)
+        ));
+        assert!(matches!(
+            classify_poll(400, &error_body("slow_down"), None, &mut pace),
+            PollStep::Retry(d) if d == Duration::from_secs(10)
+        ));
+        // 429: Retry-After wins; without one, the 5 s default.
+        assert!(matches!(
+            classify_poll(429, "", Some(Duration::from_secs(7)), &mut pace),
+            PollStep::Retry(d) if d == Duration::from_secs(7)
+        ));
+        assert!(matches!(
+            classify_poll(429, "", None, &mut pace),
+            PollStep::Retry(d) if d == Duration::from_secs(5)
+        ));
+        // 503 / temporarily_unavailable: retry after the current interval.
+        assert!(matches!(
+            classify_poll(503, "<html>down</html>", None, &mut pace),
+            PollStep::Retry(d) if d == Duration::from_secs(10)
+        ));
+        assert!(matches!(
+            classify_poll(400, &error_body("temporarily_unavailable"), None, &mut pace),
+            PollStep::Retry(d) if d == Duration::from_secs(10)
+        ));
+        // Terminal answers.
+        assert!(matches!(
+            classify_poll(400, &error_body("access_denied"), None, &mut pace),
+            PollStep::Fail(CliError::Auth(msg)) if msg == ACCESS_DENIED
+        ));
+        assert!(matches!(
+            classify_poll(400, &error_body("expired_token"), None, &mut pace),
+            PollStep::Fail(CliError::Auth(msg)) if msg == CODE_EXPIRED
+        ));
+        assert!(matches!(
+            classify_poll(500, r#"{"detail":"boom"}"#, None, &mut pace),
+            PollStep::Fail(CliError::Api { code: 500, ref message, .. }) if message == "boom"
+        ));
+        assert!(matches!(
+            classify_poll(400, &error_body("invalid_grant"), None, &mut pace),
+            PollStep::Fail(CliError::Api { code: 400, ref message, .. }) if message == "why"
+        ));
+        assert!(matches!(
+            classify_poll(200, "not json", None, &mut pace),
+            PollStep::Fail(CliError::Other(_))
+        ));
+        match classify_poll(200, &approved_body().to_string(), None, &mut pace) {
+            PollStep::Approved(token) => {
+                assert_eq!(token.api_key, "ak_live_test");
+                assert_eq!(token.base_url.as_deref(), Some("https://api.example.com"));
+                assert_eq!(
+                    token.user.and_then(|user| user.email).as_deref(),
+                    Some("dev@example.com")
+                );
+            }
+            other => panic!("expected approval, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn api_failure_prefers_detail_then_error_then_body() {
+        let err = api_failure(500, r#"{"error":"boom","detail":"database is away"}"#);
+        assert!(matches!(
+            err,
+            CliError::Api { code: 500, ref message, ref reason }
+                if message == "database is away" && reason == "internalServerError"
+        ));
+        let err = api_failure(400, r#"{"error":"bad_request"}"#);
+        assert!(matches!(err, CliError::Api { ref message, .. } if message == "bad_request"));
+        let err = api_failure(502, "<html>bad gateway</html>");
+        assert!(matches!(
+            err,
+            CliError::Api { ref message, .. } if message == "<html>bad gateway</html>"
+        ));
+        let err = api_failure(504, "");
+        assert!(matches!(
+            err,
+            CliError::Api { ref message, .. } if message == "HTTP 504 from the API"
+        ));
+        // FastAPI validation errors put a list in `detail`.
+        let err = api_failure(422, r#"{"detail":[{"loc":["body","client_name"]}]}"#);
+        assert!(
+            matches!(err, CliError::Api { ref message, .. } if message.contains("client_name"))
+        );
+    }
+
+    #[test]
+    fn login_hint_rewrites_only_unauthenticated_errors() {
+        let raw_401 = CliError::Api {
+            code: 401,
+            message: "Invalid API key".into(),
+            reason: "unauthorized".into(),
+        };
+        assert!(matches!(
+            with_login_hint(raw_401),
+            CliError::Auth(msg) if msg == NOT_LOGGED_IN
+        ));
+        let sdk_401 = CliError::Other(anyhow::anyhow!(
+            "SDK error: UnauthorizedError: Authentication failed - Invalid API key"
+        ));
+        assert!(matches!(
+            with_login_hint(sdk_401),
+            CliError::Auth(msg) if msg == NOT_LOGGED_IN
+        ));
+
+        let not_found = CliError::Api {
+            code: 404,
+            message: "no such computer".into(),
+            reason: "notFound".into(),
+        };
+        assert!(matches!(
+            with_login_hint(not_found),
+            CliError::Api { code: 404, ref message, .. } if message == "no such computer"
+        ));
+        assert!(matches!(
+            with_login_hint(CliError::Validation("bad ttl".into())),
+            CliError::Validation(msg) if msg == "bad ttl"
+        ));
+        assert!(matches!(
+            with_login_hint(CliError::Other(anyhow::anyhow!(
+                "SDK network error: refused"
+            ))),
+            CliError::Other(_)
+        ));
+    }
+
+    #[test]
+    fn shadowing_env_check_covers_the_four_framework_names() {
+        fn lookup(set: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
+            let owned: Vec<(String, String)> = set
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
+            move |name: &str| {
+                owned
+                    .iter()
+                    .find(|(key, _)| key == name)
+                    .map(|(_, value)| value.clone())
+            }
+        }
+        assert_eq!(first_shadowing_env(lookup(&[])), None);
+        assert_eq!(
+            first_shadowing_env(lookup(&[("ATHENA_API_KEY", "k")])),
+            Some("ATHENA_API_KEY")
+        );
+        assert_eq!(
+            first_shadowing_env(lookup(&[
+                ("ATHENA_API_KEY", "k"),
+                ("ATHENA_APIKEYHEADER", "k")
+            ])),
+            Some("ATHENA_APIKEYHEADER"),
+            "same precedence order as the framework"
+        );
+        assert_eq!(
+            first_shadowing_env(lookup(&[("ATHENA_TOKEN", "k")])),
+            Some("ATHENA_TOKEN")
+        );
+        assert_eq!(
+            first_shadowing_env(lookup(&[("APIKEYHEADER", "k")])),
+            Some("APIKEYHEADER")
+        );
+        assert_eq!(
+            first_shadowing_env(lookup(&[("ATHENA_API_KEY", "   ")])),
+            None,
+            "blank values do not shadow"
+        );
+        assert_eq!(
+            first_shadowing_env(lookup(&[("ATHENA_BASE_URL", "https://x")])),
+            None
+        );
+    }
+
+    #[test]
+    fn environment_hint_only_when_the_key_is_not_for_the_default_api() {
+        let prod = "https://api.athenaintel.com";
+        assert_eq!(environment_hint(Some(prod), prod, prod), None);
+        assert_eq!(
+            environment_hint(Some("https://api.athenaintel.com/"), prod, prod),
+            None,
+            "a trailing slash is not a different environment"
+        );
+        assert_eq!(environment_hint(None, prod, prod), None);
+
+        let staging = "https://api-staging.athenaintel.com";
+        let hint = environment_hint(Some(staging), staging, prod).unwrap();
+        assert!(
+            hint.contains(&format!("ATHENA_BASE_URL={staging}")),
+            "{hint}"
+        );
+        let hint = environment_hint(Some(staging), prod, prod).unwrap();
+        assert!(hint.contains(staging), "{hint}");
+        assert!(environment_hint(None, staging, prod).is_some());
+    }
+
+    #[test]
+    fn api_origin_prefers_the_override_and_strips_trailing_slashes() {
+        assert_eq!(
+            api_origin(None, "https://api.athenaintel.com/"),
+            "https://api.athenaintel.com"
+        );
+        assert_eq!(
+            api_origin(
+                Some("https://api-staging.athenaintel.com/"),
+                "https://api.athenaintel.com"
+            ),
+            "https://api-staging.athenaintel.com"
+        );
+    }
+
+    #[test]
+    fn login_help_explains_the_browser_flow_and_flags_parse() {
+        let help = build_login_command().render_long_help().to_string();
+        assert!(help.contains("browser"), "{help}");
+        assert!(help.contains("one-time code"), "{help}");
+        for flag in ["--with-token", "--no-browser", "--timeout"] {
+            assert!(help.contains(flag), "{flag} missing from:\n{help}");
+        }
+
+        let matches = build_login_command()
+            .try_get_matches_from(["login", "--no-browser", "--timeout", "30"])
+            .unwrap();
+        assert!(matches.get_flag("no-browser"));
+        assert!(!matches.get_flag("with-token"));
+        assert_eq!(matches.get_one::<u64>("timeout"), Some(&30));
+        assert!(build_login_command()
+            .try_get_matches_from(["login", "--timeout", "0"])
+            .is_err());
+        assert!(build_login_command()
+            .try_get_matches_from(["login", "--with-token"])
+            .unwrap()
+            .get_flag("with-token"));
+
+        let help = build_logout_command().render_long_help().to_string();
+        assert!(help.contains("athena:APIKeyHeader"), "{help}");
+    }
+
+    #[test]
+    #[serial]
+    fn logout_removes_the_stored_key_and_is_idempotent() {
+        let store = Arc::new(MockKeyringStore::new());
+        store.set(CLI_NAME, API_KEY_SCHEME, "ak_old").unwrap();
+        set_active_store(store.clone());
+
+        handle_logout().unwrap();
+        assert!(store.get(CLI_NAME, API_KEY_SCHEME).unwrap().is_none());
+        handle_logout().unwrap();
+        assert!(store.get(CLI_NAME, API_KEY_SCHEME).unwrap().is_none());
+    }
+
+    #[test]
+    fn redacted_debug_never_prints_secrets() {
+        let code: DeviceCodeOut = serde_json::from_value(device_code_body()).unwrap();
+        let dump = format!("{code:?}");
+        assert!(!dump.contains("dc_secret"), "{dump}");
+        assert!(dump.contains("WDJB-MJHT"), "{dump}");
+
+        let token: DeviceTokenOut = serde_json::from_value(approved_body()).unwrap();
+        let dump = format!("{token:?}");
+        assert!(!dump.contains("ak_live_test"), "{dump}");
+        assert!(dump.contains("dev@example.com"), "{dump}");
     }
 }
