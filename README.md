@@ -11,6 +11,7 @@ operation is available as a subcommand.
 - [Authentication](#authentication)
 - [Quick start](#quick-start)
 - [Reading assets](#reading-assets)
+- [SSH into a computer](#ssh-into-a-computer)
 - [Documentation](#documentation)
 - [Advanced](#advanced)
 
@@ -163,6 +164,58 @@ athena read-asset "asset_abc" --page-all --page-limit 200   # default 50
 ```
 
 The warning goes to stderr, so it never contaminates JSON piped from stdout.
+
+## SSH into a computer
+
+`athena ssh` opens a shell on a computer asset with your own SSH key. Once per
+machine, create and register the key:
+
+```bash
+athena ssh setup          # creates ~/.ssh/athena_ed25519 if needed, registers the public key
+```
+
+Key-based access requires the public key to be registered under **Settings →
+SSH keys** in Athena — `setup` does exactly that (re-running it is safe, and
+`athena ssh <computer>` runs it for you the first time). Then:
+
+```bash
+athena ssh mybox                                        # by name…
+athena ssh asset_92492920-d118-42d3-95b4-00eccfe0754f   # …or by asset id
+athena ssh mybox -- -L 5432:localhost:5432 -N           # everything after -- goes to ssh
+athena ssh mybox -- uptime                              # run one command and exit
+```
+
+A stopped computer is started by the SSH gateway when you connect — the first
+prompt can take a minute or two. Names must match a computer you can see: an
+exact title match wins, then a unique case-insensitive match; anything
+ambiguous lists the candidates so you can pass the asset id instead. The `--`
+is required before ssh arguments — without it the CLI reports them as unknown
+flags.
+
+### VS Code / Cursor Remote-SSH
+
+```bash
+athena ssh config mybox other-box
+```
+
+writes `Host athena-mybox` and `Host athena-other-box` entries into a managed
+block of `~/.ssh/config`, delimited by `# >>> athena ssh (managed) >>>` and
+`# <<< athena ssh (managed) <<<`. Everything outside the block is preserved
+byte for byte, and re-running refreshes the entries for the same computers.
+After that `ssh athena-mybox` works from any terminal, and the host appears in
+the Remote-SSH host picker in VS Code and Cursor.
+
+### Token backup path
+
+Accounts without a registered key can use a short-lived access token instead:
+
+```bash
+athena ssh mybox --token --ttl 2h          # connect with a token (default 60m, max 1d)
+athena ssh token mybox --ttl 30m           # print {command, token, expires_in_minutes, expires_at}
+athena ssh token mybox --revoke <token>    # revoke a token early
+```
+
+`--ttl` accepts `30m`, `2h`, `1d`, or bare minutes (1-1440).
 
 ## Documentation
 
