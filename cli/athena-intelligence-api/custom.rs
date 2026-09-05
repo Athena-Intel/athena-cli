@@ -479,6 +479,32 @@ pub fn register(app: CliApp) -> CliApp {
             download_asset_file(matches, ctx)
         }),
     )
+    .command_typed_with(
+        clap::Command::new("chat")
+            .about("Chat with the general Athena agent — interactive or one-shot")
+            .long_about(
+                "Talk to the general Athena agent over the public \
+                 POST /api/v0/agents/general/invoke endpoint.\n\n\
+                 With no PROMPT and a terminal attached this opens an \
+                 interactive session; every turn reuses one thread, so the \
+                 agent keeps the conversation's context. With a PROMPT (or \
+                 piped stdin) it runs a single turn and exits, printing only \
+                 the reply on stdout — tool activity and the thread id go to \
+                 stderr, so the answer pipes cleanly.\n\n\
+                 Each turn is synchronous and can take minutes; raise \
+                 ATHENA_TIMEOUT_SECS if you have shortened it. Resume any \
+                 conversation with --thread-id (printed on start), and browse \
+                 past ones with 'athena sessions browse'.",
+            )
+            .after_help(
+                "Examples:\n  \
+                 athena chat\n  \
+                 athena chat \"summarize asset_abc\"\n  \
+                 git diff | athena chat -p \"review this diff\"\n  \
+                 athena chat --thread-id thread_… \"and now in French\"",
+            ),
+        handle_chat,
+    )
     .command_under(
         &["meetings"],
         clap::Command::new("browse")
@@ -1293,6 +1319,406 @@ fn session_export_filename(title: &str, suffix: &str) -> String {
     let safe = safe.trim();
     let base = if safe.is_empty() { "session" } else { safe };
     format!("{base}-{suffix}")
+}
+
+// ---------------------------------------------------------------------------
+// chat — one-shot and interactive conversations with the general Athena agent
+// ---------------------------------------------------------------------------
+
+/// Words that end an interactive session, in addition to Ctrl-C / Ctrl-D.
+const CHAT_EXIT_WORDS: [&str; 4] = ["exit", "quit", "/exit", "/quit"];
+
+#[derive(clap::Args)]
+struct ChatArgs {
+    /// Instruction to send. Omit it (with a terminal attached) for an
+    /// interactive session.
+    #[arg(value_name = "PROMPT", num_args = 0..)]
+    prompt: Vec<String>,
+    /// Instruction to send — same as the positional PROMPT, kept for
+    /// `athena chat -p "…"` muscle memory.
+    #[arg(
+        short = 'p',
+        long = "prompt",
+        value_name = "PROMPT",
+        conflicts_with = "prompt"
+    )]
+    prompt_flag: Option<String>,
+    /// Continue an existing thread instead of starting a new one
+    #[arg(long, value_name = "THREAD_ID")]
+    thread_id: Option<String>,
+    /// Model to run the agent with (deployment default when omitted)
+    #[arg(long, value_name = "MODEL")]
+    model: Option<String>,
+    /// Extra system prompt for the run
+    #[arg(long, value_name = "TEXT")]
+    system_prompt: Option<String>,
+    /// Restrict the agent to these tools (repeatable, or comma-separated)
+    #[arg(long = "tool", value_name = "TOOL", value_delimiter = ',')]
+    tools: Vec<String>,
+    /// Knowledge-base asset ids to ground the run on (repeatable, or
+    /// comma-separated)
+    #[arg(
+        long = "knowledge-asset",
+        value_name = "ASSET_ID",
+        value_delimiter = ','
+    )]
+    knowledge_assets: Vec<String>,
+    /// Print the raw response JSON instead of the assistant's reply text
+    #[arg(long)]
+    raw: bool,
+}
+
+impl ChatArgs {
+    fn instruction(&self) -> Option<String> {
+        self.prompt_flag.clone().or_else(|| {
+            let joined = self.prompt.join(" ");
+            let trimmed = joined.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_string())
+        })
+    }
+
+    fn agent_config(&self) -> athena_intelligence_api_sdk::api::GeneralAgentConfig {
+        athena_intelligence_api_sdk::api::GeneralAgentConfig {
+            enabled_tools: (!self.tools.is_empty()).then(|| {
+                self.tools
+                    .iter()
+                    .map(|tool| {
+                        athena_intelligence_api_sdk::api::GeneralAgentConfigEnabledToolsItem::String(
+                            tool.clone(),
+                        )
+                    })
+                    .collect()
+            }),
+            knowledge_base_asset_ids: (!self.knowledge_assets.is_empty())
+                .then(|| self.knowledge_assets.clone()),
+            model: self.model.clone(),
+            system_prompt: self.system_prompt.clone(),
+        }
+    }
+}
+
+/// Mint a thread id in the same shape Agora mints one, so a conversation can
+/// be resumed with `--thread-id`.
+///
+/// The invoke response does not echo the thread id back, so a client that let
+/// the server generate it could never continue the conversation — every turn
+/// would start from an empty history.
+fn new_thread_id() -> String {
+    use rand::RngCore as _;
+    let mut bytes = [0u8; 16];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 1
+    let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+    format!(
+        "thread_{}-{}-{}-{}-{}",
+        &hex[0..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..32]
+    )
+}
+
+/// Combine an explicit instruction with piped stdin.
+///
+/// `git diff | athena chat -p "review this"` has to send both halves; a bare
+/// `athena chat` with a terminal attached must never block reading stdin.
+fn compose_prompt(instruction: Option<String>, piped: Option<&str>) -> Option<String> {
+    let piped = piped.map(str::trim).filter(|text| !text.is_empty());
+    match (instruction, piped) {
+        (Some(instruction), Some(piped)) => Some(format!("{instruction}\n\n{piped}")),
+        (Some(instruction), None) => Some(instruction),
+        (None, Some(piped)) => Some(piped.to_string()),
+        (None, None) => None,
+    }
+}
+
+/// Read stdin only when it is piped — returns `None` for an attached terminal.
+fn piped_stdin() -> Result<Option<String>, CliError> {
+    use std::io::{IsTerminal as _, Read as _};
+    let mut stdin = std::io::stdin();
+    if stdin.is_terminal() {
+        return Ok(None);
+    }
+    let mut buffer = String::new();
+    stdin
+        .read_to_string(&mut buffer)
+        .map_err(|e| CliError::Other(anyhow::anyhow!("failed to read stdin: {e}")))?;
+    Ok(Some(buffer))
+}
+
+/// One message from the agent response, normalized across the two shapes the
+/// API returns: flat fields, and LangChain's serialized `{lc, type:
+/// "constructor", kwargs}` envelope.
+struct AgentMessage {
+    kind: String,
+    text: String,
+    tool_names: Vec<String>,
+}
+
+fn known_kind(value: &str) -> Option<String> {
+    matches!(
+        value,
+        "human" | "user" | "ai" | "assistant" | "system" | "tool"
+    )
+    .then(|| value.to_string())
+}
+
+fn kind_from_langchain_class(class_path: &[String]) -> Option<String> {
+    match class_path.last().map(String::as_str) {
+        Some("HumanMessage" | "HumanMessageChunk") => Some("human".to_string()),
+        Some("AIMessage" | "AIMessageChunk") => Some("ai".to_string()),
+        Some("SystemMessage") => Some("system".to_string()),
+        Some("ToolMessage") => Some("tool".to_string()),
+        _ => None,
+    }
+}
+
+fn content_text(parts: &[std::collections::HashMap<String, serde_json::Value>]) -> String {
+    parts
+        .iter()
+        .filter(|part| {
+            part.get("type")
+                .and_then(serde_json::Value::as_str)
+                .is_none_or(|kind| kind == "text")
+        })
+        .filter_map(|part| part.get("text").and_then(serde_json::Value::as_str))
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+fn tool_names(calls: &[std::collections::HashMap<String, serde_json::Value>]) -> Vec<String> {
+    calls
+        .iter()
+        .map(|call| {
+            call.get("name")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("tool")
+                .to_string()
+        })
+        .collect()
+}
+
+fn agent_message(
+    message: &athena_intelligence_api_sdk::api::GeneralAgentResponseMessage,
+) -> AgentMessage {
+    use athena_intelligence_api_sdk::api::{
+        GeneralAgentResponseMessageContent as Content, GeneralAgentResponseMessageId as Id,
+        GeneralAgentResponseMessageKwargsContent as KwargsContent,
+    };
+
+    let kwargs = message.kwargs.as_ref();
+    let kind = message
+        .role
+        .as_deref()
+        .and_then(known_kind)
+        .or_else(|| known_kind(&message.r#type))
+        .or_else(|| kwargs.and_then(|k| k.role.as_deref()).and_then(known_kind))
+        .or_else(|| kwargs.and_then(|k| known_kind(&k.r#type)))
+        .or_else(|| {
+            message
+                .langchain_id
+                .as_deref()
+                .and_then(kind_from_langchain_class)
+        })
+        .or_else(|| match message.id.as_ref() {
+            Some(Id::StringList(path)) => kind_from_langchain_class(path),
+            _ => None,
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let text = match message.content.as_ref() {
+        Some(Content::String(text)) => text.clone(),
+        Some(Content::StringToValueMapList(parts)) => content_text(parts),
+        None => match kwargs.and_then(|k| k.content.as_ref()) {
+            Some(KwargsContent::String(text)) => text.clone(),
+            Some(KwargsContent::StringToValueMapList(parts)) => content_text(parts),
+            None => String::new(),
+        },
+    };
+
+    let tool_names = message
+        .tool_calls
+        .as_deref()
+        .or_else(|| kwargs.and_then(|k| k.tool_calls.as_deref()))
+        .map(tool_names)
+        .unwrap_or_default();
+
+    AgentMessage {
+        kind,
+        text,
+        tool_names,
+    }
+}
+
+/// What the agent did and said in response to the latest user message.
+struct AgentTurn {
+    tools: Vec<String>,
+    reply: Option<String>,
+}
+
+/// Extract this turn's reply from a response that carries the whole thread.
+///
+/// With `--thread-id` the response replays the full conversation, so taking
+/// "the last AI message" of the raw list would happily re-print a previous
+/// turn's answer when the current run produced none. Only messages after the
+/// last human message belong to this turn.
+fn agent_turn(response: &athena_intelligence_api_sdk::api::GeneralAgentResponse) -> AgentTurn {
+    let messages: Vec<AgentMessage> = response.messages.iter().map(agent_message).collect();
+    let start = messages
+        .iter()
+        .rposition(|message| matches!(message.kind.as_str(), "human" | "user"))
+        .map_or(0, |index| index + 1);
+
+    let mut tools = Vec::new();
+    let mut chunks = Vec::new();
+    for message in &messages[start..] {
+        tools.extend(message.tool_names.iter().cloned());
+        if matches!(message.kind.as_str(), "ai" | "assistant") {
+            let text = message.text.trim();
+            if !text.is_empty() {
+                chunks.push(text.to_string());
+            }
+        }
+    }
+
+    AgentTurn {
+        tools,
+        reply: (!chunks.is_empty()).then(|| chunks.join("\n\n")),
+    }
+}
+
+fn send_turn(
+    ctx: &AppContext,
+    thread_id: &str,
+    config: &athena_intelligence_api_sdk::api::GeneralAgentConfig,
+    text: &str,
+) -> Result<athena_intelligence_api_sdk::api::GeneralAgentResponse, CliError> {
+    use athena_intelligence_api_sdk::api::{
+        GeneralAgentRequest, InputMessage, InputMessageContent,
+    };
+
+    let request = GeneralAgentRequest {
+        channel: Some("cli".to_string()),
+        config: config.clone(),
+        messages: vec![InputMessage {
+            additional_kwargs: None,
+            content: InputMessageContent::String(text.to_string()),
+            id: None,
+            name: None,
+            role: Some("user".to_string()),
+            r#type: Some("human".to_string()),
+            extra: Default::default(),
+        }],
+        thread_id: Some(thread_id.to_string()),
+    };
+
+    let client = super::sdk::client(ctx);
+    super::sdk::block_on(client.agents.general.invoke(&request, None))
+}
+
+/// Run one turn and print it: tool activity and notices on stderr, the reply
+/// on stdout, so `athena chat -p … > out.md` captures only the answer.
+fn run_turn(
+    ctx: &AppContext,
+    thread_id: &str,
+    config: &athena_intelligence_api_sdk::api::GeneralAgentConfig,
+    text: &str,
+    raw: bool,
+) -> Result<(), CliError> {
+    let response = send_turn(ctx, thread_id, config, text)?;
+    if raw {
+        print_json(&response);
+        return Ok(());
+    }
+
+    let turn = agent_turn(&response);
+    for tool in &turn.tools {
+        eprintln!("{}", style(format!("· {tool}")).dim());
+    }
+    match turn.reply {
+        Some(reply) => {
+            println!("{reply}");
+            Ok(())
+        }
+        // A run that ends without an assistant message is a failure, not an
+        // empty answer — exiting 0 with no output would let scripts treat it
+        // as a successful reply.
+        None => Err(CliError::Other(anyhow::anyhow!(
+            "the agent returned no assistant reply (thread {thread_id}); \
+             re-run with --raw to inspect the response"
+        ))),
+    }
+}
+
+fn handle_chat(args: ChatArgs, ctx: &AppContext) -> Result<(), CliError> {
+    let config = args.agent_config();
+    let thread_id = args.thread_id.clone().unwrap_or_else(new_thread_id);
+    let prompt = compose_prompt(args.instruction(), piped_stdin()?.as_deref());
+
+    if let Some(prompt) = prompt {
+        eprintln!("{}", style(format!("thread {thread_id}")).dim());
+        return run_turn(ctx, &thread_id, &config, &prompt, args.raw);
+    }
+
+    if !user_attended() {
+        return Err(CliError::Validation(
+            "`chat` needs a prompt when stdin is not a terminal. \
+             Pass it as an argument (athena chat \"…\"), with -p, or pipe it in."
+                .to_string(),
+        ));
+    }
+
+    chat_repl(ctx, &thread_id, &config, args.raw)
+}
+
+fn chat_repl(
+    ctx: &AppContext,
+    thread_id: &str,
+    config: &athena_intelligence_api_sdk::api::GeneralAgentConfig,
+    raw: bool,
+) -> Result<(), CliError> {
+    eprintln!(
+        "{}",
+        style(format!(
+            "Athena — thread {thread_id}\nResume later with: athena chat --thread-id {thread_id}\n\
+             Type 'exit' or press Ctrl-D to leave."
+        ))
+        .dim()
+    );
+
+    // The loop ends on Ctrl-C / Ctrl-D / a closed terminal.
+    while let Ok(input) = Input::<String>::with_theme(&ColorfulTheme::default())
+        .with_prompt("you")
+        .allow_empty(true)
+        .interact_text()
+    {
+        let input = input.trim();
+        if input.is_empty() {
+            continue;
+        }
+        if CHAT_EXIT_WORDS.contains(&input.to_ascii_lowercase().as_str()) {
+            break;
+        }
+
+        // A single failed turn should not discard the conversation, but there
+        // is no point in re-prompting when the credentials are the problem.
+        if let Err(e) = run_turn(ctx, thread_id, config, input, raw) {
+            eprintln!("{}", style(format!("error: {e}")).red());
+            if matches!(
+                e,
+                CliError::Api {
+                    code: 401 | 403,
+                    ..
+                }
+            ) {
+                return Err(e);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -3405,6 +3831,107 @@ mod tests {
         assert!(window.truncated);
         assert_eq!(window.next_offset, Some(50000));
         assert_eq!(window.total_length, Some(75744));
+    }
+
+    #[test]
+    fn compose_prompt_joins_an_instruction_with_piped_stdin() {
+        assert_eq!(
+            compose_prompt(Some("review this".to_string()), Some("diff --git a b\n")),
+            Some("review this\n\ndiff --git a b".to_string()),
+        );
+    }
+
+    #[test]
+    fn compose_prompt_uses_piped_stdin_alone() {
+        assert_eq!(
+            compose_prompt(None, Some(" what is this?\n")),
+            Some("what is this?".to_string()),
+        );
+    }
+
+    #[test]
+    fn compose_prompt_ignores_empty_stdin() {
+        assert_eq!(
+            compose_prompt(Some("hello".to_string()), Some("   \n")),
+            Some("hello".to_string()),
+        );
+        assert_eq!(compose_prompt(None, Some("")), None);
+        // No prompt and no pipe is the interactive case.
+        assert_eq!(compose_prompt(None, None), None);
+    }
+
+    #[test]
+    fn new_thread_id_matches_the_server_shape() {
+        let id = new_thread_id();
+        let uuid = id.strip_prefix("thread_").expect("thread_ prefix");
+        let groups: Vec<&str> = uuid.split('-').collect();
+        assert_eq!(
+            groups.iter().map(|g| g.len()).collect::<Vec<_>>(),
+            vec![8, 4, 4, 4, 12],
+        );
+        assert!(uuid.chars().all(|c| c.is_ascii_hexdigit() || c == '-'));
+        assert_ne!(new_thread_id(), id);
+    }
+
+    fn turn_from(messages: serde_json::Value) -> AgentTurn {
+        let response: athena_intelligence_api_sdk::api::GeneralAgentResponse =
+            serde_json::from_value(serde_json::json!({ "messages": messages }))
+                .expect("response should deserialize");
+        agent_turn(&response)
+    }
+
+    #[test]
+    fn agent_turn_reads_flat_messages_and_tool_calls() {
+        let turn = turn_from(serde_json::json!([
+            {"type": "human", "content": "hi"},
+            {"type": "ai", "content": "", "tool_calls": [{"name": "search_web"}]},
+            {"type": "tool", "content": "results"},
+            {"type": "ai", "content": "here you go"},
+        ]));
+        assert_eq!(turn.tools, vec!["search_web".to_string()]);
+        assert_eq!(turn.reply.as_deref(), Some("here you go"));
+    }
+
+    #[test]
+    fn agent_turn_reads_langchain_constructor_envelopes() {
+        let turn = turn_from(serde_json::json!([
+            {
+                "lc": 1,
+                "type": "constructor",
+                "id": ["langchain", "schema", "messages", "HumanMessage"],
+                "kwargs": {"type": "human", "content": "hi"}
+            },
+            {
+                "lc": 1,
+                "type": "constructor",
+                "id": ["langchain", "schema", "messages", "AIMessage"],
+                "kwargs": {
+                    "type": "ai",
+                    "content": [{"type": "text", "text": "multi"}, {"type": "text", "text": "part"}]
+                }
+            },
+        ]));
+        assert_eq!(turn.reply.as_deref(), Some("multipart"));
+    }
+
+    #[test]
+    fn agent_turn_ignores_earlier_turns_in_a_resumed_thread() {
+        // The whole thread comes back on every --thread-id turn. Replaying an
+        // older answer as this turn's reply would hide a run that said nothing.
+        let turn = turn_from(serde_json::json!([
+            {"type": "human", "content": "first"},
+            {"type": "ai", "content": "first answer"},
+            {"type": "human", "content": "second"},
+            {"type": "ai", "content": "second answer"},
+        ]));
+        assert_eq!(turn.reply.as_deref(), Some("second answer"));
+
+        let silent = turn_from(serde_json::json!([
+            {"type": "human", "content": "first"},
+            {"type": "ai", "content": "first answer"},
+            {"type": "human", "content": "second"},
+        ]));
+        assert_eq!(silent.reply, None);
     }
 
     #[test]
