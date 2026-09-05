@@ -74,7 +74,7 @@ impl AssetsClient {
             .await
     }
 
-    /// Create a new asset such as a spreadsheet, document, folder, database, or computer in your workspace. This endpoint uses internal GraphQL mutations to create assets with proper permissions and workspace integration. Computer assets return 202 after the initializing asset is committed; runtime provisioning continues asynchronously.
+    /// Create a new asset such as a spreadsheet, document, folder, database, computer, or generic doc (admin-only) in your workspace. This endpoint uses internal GraphQL mutations to create assets with proper permissions and workspace integration. Computer assets return 202 after the initializing asset is committed; runtime provisioning continues asynchronously.
     ///
     /// # Arguments
     ///
@@ -310,6 +310,32 @@ impl AssetsClient {
                 Method::POST,
                 &format!("api/v0/assets/{}/archive", asset_id),
                 None,
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Admin only. Mint a short-lived Keryx capability token for a Generic Doc asset, enabling live collaborative reads (and, with edit permission, writes) over WebSocket and REST. Only generic_doc assets are eligible — Athena-managed asset types are never reachable through this endpoint. The requested access is a ceiling clamped by the caller's permission on the asset.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn create_collab_token(
+        &self,
+        asset_id: &str,
+        request: &CollabTokenRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<CollabTokenResponse, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!("api/v0/assets/{}/collab-token", asset_id),
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
                 None,
                 options,
             )

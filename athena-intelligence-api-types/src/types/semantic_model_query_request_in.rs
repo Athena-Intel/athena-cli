@@ -10,12 +10,15 @@ pub struct SemanticModelQueryRequestIn {
     /// Optional filters
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filters: Option<Vec<HashMap<String, serde_json::Value>>>,
-    /// Maximum rows to return
+    /// Maximum rows to return (default 100). When the result was cut at this limit the response sets "truncated": true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<i64>,
     /// List of measure identifiers, e.g. ["orders.total_revenue"]
     #[serde(default)]
     pub measures: Vec<String>,
+    /// Optional ordering as [member, direction] pairs applied before "limit", e.g. [["orders.count", "desc"]] for a server-side top-N. Direction must be "asc" or "desc".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order: Option<Vec<Vec<String>>>,
     /// Optional time dimension configs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_dimensions: Option<Vec<HashMap<String, serde_json::Value>>>,
@@ -34,6 +37,7 @@ pub struct SemanticModelQueryRequestInBuilder {
     filters: Option<Vec<HashMap<String, serde_json::Value>>>,
     limit: Option<i64>,
     measures: Option<Vec<String>>,
+    order: Option<Vec<Vec<String>>>,
     time_dimensions: Option<Vec<HashMap<String, serde_json::Value>>>,
 }
 
@@ -58,6 +62,11 @@ impl SemanticModelQueryRequestInBuilder {
         self
     }
 
+    pub fn order(mut self, value: Vec<Vec<String>>) -> Self {
+        self.order = Some(value);
+        self
+    }
+
     pub fn time_dimensions(mut self, value: Vec<HashMap<String, serde_json::Value>>) -> Self {
         self.time_dimensions = Some(value);
         self
@@ -72,6 +81,7 @@ impl SemanticModelQueryRequestInBuilder {
             filters: self.filters,
             limit: self.limit,
             measures: self.measures.ok_or_else(|| BuildError::missing_field("measures"))?,
+            order: self.order,
             time_dimensions: self.time_dimensions,
         })
     }

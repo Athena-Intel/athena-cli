@@ -20,7 +20,7 @@ pub struct PaginatedSessionsOut {
     /// Number of sessions skipped from the beginning of the result set
     #[serde(default)]
     pub offset: i64,
-    /// Total number of sessions matching the query filters
+    /// Lower bound on the number of sessions matching the query filters: the rows paged through so far plus one when has_more is true, or 0 for an empty page. It is exact once has_more is false and the page is non-empty. Use has_more/next_offset to paginate rather than dividing total by limit.
     #[serde(default)]
     pub total: i64,
 }

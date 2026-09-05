@@ -4,6 +4,9 @@ use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
 pub struct CollabAgentSendMessageRequestIn {
+    /// Optional custom-channel id from the agent's Channels tab. Selects that channel's configuration overrides (model, prompt, tools) and stamps the session's origin. External SSO viewers MUST select a channel whose settings admit external viewers — they are refused everywhere else. Distinct channels hold distinct conversations even under the same clientThreadKey.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
     /// Optional caller-chosen conversation key. Submissions from the same caller with the same key continue one agent session (until 24 hours of inactivity); different keys hold independent conversations. Omitted, all of a caller's submissions to this agent share one 'default' thread.
     #[serde(rename = "clientThreadKey")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -29,6 +32,7 @@ impl CollabAgentSendMessageRequestIn {
 #[derive(Clone, PartialEq, Default, Debug)]
 #[non_exhaustive]
 pub struct CollabAgentSendMessageRequestInBuilder {
+    channel: Option<String>,
     client_thread_key: Option<String>,
     message: Option<String>,
     voice_update_handle: Option<String>,
@@ -36,6 +40,11 @@ pub struct CollabAgentSendMessageRequestInBuilder {
 }
 
 impl CollabAgentSendMessageRequestInBuilder {
+    pub fn channel(mut self, value: impl Into<String>) -> Self {
+        self.channel = Some(value.into());
+        self
+    }
+
     pub fn client_thread_key(mut self, value: impl Into<String>) -> Self {
         self.client_thread_key = Some(value.into());
         self
@@ -61,6 +70,7 @@ impl CollabAgentSendMessageRequestInBuilder {
     /// - [`message`](CollabAgentSendMessageRequestInBuilder::message)
     pub fn build(self) -> Result<CollabAgentSendMessageRequestIn, BuildError> {
         Ok(CollabAgentSendMessageRequestIn {
+            channel: self.channel,
             client_thread_key: self.client_thread_key,
             message: self.message.ok_or_else(|| BuildError::missing_field("message"))?,
             voice_update_handle: self.voice_update_handle,

@@ -240,12 +240,23 @@ Convert an uploaded Excel (.xlsx) asset into a new, editable Athena sheet asset 
 
 #### `athena assets create` `[BETA]`
 
-Create a new asset such as a spreadsheet, document, folder, database, or computer in your workspace. This endpoint uses internal GraphQL mutations to create assets with proper permissions and workspace integration. Computer assets return 202 after the initializing asset is committed; runtime provisioning continues asynchronously.
+Create a new asset such as a spreadsheet, document, folder, database, computer, or generic doc (admin-only) in your workspace. This endpoint uses internal GraphQL mutations to create assets with proper permissions and workspace integration. Computer assets return 202 after the initializing asset is committed; runtime provisioning continues asynchronously.
 
 `POST /api/v0/assets/create`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena assets create-collab-token` `[BETA]`
+
+Admin only. Mint a short-lived Keryx capability token for a Generic Doc asset, enabling live collaborative reads (and, with edit permission, writes) over WebSocket and REST. Only generic_doc assets are eligible — Athena-managed asset types are never reachable through this endpoint. The requested access is a ceiling clamped by the caller's permission on the asset.
+
+`POST /api/v0/assets/{asset_id}/collab-token`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 #### `athena assets create-project` `[BETA]`
@@ -413,7 +424,7 @@ Generate a time-limited SSH access token for a computer asset. Returns a full SS
 
 #### `athena computer deploy-computer` `[BETA]`
 
-Deploy a computer asset's running application to a shareable, persistent preview URL — the same action the Deploy button in the Olympus UI performs. Auto-starts the computer if it is stopped, validates that the requested port is reachable, records the deployment in the asset's metadata (so the UI stays in sync), and returns the Marathon preview URL for the exposed port. Call it with different ports to deploy multiple services from the same computer.
+Deploy a computer asset's running application to a shareable, persistent preview URL — the same action the Deploy button in the Olympus UI performs. Auto-starts the computer if it is stopped, validates that the requested port is reachable, records the deployment in the asset's metadata (so the UI stays in sync), and returns the Marathon preview URL for the exposed port. Call it with different ports to deploy multiple services from the same computer. Ports reserved by the computer runtime (such as the internal developer-agent port) are rejected with a 400 and can never be deployed. A 409 means the port cannot be exposed on this computer's runtime as currently booted (the detail explains how to proceed); a 502 means the runtime's port validation failed.
 
 `POST /api/v0/computer/{asset_id}/deploy`
 
@@ -421,6 +432,16 @@ Deploy a computer asset's running application to a shareable, persistent preview
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena computer get-ssh-access` `[BETA]`
+
+Return the SSH gateway host, port, username, and ready-made command for connecting to a computer with a registered SSH public key (see `add_ssh_key`). The username is the computer's asset id; the gateway authorizes the connection against your current edit permission on the computer and starts it if it is stopped. Unlike `create_ssh_access`, this mints nothing and never wakes the computer. Returns 409 when the computer's provider does not support SSH.
+
+`GET /api/v0/computer/{asset_id}/ssh-access`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
 
 #### `athena computer revoke-ssh-access` `[BETA]`
 
@@ -432,6 +453,26 @@ Revoke a previously issued SSH access token for a computer asset. Use the token 
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena computer start-computer` `[BETA]`
+
+Start a stopped computer's runtime and wait for it to come up — the same operation as the Start button in Athena. Idempotent for a running computer. Returns 409 when the computer's provider does not support lifecycle operations.
+
+`POST /api/v0/computer/{asset_id}/start`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+
+#### `athena computer stop-computer` `[BETA]`
+
+Stop (suspend) a running computer's runtime — the same operation as the Stop button in Athena. The computer's files persist and it can be started again with `start_computer`. Returns 409 when the provider does not support lifecycle operations or when the stop was refused because the workspace could not be saved (the computer is left running; retry).
+
+`POST /api/v0/computer/{asset_id}/stop`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
 
 ---
 
@@ -644,7 +685,7 @@ Get the result of an SQL query over given assets.
 
 #### `athena semantic-model generate-token` `[BETA]`
 
-Generate a short-lived JWT token for direct access to the semantic model's Cube REST API. Use this token to query /cubejs-api/v1/load and /cubejs-api/v1/meta directly. Token expires after 1 hour. The token carries only the model ID and schema hash — database credentials are NOT included and are resolved server-side by Cube via callback.
+Generate a short-lived JWT token for direct access to the semantic model's Cube REST API. Use this token to query /cubejs-api/v1/load and /cubejs-api/v1/meta directly. Token expires after 1 hour. The token carries only a credential-free, user/workspace/schema-scoped authorization grant — database credentials are NOT included and are resolved server-side by Cube via callback. Dataset-backed models must use the authenticated query endpoint instead so source Dataset permissions are checked per query.
 
 `POST /api/v0/semantic-model/{asset_id}/generate-token`
 
@@ -707,7 +748,7 @@ Retrieve a paginated list of agent sessions (conversations) with optional title 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--query` | `string` | No | Keyword to search session titles (case-insensitive) |
-| `--state` | `string` | No | Execution state(s) to filter by (e.g. 'running', 'completed'). Repeat the parameter or pass a comma-separated list. |
+| `--state` | `string` | No | Execution state(s) to filter by (e.g. 'running', 'completed'). Matched against the session's canonical run status (status_v2); 'running' only matches sessions updated within the last 12 hours. Repeat the parameter or pass a comma-separated list. |
 | `--source-channel` | `string` | No | Originating channel(s) to filter by (e.g. 'web', 'api', 'agent_email'). Repeat the parameter or pass a comma-separated list. |
 | `--session-type` | `string` | No | Session kind(s) to include: 'session', 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list. |
 | `--app-id` | `string` | No | Only include sessions belonging to this application identifier |
@@ -1355,11 +1396,43 @@ Executes a serverless function script or flow synchronously. Server handles poll
 
 ### `athena users`
 
+#### `athena users add-ssh-key` `[BETA]`
+
+Register an SSH public key (the contents of an OpenSSH `.pub` file) on the caller's account. Returns 400 for a malformed or unsupported key, 409 when the key is already registered or the caller has reached the per-account limit.
+
+`POST /api/v0/me/ssh-keys`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena users delete-ssh-key` `[BETA]`
+
+Delete an SSH public key from the caller's account. SSH sessions authenticated with the key are closed by the gateway within a minute. Returns 404 for a key the caller does not own.
+
+`DELETE /api/v0/me/ssh-keys/{key_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--key-id` | `string` | Yes |  |
+
+#### `athena users list-ssh-keys` `[BETA]`
+
+List the SSH public keys registered on the caller's Athena account. A registered key authenticates `ssh <computer_asset_id>@<gateway>` to every computer the caller can edit; keys are not tied to a workspace.
+
+`GET /api/v0/me/ssh-keys`
+
 #### `athena users me` `[BETA]`
 
 Returns basic information about the authenticated user including name, email, workspace details, and all workspaces the user has access to.
 
 `GET /api/v0/me`
+
+#### `athena users me-sources` `[BETA]`
+
+Counts of the caller's connected Microsoft 365 sources (mail, files, sites, chats) plus live SharePoint provisioning progress. Built for computer-asset apps to render a 'setting up your sources' state right after a viewer's first sign-in, while the background fan-outs are still filling in SharePoint and Teams.
+
+`GET /api/v0/me/sources`
 
 ---
 

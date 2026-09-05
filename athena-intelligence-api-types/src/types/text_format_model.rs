@@ -4,6 +4,10 @@ use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct TextFormatModel {
+    /// Superscript/subscript text positioning (Excel's vertAlign): 'superscript' or 'subscript' to set, 'baseline' to explicitly remove an existing offset (return text to the normal baseline). Omit to leave the current offset unchanged.
+    #[serde(rename = "baselineOffset")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub baseline_offset: Option<TextFormatModelBaselineOffset>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bold: Option<bool>,
     /// Text color as hex string (e.g., '#FF0000'). Use either color_hex or color_theme, not both.
@@ -35,6 +39,7 @@ impl TextFormatModel {
 #[derive(Clone, PartialEq, Default, Debug)]
 #[non_exhaustive]
 pub struct TextFormatModelBuilder {
+    baseline_offset: Option<TextFormatModelBaselineOffset>,
     bold: Option<bool>,
     color_hex: Option<String>,
     color_theme: Option<ThemeColor>,
@@ -46,6 +51,11 @@ pub struct TextFormatModelBuilder {
 }
 
 impl TextFormatModelBuilder {
+    pub fn baseline_offset(mut self, value: TextFormatModelBaselineOffset) -> Self {
+        self.baseline_offset = Some(value);
+        self
+    }
+
     pub fn bold(mut self, value: bool) -> Self {
         self.bold = Some(value);
         self
@@ -89,6 +99,7 @@ impl TextFormatModelBuilder {
     /// Consumes the builder and constructs a [`TextFormatModel`].
     pub fn build(self) -> Result<TextFormatModel, BuildError> {
         Ok(TextFormatModel {
+            baseline_offset: self.baseline_offset,
             bold: self.bold,
             color_hex: self.color_hex,
             color_theme: self.color_theme,

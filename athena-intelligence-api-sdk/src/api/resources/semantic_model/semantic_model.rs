@@ -13,7 +13,7 @@ impl SemanticModelClient {
         })
     }
 
-    /// Generate a short-lived JWT token for direct access to the semantic model's Cube REST API. Use this token to query /cubejs-api/v1/load and /cubejs-api/v1/meta directly. Token expires after 1 hour. The token carries only the model ID and schema hash — database credentials are NOT included and are resolved server-side by Cube via callback.
+    /// Generate a short-lived JWT token for direct access to the semantic model's Cube REST API. Use this token to query /cubejs-api/v1/load and /cubejs-api/v1/meta directly. Token expires after 1 hour. The token carries only a credential-free, user/workspace/schema-scoped authorization grant — database credentials are NOT included and are resolved server-side by Cube via callback. Dataset-backed models must use the authenticated query endpoint instead so source Dataset permissions are checked per query.
     ///
     /// # Arguments
     ///

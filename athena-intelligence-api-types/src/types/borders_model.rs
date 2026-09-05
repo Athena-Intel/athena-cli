@@ -19,6 +19,11 @@ use super::*;
 /// - Table with grid: Set all four borders to create a complete grid
 /// - Underline header: Set only bottom border on header row
 /// - Separate sections: Set bottom border to divide content
+/// 
+/// Style names: 'solid' | 'solid_medium' | 'solid_thick' | 'dotted' | 'dashed' |
+/// 'double'; the Excel names 'thin' / 'medium' / 'thick' / 'hair' are accepted
+/// as aliases. style 'none' (or omitting the edge) leaves that edge without a
+/// border — it does not remove a border that is already there.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct BordersModel {
     /// Bottom border of the cell
