@@ -4,11 +4,7 @@ Full command reference for `athena`.
 
 ## Commands
 
-- [`athena agents`](#athena-agents)
-- [`athena agents drive`](#athena-agents-drive)
 - [`athena agents general`](#athena-agents-general)
-- [`athena agents research`](#athena-agents-research)
-- [`athena agents sql`](#athena-agents-sql)
 - [`athena aop`](#athena-aop)
 - [`athena api`](#athena-api)
 - [`athena assets`](#athena-assets)
@@ -16,6 +12,7 @@ Full command reference for `athena`.
 - [`athena computer`](#athena-computer)
 - [`athena databases`](#athena-databases)
 - [`athena meetings`](#athena-meetings)
+- [`athena presentation`](#athena-presentation)
 - [`athena query`](#athena-query)
 - [`athena semantic-model`](#athena-semantic-model)
 - [`athena sessions`](#athena-sessions)
@@ -34,52 +31,7 @@ Full command reference for `athena`.
 
 ---
 
-### `athena agents`
-
-#### `athena agents invoke-by-id` `[BETA]`
-
-Coming soon!
-
-Invoke a custom agent created in [spaces](https://resources.athenaintel.com/docs/agents/create-your-agent).
-
-Custom agents can be created and configured in spaces to perform specialized tasks.
-Refer to the specific agent's documentation for details on configuration options
-and expected responses.
-
-`POST /api/v0/agents/{agent_id}/invoke`
-
-| Flag | Type | Required | Description |
-|------|------|----------|-------------|
-| `--agent-id` | `string` | Yes | The ID of the custom agent to invoke. Create custom agents in [spaces](https://resources.athenaintel.com/docs/agents/create-your-agent). |
-| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
-
----
-
-### `athena agents drive`
-
-#### `athena agents drive invoke` `[BETA]`
-
-Coming soon! Manage folders and search for files in the internal drive.
-
-`POST /api/v0/agents/drive/invoke`
-
-| Flag | Type | Required | Description |
-|------|------|----------|-------------|
-| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
-
----
-
 ### `athena agents general`
-
-#### `athena agents general batch` `[BETA]`
-
-Coming soon! Call the general agent with batched requests and return the results.
-
-`POST /api/v0/agents/general/batch`
-
-| Flag | Type | Required | Description |
-|------|------|----------|-------------|
-| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 #### `athena agents general invoke` `[BETA]`
 
@@ -89,44 +41,6 @@ Call the agent with the messages list, wait for the agent to complete,
 and return the result.
 
 `POST /api/v0/agents/general/invoke`
-
-| Flag | Type | Required | Description |
-|------|------|----------|-------------|
-| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
-
-#### `athena agents general stream-events` `[BETA]`
-
-Coming soon! Call the general agent and stream events for real-time chat applications.
-
-`POST /api/v0/agents/general/stream_events`
-
-| Flag | Type | Required | Description |
-|------|------|----------|-------------|
-| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
-
----
-
-### `athena agents research`
-
-#### `athena agents research invoke` `[BETA]`
-
-Coming soon! Conduct research using web and other sources.
-
-`POST /api/v0/agents/research/invoke`
-
-| Flag | Type | Required | Description |
-|------|------|----------|-------------|
-| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
-
----
-
-### `athena agents sql`
-
-#### `athena agents sql invoke` `[BETA]`
-
-Coming soon! Generate, execute, and test SQL queries. Returns an asset ID for the query object.
-
-`POST /api/v0/agents/sql/invoke`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
@@ -240,12 +154,23 @@ Convert an uploaded Excel (.xlsx) asset into a new, editable Athena sheet asset 
 
 #### `athena assets create` `[BETA]`
 
-Create a new asset such as a spreadsheet, document, folder, database, or computer in your workspace. This endpoint uses internal GraphQL mutations to create assets with proper permissions and workspace integration. Computer assets return 202 after the initializing asset is committed; runtime provisioning continues asynchronously.
+Create a new asset such as a spreadsheet, document, folder, database, computer, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. In capability enforce mode, computer creation requires computer.create and returns 403 when denied.
 
 `POST /api/v0/assets/create`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena assets create-collab-token` `[BETA]`
+
+Admin only. Mint a short-lived Keryx capability token for a Generic Doc asset, enabling live collaborative reads (and, with edit permission, writes) over WebSocket and REST. Only generic_doc assets are eligible — Athena-managed asset types are never reachable through this endpoint. The requested access is a ceiling clamped by the caller's permission on the asset.
+
+`POST /api/v0/assets/{asset_id}/collab-token`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 #### `athena assets create-project` `[BETA]`
@@ -413,7 +338,7 @@ Generate a time-limited SSH access token for a computer asset. Returns a full SS
 
 #### `athena computer deploy-computer` `[BETA]`
 
-Deploy a computer asset's running application to a shareable, persistent preview URL — the same action the Deploy button in the Olympus UI performs. Auto-starts the computer if it is stopped, validates that the requested port is reachable, records the deployment in the asset's metadata (so the UI stays in sync), and returns the Marathon preview URL for the exposed port. Call it with different ports to deploy multiple services from the same computer.
+Deploy a computer asset's running application to a shareable, persistent preview URL — the same action the Deploy button in the Olympus UI performs. Auto-starts the computer if it is stopped, validates that the requested port is reachable, records the deployment in the asset's metadata (so the UI stays in sync), and returns the Marathon preview URL for the exposed port. Call it with different ports to deploy multiple services from the same computer. Ports reserved by the computer runtime (such as the internal developer-agent port) are rejected with a 400 and can never be deployed. A 409 means the port cannot be exposed on this computer's runtime as currently booted (the detail explains how to proceed); a 502 means the runtime's port validation failed.
 
 `POST /api/v0/computer/{asset_id}/deploy`
 
@@ -421,6 +346,26 @@ Deploy a computer asset's running application to a shareable, persistent preview
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena computer get-initialization` `[BETA]`
+
+Read the existing computer's durable initialization progress after creation. Requires current workspace membership and asset VIEW access. This read never starts, wakes, retries, or extends an initialization. A null response means no durable attempt exists for this legacy computer; it does not mean setup succeeded. The attempt ID and deadline remain stable across reconnects.
+
+`GET /api/v0/computer/{asset_id}/initialization`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+
+#### `athena computer get-ssh-access` `[BETA]`
+
+Return the SSH gateway host, port, username, and ready-made command for connecting to a computer with a registered SSH public key (see `add_ssh_key`). The username is the computer's asset id; the gateway authorizes the connection against your current edit permission on the computer and starts it if it is stopped. Unlike `create_ssh_access`, this mints nothing and never wakes the computer. Returns 409 when the computer's provider does not support SSH.
+
+`GET /api/v0/computer/{asset_id}/ssh-access`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
 
 #### `athena computer revoke-ssh-access` `[BETA]`
 
@@ -432,6 +377,26 @@ Revoke a previously issued SSH access token for a computer asset. Use the token 
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena computer start-computer` `[BETA]`
+
+Start a stopped computer's runtime and wait for it to come up — the same operation as the Start button in Athena. Idempotent for a running computer. Returns 409 when the computer's provider does not support lifecycle operations.
+
+`POST /api/v0/computer/{asset_id}/start`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+
+#### `athena computer stop-computer` `[BETA]`
+
+Stop (suspend) a running computer's runtime — the same operation as the Stop button in Athena. The computer's files persist and it can be started again with `start_computer`. Returns 409 when the provider does not support lifecycle operations or when the stop was refused because the workspace could not be saved (the computer is left running; retry).
+
+`POST /api/v0/computer/{asset_id}/stop`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
 
 ---
 
@@ -626,6 +591,30 @@ Retrieve a paginated list of meetings with optional keyword search (across title
 
 ---
 
+### `athena presentation`
+
+#### `athena presentation create` `[BETA]`
+
+Create a new PowerPoint deck in PPTX Studio. Returns the asset ID for the new presentation. Use this to start a new presentation before adding content. Pass template_asset_id to seed the deck from any ready PPTX Studio deck or uploaded .pptx/.potx file; if the template cannot be applied, no deck is created and the error says why.
+
+`POST /api/v0/tools/presentation/create`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena presentation render` `[BETA]`
+
+Capture a screenshot of a specific slide from a PPTX Studio deck. Returns the screenshot as an image that can be viewed inline. Use this to inspect the visual appearance of slides during presentation editing.
+
+`POST /api/v0/tools/presentation/render`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
 ### `athena query`
 
 #### `athena query execute-snippet` `[BETA]`
@@ -644,7 +633,7 @@ Get the result of an SQL query over given assets.
 
 #### `athena semantic-model generate-token` `[BETA]`
 
-Generate a short-lived JWT token for direct access to the semantic model's Cube REST API. Use this token to query /cubejs-api/v1/load and /cubejs-api/v1/meta directly. Token expires after 1 hour. The token carries only the model ID and schema hash — database credentials are NOT included and are resolved server-side by Cube via callback.
+Generate a short-lived JWT token for direct access to the semantic model's Cube REST API. Use this token to query /cubejs-api/v1/load and /cubejs-api/v1/meta directly. Token expires after 1 hour. The token carries only a credential-free, user/workspace/schema-scoped authorization grant — database credentials are NOT included and are resolved server-side by Cube via callback. Dataset-backed models must use the authenticated query endpoint instead so source Dataset permissions are checked per query.
 
 `POST /api/v0/semantic-model/{asset_id}/generate-token`
 
@@ -707,7 +696,7 @@ Retrieve a paginated list of agent sessions (conversations) with optional title 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--query` | `string` | No | Keyword to search session titles (case-insensitive) |
-| `--state` | `string` | No | Execution state(s) to filter by (e.g. 'running', 'completed'). Repeat the parameter or pass a comma-separated list. |
+| `--state` | `string` | No | Execution state(s) to filter by (e.g. 'running', 'completed'). Matched against the session's canonical run status (status_v2); 'running' only matches sessions updated within the last 12 hours. Repeat the parameter or pass a comma-separated list. |
 | `--source-channel` | `string` | No | Originating channel(s) to filter by (e.g. 'web', 'api', 'agent_email'). Repeat the parameter or pass a comma-separated list. |
 | `--session-type` | `string` | No | Session kind(s) to include: 'session', 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list. |
 | `--app-id` | `string` | No | Only include sessions belonging to this application identifier |
@@ -814,7 +803,16 @@ List the toolkits available in this workspace. A toolkit is a named group of rel
 
 #### `athena tools data-frame` `[BETA]`
 
-Get Tabular Data from Object
+Read a tabular asset as a JSON data frame.
+
+Returns `columns`, an optional `index`, and `data` rows (pandas "split"
+orientation) for an asset the caller can read: an Athena spreadsheet, a
+file-backed live spreadsheet (SharePoint, OneDrive, Drive, iManage), or an
+uploaded CSV, Excel or Parquet file. `row_limit` caps the rows returned,
+`columns` selects columns by name or position, `sheet_name` picks the sheet
+of an Excel file (the first by default), and `separator` sets the delimiter
+of a CSV file. Any other asset type is a 415; a file the parser cannot read
+is a 500 carrying the parser's message.
 
 `GET /api/v0/tools/file/data-frame`
 
@@ -979,17 +977,27 @@ Describe the identity of THIS run: the acting user (name, email, user id), the r
 
 ### `athena tools calendar`
 
-#### `athena tools calendar create-event` `[BETA]`
-
-Coming soon! Create new calendar events.
-
-`POST /api/v0/tools/calendar/events`
-
 #### `athena tools calendar list-events` `[BETA]`
 
-Coming soon! List calendar events with optional filtering.
+List events on the calendar of the caller's connected account.
+
+Reads the primary Google Calendar of a Gmail account or the default calendar
+of an Outlook account. `start`/`end` select the events overlapping that
+window; without them, Outlook returns recurring series as single entries, so
+supply a window to expand them. `title`, `location` and `attendees` filter the
+events that were read.
 
 `GET /api/v0/tools/calendar/events`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--title` | `string` | No | Text filter. On Outlook this matches the event title only (`contains(subject, …)`); on Google Calendar it is Google's free-text event search (`q`), which also matches the description, location and attendee names. |
+| `--start` | `string` | No | Window start. `start` and `end` select events that overlap the window: an event that begins before `start` but is still running at `start` is included. ISO 8601 with an explicit UTC offset or Z (e.g. `2026-10-01T00:00:00-04:00`); the instant is forwarded in RFC 3339 form. Recurring series are expanded into their instances inside the window. Given only one bound, Google leaves the other side open while Outlook derives it 60 days away. |
+| `--end` | `string` | No | Window end (see `start`); must be later than `start` when both are given. ISO 8601 with an explicit UTC offset or Z. |
+| `--location` | `string` | No | Only events whose location contains this text. Applied after up to `limit` events have been read from the provider, so narrow the window with `start`/`end` when looking for a specific event. |
+| `--attendees` | `string` | No | Only events with at least one of these attendee emails (comma-separated). Applied after up to `limit` events have been read from the provider, so narrow the window with `start`/`end` when looking for a specific event. |
+| `--limit` | `integer` | No | Maximum number of events (1-200). |
+| `--catalog-id` | `string` | No | Connected email account to use, as the catalog asset id returned by the Athena UI or the assets API. Defaults to the caller's default email account. An id that is not one of the caller's own connected accounts in the current workspace is a 404. |
 
 ---
 
@@ -997,21 +1005,34 @@ Coming soon! List calendar events with optional filtering.
 
 #### `athena tools email create-draft` `[BETA]`
 
-Coming soon! Create email drafts with specified content and recipients.
+Save a draft in the caller's connected Gmail or Outlook account.
+
+Nothing is sent. The draft appears in the account's Drafts folder, where it
+is reviewed, edited and sent from the mail client — that review step is why
+drafting is available here while sending is not. Set `reply_to_message_id`
+to thread the draft as a reply.
 
 `POST /api/v0/tools/email/draft`
 
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
 #### `athena tools email search` `[BETA]`
 
-Coming soon! Search through emails with configurable filters.
+Search the caller's connected Gmail or Outlook mailbox.
+
+Results come from the connected account the caller can access in their
+current workspace (the default account unless `catalog_id` names another).
+Unsent drafts are included and flagged with `is_draft`.
 
 `GET /api/v0/tools/email/search`
 
-#### `athena tools email send` `[BETA]`
-
-Coming soon! Send emails to specified recipients.
-
-`POST /api/v0/tools/email/send`
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--query` | `string` | Yes | Search query. Gmail operators (`from:`, `to:`, `subject:`, `has:attachment`, `newer_than:7d`, `-term`, …) are accepted for both providers; operators with no Outlook equivalent are dropped and reported in `ignored_operators`. Use `in:drafts` to search only unsent drafts. |
+| `--catalog-id` | `string` | No | Connected email account to use, as the catalog asset id returned by the Athena UI or the assets API. Defaults to the caller's default email account. An id that is not one of the caller's own connected accounts in the current workspace is a 404. |
+| `--limit` | `integer` | No | Maximum number of results (1-50). |
 
 ---
 
@@ -1345,6 +1366,10 @@ Run a [task](https://resources.athenaintel.com/docs/task-studio/home) and wait f
 
 Executes a serverless function script or flow synchronously. Server handles polling internally.
 
+When Tool Studio is disabled in the environment, returns HTTP 403 with
+detail.code `ENVIRONMENT_FEATURE_DISABLED` and detail.key `task_studio_toolkit`
+before creating or running a job. This restriction also applies to administrators.
+
 `POST /api/v0/tools/tasks/run`
 
 | Flag | Type | Required | Description |
@@ -1355,11 +1380,43 @@ Executes a serverless function script or flow synchronously. Server handles poll
 
 ### `athena users`
 
+#### `athena users add-ssh-key` `[BETA]`
+
+Register an SSH public key (the contents of an OpenSSH `.pub` file) on the caller's account. Returns 400 for a malformed or unsupported key, 409 when the key is already registered or the caller has reached the per-account limit.
+
+`POST /api/v0/me/ssh-keys`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena users delete-ssh-key` `[BETA]`
+
+Delete an SSH public key from the caller's account. SSH sessions authenticated with the key are closed by the gateway within a minute. Returns 404 for a key the caller does not own.
+
+`DELETE /api/v0/me/ssh-keys/{key_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--key-id` | `string` | Yes |  |
+
+#### `athena users list-ssh-keys` `[BETA]`
+
+List the SSH public keys registered on the caller's Athena account. A registered key authenticates `ssh <computer_asset_id>@<gateway>` to every computer the caller can edit; keys are not tied to a workspace.
+
+`GET /api/v0/me/ssh-keys`
+
 #### `athena users me` `[BETA]`
 
 Returns basic information about the authenticated user including name, email, workspace details, and all workspaces the user has access to.
 
 `GET /api/v0/me`
+
+#### `athena users me-sources` `[BETA]`
+
+Counts of the caller's connected Microsoft 365 sources (mail, files, sites, chats) plus live SharePoint provisioning progress. Built for computer-asset apps to render a 'setting up your sources' state right after a viewer's first sign-in, while the background fan-outs are still filling in SharePoint and Teams.
+
+`GET /api/v0/me/sources`
 
 ---
 

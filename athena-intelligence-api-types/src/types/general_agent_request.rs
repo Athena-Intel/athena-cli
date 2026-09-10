@@ -2,7 +2,6 @@ pub use crate::prelude::*;
 #[allow(unused_imports)]
 use super::*;
 
-/// A chat request for the Athena SDK.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct GeneralAgentRequest {
     /// The channel through which the request is being made.
@@ -67,3 +66,4 @@ impl GeneralAgentRequestBuilder {
         })
     }
 }
+

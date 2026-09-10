@@ -17,6 +17,9 @@ pub struct AopCreateRequestIn {
     /// Icon identifier for UI display
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    /// Create the AOP hidden: it keeps its asset_id and stays reachable by id, but is left out of the Library, search and the AOP pickers. Meant for fixtures and smoke tests seeded into a shared workspace; omit it for user-facing AOPs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_hidden: Option<bool>,
     /// ID of the folder to create the AOP in (workspace root if omitted)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_folder_id: Option<String>,
@@ -53,6 +56,7 @@ pub struct AopCreateRequestInBuilder {
     agent_config: Option<HashMap<String, serde_json::Value>>,
     description: Option<String>,
     icon: Option<String>,
+    is_hidden: Option<bool>,
     parent_folder_id: Option<String>,
     prompt: Option<String>,
     section: Option<String>,
@@ -80,6 +84,11 @@ impl AopCreateRequestInBuilder {
 
     pub fn icon(mut self, value: impl Into<String>) -> Self {
         self.icon = Some(value.into());
+        self
+    }
+
+    pub fn is_hidden(mut self, value: bool) -> Self {
+        self.is_hidden = Some(value);
         self
     }
 
@@ -125,6 +134,7 @@ impl AopCreateRequestInBuilder {
             agent_config: self.agent_config,
             description: self.description,
             icon: self.icon,
+            is_hidden: self.is_hidden,
             parent_folder_id: self.parent_folder_id,
             prompt: self.prompt,
             section: self.section,

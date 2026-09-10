@@ -1,4 +1,5 @@
-use crate::{ApiError, ClientConfig, HttpClient, RequestOptions};
+use crate::api::*;
+use crate::{ApiError, ClientConfig, HttpClient, QueryBuilder, RequestOptions};
 use reqwest::Method;
 
 pub struct EmailClient {
@@ -12,7 +13,12 @@ impl EmailClient {
         })
     }
 
-    /// Coming soon! Create email drafts with specified content and recipients.
+    /// Save a draft in the caller's connected Gmail or Outlook account.
+    ///
+    /// Nothing is sent. The draft appears in the account's Drafts folder, where it
+    /// is reviewed, edited and sent from the mail client — that review step is why
+    /// drafting is available here while sending is not. Set `reply_to_message_id`
+    /// to thread the draft as a reply.
     ///
     /// # Arguments
     ///
@@ -23,23 +29,31 @@ impl EmailClient {
     /// JSON response from the API
     pub async fn create_draft(
         &self,
+        request: &EmailDraftRequestIn,
         options: Option<RequestOptions>,
-    ) -> Result<serde_json::Value, ApiError> {
+    ) -> Result<EmailDraftResponseOut, ApiError> {
         self.http_client
             .execute_request(
                 Method::POST,
                 "api/v0/tools/email/draft",
-                None,
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
                 None,
                 options,
             )
             .await
     }
 
-    /// Coming soon! Search through emails with configurable filters.
+    /// Search the caller's connected Gmail or Outlook mailbox.
+    ///
+    /// Results come from the connected account the caller can access in their
+    /// current workspace (the default account unless `catalog_id` names another).
+    /// Unsent drafts are included and flagged with `is_draft`.
     ///
     /// # Arguments
     ///
+    /// * `query` - Search query. Gmail operators (`from:`, `to:`, `subject:`, `has:attachment`, `newer_than:7d`, `-term`, …) are accepted for both providers; operators with no Outlook equivalent are dropped and reported in `ignored_operators`. Use `in:drafts` to search only unsent drafts.
+    /// * `catalog_id` - Connected email account to use, as the catalog asset id returned by the Athena UI or the assets API. Defaults to the caller's default email account. An id that is not one of the caller's own connected accounts in the current workspace is a 404.
+    /// * `limit` - Maximum number of results (1-50).
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -47,34 +61,21 @@ impl EmailClient {
     /// JSON response from the API
     pub async fn search(
         &self,
+        request: &SearchQueryRequest,
         options: Option<RequestOptions>,
-    ) -> Result<serde_json::Value, ApiError> {
+    ) -> Result<EmailSearchResponseOut, ApiError> {
         self.http_client
             .execute_request(
                 Method::GET,
                 "api/v0/tools/email/search",
                 None,
-                None,
+                QueryBuilder::new()
+                    .structured_query("query", request.query.clone())
+                    .serialize("catalog_id", request.catalog_id.clone())
+                    .int("limit", request.limit.clone())
+                    .build(),
                 options,
             )
-            .await
-    }
-
-    /// Coming soon! Send emails to specified recipients.
-    ///
-    /// # Arguments
-    ///
-    /// * `options` - Additional request options such as headers, timeout, etc.
-    ///
-    /// # Returns
-    ///
-    /// JSON response from the API
-    pub async fn send(
-        &self,
-        options: Option<RequestOptions>,
-    ) -> Result<serde_json::Value, ApiError> {
-        self.http_client
-            .execute_request(Method::POST, "api/v0/tools/email/send", None, None, options)
             .await
     }
 }

@@ -11,6 +11,7 @@ pub enum CreatableAssetType {
     Folder,
     Database,
     Computer,
+    GenericDoc,
     /// This variant is used for forward compatibility.
     /// If the server sends a value not recognized by the current SDK version,
     /// it will be captured here with the raw string value.
@@ -24,6 +25,7 @@ impl Serialize for CreatableAssetType {
             Self::Folder => serializer.serialize_str("folder"),
             Self::Database => serializer.serialize_str("database"),
             Self::Computer => serializer.serialize_str("computer"),
+            Self::GenericDoc => serializer.serialize_str("generic_doc"),
             Self::__Unknown(val) => serializer.serialize_str(val),
         }
     }
@@ -38,6 +40,7 @@ impl<'de> Deserialize<'de> for CreatableAssetType {
             "folder" => Ok(Self::Folder),
             "database" => Ok(Self::Database),
             "computer" => Ok(Self::Computer),
+            "generic_doc" => Ok(Self::GenericDoc),
             _ => Ok(Self::__Unknown(value)),
         }
     }
@@ -51,6 +54,7 @@ impl fmt::Display for CreatableAssetType {
             Self::Folder => write!(f, "folder"),
             Self::Database => write!(f, "database"),
             Self::Computer => write!(f, "computer"),
+            Self::GenericDoc => write!(f, "generic_doc"),
             Self::__Unknown(val) => write!(f, "{}", val),
         }
     }

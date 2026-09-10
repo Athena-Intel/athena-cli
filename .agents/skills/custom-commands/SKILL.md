@@ -65,11 +65,6 @@ with the following sub-clients:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `client.agents` | `athena_intelligence_api_sdk::api::AgentsClient` | agents operations |
-| `client.drive` | `athena_intelligence_api_sdk::api::DriveClient` | drive operations |
-| `client.general` | `athena_intelligence_api_sdk::api::GeneralClient` | general operations |
-| `client.research` | `athena_intelligence_api_sdk::api::ResearchClient` | research operations |
-| `client.sql` | `athena_intelligence_api_sdk::api::SqlClient` | sql operations |
 | `client.aop` | `athena_intelligence_api_sdk::api::AopClient` | aop operations |
 | `client.assets` | `athena_intelligence_api_sdk::api::AssetsClient` | assets operations |
 | `client.collab_agents` | `athena_intelligence_api_sdk::api::CollabAgentsClient` | collab_agents operations |
@@ -90,7 +85,10 @@ with the following sub-clients:
 | `client.sheets` | `athena_intelligence_api_sdk::api::SheetsClient` | sheets operations |
 | `client.structured_data_extractor` | `athena_intelligence_api_sdk::api::StructuredDataExtractorClient` | structured_data_extractor operations |
 | `client.tasks` | `athena_intelligence_api_sdk::api::TasksClient` | tasks operations |
+| `client.presentation` | `athena_intelligence_api_sdk::api::PresentationClient` | presentation operations |
 | `client.workspaces` | `athena_intelligence_api_sdk::api::WorkspacesClient` | workspaces operations |
+| `client.agents` | `athena_intelligence_api_sdk::api::AgentsClient` | agents operations |
+| `client.general` | `athena_intelligence_api_sdk::api::GeneralClient` | general operations |
 
 ### 3. Key Patterns
 
