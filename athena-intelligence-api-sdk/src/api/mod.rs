@@ -11,8 +11,8 @@ pub mod resources;
 
 pub use resources::{
     AgentsClient, AopClient, ApiClient, AssetsClient, CollabAgentsClient, ComputerClient,
-    DatabasesClient, MeetingsClient, QueryClient, SemanticModelClient, SessionsClient,
-    ThreadsClient, ToolkitsClient, ToolsClient, UsersClient, WorkspacesClient,
+    DatabasesClient, MeetingsClient, PresentationClient, QueryClient, SemanticModelClient,
+    SessionsClient, ThreadsClient, ToolkitsClient, ToolsClient, UsersClient, WorkspacesClient,
 };
 
 pub use athena_intelligence_api_types::*;

@@ -55,13 +55,6 @@ pub fn client(ctx: &AppContext) -> athena_intelligence_api_sdk::api::ApiClient {
     );
     athena_intelligence_api_sdk::api::ApiClient {
         config,
-        agents: athena_intelligence_api_sdk::api::AgentsClient {
-            http_client: http_client.clone(),
-            drive: athena_intelligence_api_sdk::api::resources::agents::DriveClient { http_client: http_client.clone() },
-            general: athena_intelligence_api_sdk::api::resources::agents::GeneralClient { http_client: http_client.clone() },
-            research: athena_intelligence_api_sdk::api::resources::agents::ResearchClient { http_client: http_client.clone() },
-            sql: athena_intelligence_api_sdk::api::resources::agents::SqlClient { http_client: http_client.clone() },
-        },
         aop: athena_intelligence_api_sdk::api::AopClient { http_client: http_client.clone() },
         assets: athena_intelligence_api_sdk::api::AssetsClient { http_client: http_client.clone() },
         collab_agents: athena_intelligence_api_sdk::api::CollabAgentsClient { http_client: http_client.clone() },
@@ -84,7 +77,12 @@ pub fn client(ctx: &AppContext) -> athena_intelligence_api_sdk::api::ApiClient {
             structured_data_extractor: athena_intelligence_api_sdk::api::resources::tools::StructuredDataExtractorClient { http_client: http_client.clone() },
             tasks: athena_intelligence_api_sdk::api::resources::tools::TasksClient { http_client: http_client.clone() },
         },
+        presentation: athena_intelligence_api_sdk::api::PresentationClient { http_client: http_client.clone() },
         workspaces: athena_intelligence_api_sdk::api::WorkspacesClient { http_client: http_client.clone() },
+        agents: athena_intelligence_api_sdk::api::AgentsClient {
+            http_client: http_client.clone(),
+            general: athena_intelligence_api_sdk::api::resources::agents::GeneralClient { http_client: http_client.clone() },
+        },
     }
 }
 

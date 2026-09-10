@@ -20,6 +20,9 @@ pub struct SessionOut {
     /// Application identifier the session belongs to, when set
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_id: Option<String>,
+    /// Asset ID of the collab agent the session was created with, when one was bound; null for stock-agent sessions
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collab_agent_id: Option<String>,
     /// Timestamp when the session was created (ISO 8601)
     #[serde(default)]
     #[serde(with = "crate::core::flexible_datetime::offset")]
@@ -101,6 +104,7 @@ pub struct SessionOutBuilder {
     aop_execution_error: Option<String>,
     aop_execution_succeeded: Option<bool>,
     app_id: Option<String>,
+    collab_agent_id: Option<String>,
     created_at: Option<DateTime<FixedOffset>>,
     created_by_id: Option<String>,
     failure_reason_v2: Option<String>,
@@ -147,6 +151,11 @@ impl SessionOutBuilder {
 
     pub fn app_id(mut self, value: impl Into<String>) -> Self {
         self.app_id = Some(value.into());
+        self
+    }
+
+    pub fn collab_agent_id(mut self, value: impl Into<String>) -> Self {
+        self.collab_agent_id = Some(value.into());
         self
     }
 
@@ -269,6 +278,7 @@ impl SessionOutBuilder {
             aop_execution_error: self.aop_execution_error,
             aop_execution_succeeded: self.aop_execution_succeeded,
             app_id: self.app_id,
+            collab_agent_id: self.collab_agent_id,
             created_at: self.created_at.ok_or_else(|| BuildError::missing_field("created_at"))?,
             created_by_id: self.created_by_id,
             failure_reason_v2: self.failure_reason_v2,

@@ -11,6 +11,9 @@ pub struct AopExecuteRequestIn {
     /// Execute the AOP in dry-run mode: the agent runs with its real prompt, config, and read-only tools, but side-effectful tool calls (emails, external writes) are validated and captured instead of executed. The session remains visible and is marked with athena_metadata.is_dry_run for UI badging.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dry_run: Option<bool>,
+    /// Optional spend cap for this execution: max_model_calls (top-level and sub-agent model calls) and/or max_cost_usd (provider cost at Athena's model pricing). When a limit is reached the run stops before the next model call, ends with athena_termination_reason=run_budget, and the AOP execution settles as not succeeded. Absent = no cap beyond the agent's step limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub run_budget: Option<RunBudget>,
     /// Optional user inputs to append to the AOP's prompt as key-value pairs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_inputs: Option<HashMap<String, Option<String>>>,
@@ -27,6 +30,7 @@ impl AopExecuteRequestIn {
 pub struct AopExecuteRequestInBuilder {
     asset_id: Option<String>,
     dry_run: Option<bool>,
+    run_budget: Option<RunBudget>,
     user_inputs: Option<HashMap<String, Option<String>>>,
 }
 
@@ -38,6 +42,11 @@ impl AopExecuteRequestInBuilder {
 
     pub fn dry_run(mut self, value: bool) -> Self {
         self.dry_run = Some(value);
+        self
+    }
+
+    pub fn run_budget(mut self, value: RunBudget) -> Self {
+        self.run_budget = Some(value);
         self
     }
 
@@ -53,6 +62,7 @@ impl AopExecuteRequestInBuilder {
         Ok(AopExecuteRequestIn {
             asset_id: self.asset_id.ok_or_else(|| BuildError::missing_field("asset_id"))?,
             dry_run: self.dry_run,
+            run_budget: self.run_budget,
             user_inputs: self.user_inputs,
         })
     }

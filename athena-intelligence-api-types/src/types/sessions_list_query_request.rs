@@ -8,7 +8,7 @@ pub struct SessionsListQueryRequest {
     /// Keyword to search session titles (case-insensitive)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query: Option<String>,
-    /// Execution state(s) to filter by (e.g. 'running', 'completed'). Repeat the parameter or pass a comma-separated list.
+    /// Execution state(s) to filter by (e.g. 'running', 'completed'). Matched against the session's canonical run status (status_v2); 'running' only matches sessions updated within the last 12 hours. Repeat the parameter or pass a comma-separated list.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state: Option<Vec<String>>,
     /// Originating channel(s) to filter by (e.g. 'web', 'api', 'agent_email'). Repeat the parameter or pass a comma-separated list.

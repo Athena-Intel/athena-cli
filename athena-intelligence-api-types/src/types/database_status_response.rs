@@ -14,7 +14,7 @@ pub struct DatabaseStatusResponse {
     /// Optional status message or error details
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
-    /// Database provider ('neon_cloud' or 'kronos')
+    /// Database provider ('kronos')
     #[serde(default)]
     pub provider: String,
     /// Standardized database status

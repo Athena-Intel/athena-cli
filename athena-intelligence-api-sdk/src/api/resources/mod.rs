@@ -2,7 +2,6 @@
 //!
 //! This module contains client implementations for:
 //!
-//! - **Agents**
 //! - **Aop**
 //! - **Assets**
 //! - **CollabAgents**
@@ -16,7 +15,9 @@
 //! - **Threads**
 //! - **Toolkits**
 //! - **Tools**
+//! - **Presentation**
 //! - **Workspaces**
+//! - **Agents**
 
 use crate::{ApiError, ClientConfig};
 
@@ -27,6 +28,7 @@ pub mod collab_agents;
 pub mod computer;
 pub mod databases;
 pub mod meetings;
+pub mod presentation;
 pub mod query;
 pub mod semantic_model;
 pub mod sessions;
@@ -37,7 +39,6 @@ pub mod users;
 pub mod workspaces;
 pub struct ApiClient {
     pub config: ClientConfig,
-    pub agents: AgentsClient,
     pub aop: AopClient,
     pub assets: AssetsClient,
     pub collab_agents: CollabAgentsClient,
@@ -51,14 +52,15 @@ pub struct ApiClient {
     pub threads: ThreadsClient,
     pub toolkits: ToolkitsClient,
     pub tools: ToolsClient,
+    pub presentation: PresentationClient,
     pub workspaces: WorkspacesClient,
+    pub agents: AgentsClient,
 }
 
 impl ApiClient {
     pub fn new(config: ClientConfig) -> Result<Self, ApiError> {
         Ok(Self {
             config: config.clone(),
-            agents: AgentsClient::new(config.clone())?,
             aop: AopClient::new(config.clone())?,
             assets: AssetsClient::new(config.clone())?,
             collab_agents: CollabAgentsClient::new(config.clone())?,
@@ -72,7 +74,9 @@ impl ApiClient {
             threads: ThreadsClient::new(config.clone())?,
             toolkits: ToolkitsClient::new(config.clone())?,
             tools: ToolsClient::new(config.clone())?,
+            presentation: PresentationClient::new(config.clone())?,
             workspaces: WorkspacesClient::new(config.clone())?,
+            agents: AgentsClient::new(config.clone())?,
         })
     }
 }
@@ -84,6 +88,7 @@ pub use collab_agents::CollabAgentsClient;
 pub use computer::ComputerClient;
 pub use databases::DatabasesClient;
 pub use meetings::MeetingsClient;
+pub use presentation::PresentationClient;
 pub use query::QueryClient;
 pub use semantic_model::SemanticModelClient;
 pub use sessions::SessionsClient;
