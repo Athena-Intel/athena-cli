@@ -5,8 +5,8 @@
 //!
 //! ## Type Categories
 //!
-//! - **Request/Response Types**: 170 types for API operations
-//! - **Model Types**: 85 types for data representation
+//! - **Request/Response Types**: 176 types for API operations
+//! - **Model Types**: 90 types for data representation
 
 pub mod assets_collab_token_request_access;
 pub mod databases_insert_data_request_data;
@@ -23,6 +23,12 @@ pub mod tools_data_frame_tools_request_sheet_name;
 pub mod tools_sheets_update_sheet_range_request_values_item_item;
 pub mod tools_tasks_run_task_request_task_type;
 pub mod aop_async_execute_response_out;
+pub mod aop_batch_execute_response_out;
+pub mod aop_batch_run_in;
+pub mod aop_batch_run_launch_out;
+pub mod aop_batch_run_status_out;
+pub mod aop_batch_status_counts_out;
+pub mod aop_batch_status_response_out;
 pub mod aop_config_response_out;
 pub mod aop_config_update_response_out;
 pub mod aop_create_response_out;
@@ -164,6 +170,8 @@ pub mod theme_color;
 pub mod thread_batch_stop_request;
 pub mod thread_batch_stop_response_out;
 pub mod thread_batch_stop_result_item;
+pub mod thread_status_batch_item_out;
+pub mod thread_status_batch_response_out;
 pub mod thread_status_response_out;
 pub mod thread_stop_response_out;
 pub mod tool_definition_out;
@@ -181,6 +189,7 @@ pub mod workspace_tool_registry_response_out;
 pub mod workspace_tool_registry_tool_out;
 pub mod wrap_strategy;
 pub mod aop_create_request_in;
+pub mod aop_batch_execute_request_in;
 pub mod aop_config_update_request_in;
 pub mod convert_excel_to_sheet_request_in;
 pub mod create_asset_request_in;
@@ -201,6 +210,7 @@ pub mod update_data_request;
 pub mod database_sql_request;
 pub mod add_ssh_key_request_in;
 pub mod semantic_model_query_request_in;
+pub mod thread_status_batch_request_in;
 pub mod file_chunk_request_in;
 pub mod asset_read_request_in;
 pub mod invoke_tool_request_in;
@@ -244,6 +254,7 @@ pub mod update_table_request;
 pub mod structured_data_extractor_request;
 pub mod run_task_request;
 pub mod save_asset_request;
+pub mod get_batch_status_query_request;
 pub mod assets_list_query_request;
 pub mod list_activity_query_request;
 pub mod get_activity_delta_query_request;
@@ -279,6 +290,12 @@ pub use tools_data_frame_tools_request_sheet_name::DataFrameToolsRequestSheetNam
 pub use tools_sheets_update_sheet_range_request_values_item_item::UpdateSheetRangeRequestValuesItemItem;
 pub use tools_tasks_run_task_request_task_type::RunTaskRequestTaskType;
 pub use aop_async_execute_response_out::AopAsyncExecuteResponseOut;
+pub use aop_batch_execute_response_out::AopBatchExecuteResponseOut;
+pub use aop_batch_run_in::AopBatchRunIn;
+pub use aop_batch_run_launch_out::AopBatchRunLaunchOut;
+pub use aop_batch_run_status_out::AopBatchRunStatusOut;
+pub use aop_batch_status_counts_out::AopBatchStatusCountsOut;
+pub use aop_batch_status_response_out::AopBatchStatusResponseOut;
 pub use aop_config_response_out::AopConfigResponseOut;
 pub use aop_config_update_response_out::AopConfigUpdateResponseOut;
 pub use aop_create_response_out::AopCreateResponseOut;
@@ -420,6 +437,8 @@ pub use theme_color::ThemeColor;
 pub use thread_batch_stop_request::ThreadBatchStopRequest;
 pub use thread_batch_stop_response_out::ThreadBatchStopResponseOut;
 pub use thread_batch_stop_result_item::ThreadBatchStopResultItem;
+pub use thread_status_batch_item_out::ThreadStatusBatchItemOut;
+pub use thread_status_batch_response_out::ThreadStatusBatchResponseOut;
 pub use thread_status_response_out::ThreadStatusResponseOut;
 pub use thread_stop_response_out::ThreadStopResponseOut;
 pub use tool_definition_out::ToolDefinitionOut;
@@ -437,6 +456,7 @@ pub use workspace_tool_registry_response_out::WorkspaceToolRegistryResponseOut;
 pub use workspace_tool_registry_tool_out::WorkspaceToolRegistryToolOut;
 pub use wrap_strategy::WrapStrategy;
 pub use aop_create_request_in::AopCreateRequestIn;
+pub use aop_batch_execute_request_in::AopBatchExecuteRequestIn;
 pub use aop_config_update_request_in::AopConfigUpdateRequestIn;
 pub use convert_excel_to_sheet_request_in::ConvertExcelToSheetRequestIn;
 pub use create_asset_request_in::CreateAssetRequestIn;
@@ -457,6 +477,7 @@ pub use update_data_request::UpdateDataRequest;
 pub use database_sql_request::DatabaseSqlRequest;
 pub use add_ssh_key_request_in::AddSshKeyRequestIn;
 pub use semantic_model_query_request_in::SemanticModelQueryRequestIn;
+pub use thread_status_batch_request_in::ThreadStatusBatchRequestIn;
 pub use file_chunk_request_in::FileChunkRequestIn;
 pub use asset_read_request_in::AssetReadRequestIn;
 pub use invoke_tool_request_in::InvokeToolRequestIn;
@@ -500,6 +521,7 @@ pub use update_table_request::UpdateTableRequest;
 pub use structured_data_extractor_request::StructuredDataExtractorRequest;
 pub use run_task_request::RunTaskRequest;
 pub use save_asset_request::SaveAssetRequest;
+pub use get_batch_status_query_request::GetBatchStatusQueryRequest;
 pub use assets_list_query_request::AssetsListQueryRequest;
 pub use list_activity_query_request::ListActivityQueryRequest;
 pub use get_activity_delta_query_request::GetActivityDeltaQueryRequest;

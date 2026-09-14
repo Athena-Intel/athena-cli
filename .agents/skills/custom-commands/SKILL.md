@@ -34,15 +34,15 @@ use athena_intelligence_api_sdk::api::*;
 
 pub fn register(app: CliApp) -> CliApp {
     let app = app.command(
-        clap::Command::new("get-config")
-            .about("Get AOP configuration")
-            .arg(clap::Arg::new("asset_id").required(true))
+        clap::Command::new("get-batch-status")
+            .about("Get Batch Execution Status")
+            .arg(clap::Arg::new("batch_id").required(true))
         ,
         |matches, ctx| {
-            let asset_id = matches.get_one::<String>("asset_id").unwrap();
+            let batch_id = matches.get_one::<String>("batch_id").unwrap();
             let client = super::sdk::client(ctx);
             let result = super::sdk::block_on(
-                client.aop.get_config(asset_id),
+                client.aop.get_batch_status(batch_id),
             )?;
             println!("{}", serde_json::to_string_pretty(&result).unwrap());
             Ok(())
@@ -55,7 +55,7 @@ pub fn register(app: CliApp) -> CliApp {
 Then build and test:
 ```bash
 cargo build
-athena-intelligence-api get-config <asset_id>
+athena-intelligence-api get-batch-status <batch_id>
 ```
 
 ### 2. Available SDK Clients
