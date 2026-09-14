@@ -17,6 +17,9 @@ pub struct AopAsyncExecuteResponseOut {
     /// Base prompt of the AOP before user inputs were added
     #[serde(default)]
     pub base_prompt: String,
+    /// True when this response replays an earlier launch with the same `Idempotency-Key`; no new run was started.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deduplicated: Option<bool>,
     /// Final prompt used for execution including user inputs
     #[serde(default)]
     pub final_prompt: String,
@@ -50,6 +53,7 @@ pub struct AopAsyncExecuteResponseOutBuilder {
     aop_config: Option<HashMap<String, serde_json::Value>>,
     aop_title: Option<String>,
     base_prompt: Option<String>,
+    deduplicated: Option<bool>,
     final_prompt: Option<String>,
     message: Option<String>,
     status: Option<String>,
@@ -76,6 +80,11 @@ impl AopAsyncExecuteResponseOutBuilder {
 
     pub fn base_prompt(mut self, value: impl Into<String>) -> Self {
         self.base_prompt = Some(value.into());
+        self
+    }
+
+    pub fn deduplicated(mut self, value: bool) -> Self {
+        self.deduplicated = Some(value);
         self
     }
 
@@ -127,6 +136,7 @@ impl AopAsyncExecuteResponseOutBuilder {
             aop_config: self.aop_config.ok_or_else(|| BuildError::missing_field("aop_config"))?,
             aop_title: self.aop_title.ok_or_else(|| BuildError::missing_field("aop_title"))?,
             base_prompt: self.base_prompt.ok_or_else(|| BuildError::missing_field("base_prompt"))?,
+            deduplicated: self.deduplicated,
             final_prompt: self.final_prompt.ok_or_else(|| BuildError::missing_field("final_prompt"))?,
             message: self.message.ok_or_else(|| BuildError::missing_field("message"))?,
             status: self.status.ok_or_else(|| BuildError::missing_field("status"))?,

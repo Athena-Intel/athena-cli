@@ -30,6 +30,11 @@ pub enum ApiError {
         message: String,
         error_id: Option<String>,
     },
+    #[error("ConflictError: Conflict - {message}")]
+    ConflictError {
+        message: String,
+        conflict_type: Option<String>,
+    },
     #[error("ForbiddenError: Access forbidden - {message}")]
     ForbiddenError {
         message: String,
@@ -43,11 +48,6 @@ pub enum ApiError {
         message: String,
         retry_after_seconds: Option<u64>,
         limit_type: Option<String>,
-    },
-    #[error("ConflictError: Conflict - {message}")]
-    ConflictError {
-        message: String,
-        conflict_type: Option<String>,
     },
     #[error("BadGatewayError: {message}")]
     BadGatewayError { message: String },
@@ -203,6 +203,27 @@ impl ApiError {
                     error_id: None,
                 };
             }
+            409 => {
+                // Parse error body for ConflictError;
+                if let Some(body_str) = body {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body_str) {
+                        return Self::ConflictError {
+                            message: parsed
+                                .get("message")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown error")
+                                .to_string(),
+                            conflict_type: parsed
+                                .get("conflictType")
+                                .and_then(|v| v.as_str().map(|s| s.to_string())),
+                        };
+                    }
+                }
+                return Self::ConflictError {
+                    message: body.unwrap_or("Unknown error").to_string(),
+                    conflict_type: None,
+                };
+            }
             403 => {
                 // Parse error body for ForbiddenError;
                 if let Some(body_str) = body {
@@ -268,27 +289,6 @@ impl ApiError {
                     message: body.unwrap_or("Unknown error").to_string(),
                     retry_after_seconds: None,
                     limit_type: None,
-                };
-            }
-            409 => {
-                // Parse error body for ConflictError;
-                if let Some(body_str) = body {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body_str) {
-                        return Self::ConflictError {
-                            message: parsed
-                                .get("message")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("Unknown error")
-                                .to_string(),
-                            conflict_type: parsed
-                                .get("conflictType")
-                                .and_then(|v| v.as_str().map(|s| s.to_string())),
-                        };
-                    }
-                }
-                return Self::ConflictError {
-                    message: body.unwrap_or("Unknown error").to_string(),
-                    conflict_type: None,
                 };
             }
             502 => {
