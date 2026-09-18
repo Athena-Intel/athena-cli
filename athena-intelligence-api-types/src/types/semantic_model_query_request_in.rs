@@ -19,7 +19,7 @@ pub struct SemanticModelQueryRequestIn {
     /// Optional ordering as [member, direction] pairs applied before "limit", e.g. [["orders.count", "desc"]] for a server-side top-N. Direction must be "asc" or "desc".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub order: Option<Vec<Vec<String>>>,
-    /// Optional time dimension configs
+    /// Optional Cube time dimension configs, e.g. [{"dimension": "orders.created_at", "granularity": "month", "dateRange": ["2026-01-01", "2026-06-30"]}]. The camelCase spelling "timeDimensions" (Cube's own, and the one the rest of Athena uses) is accepted as well.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_dimensions: Option<Vec<HashMap<String, serde_json::Value>>>,
 }
