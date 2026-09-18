@@ -16,18 +16,11 @@
 //!     let client = AthenaIntelligenceApiClient::new(config).expect("Failed to build client");
 //!     client
 //!         .aop
-//!         .create(
-//!             &AopCreateRequestIn {
-//!                 agent_id: Some("research_agent".to_string()),
-//!                 description: Some("Generates market research reports".to_string()),
-//!                 icon: Some("ListTodo".to_string()),
-//!                 parent_folder_id: Some("asset_folder_12345".to_string()),
-//!                 prompt: Some(
-//!                     "Generate a comprehensive market research report for [[ company ]]".to_string(),
-//!                 ),
-//!                 section: Some("Research".to_string()),
-//!                 title: Some("Market Research Report".to_string()),
-//!                 workspace_id: Some("workspace_abc123".to_string()),
+//!         .get_batch_status(
+//!             &"batch_0f4c3c3e-1c1a-4a3e-9a5f-0d3f1a2b3c4d".to_string(),
+//!             &GetBatchStatusQueryRequest {
+//!                 status: Some("terminal".to_string()),
+//!                 limit: Some(200),
 //!                 ..Default::default()
 //!             },
 //!             None,
