@@ -63,7 +63,7 @@ impl AgentIdentityClient {
             .await
     }
 
-    /// Describe the identity of THIS run: the acting user (name, email, user id), the run workspace, and — when running as a collab agent — the agent's own identity: title, owner, workspace, reserved email address, phone number and its calling/texting status, enabled channels (SMS, voice, meetings, meeting voice, comments pane, programmatic), Slack binding, and calendar feed availability.
+    /// Describe the identity of THIS run as a typed JSON document: the principal it acts as (a person, a collab agent, or an automation), the acting user (name, email, user id), the run workspace, and — when running as a collab agent — the agent's own identity: title, owner, workspace, reserved email address, phone number and its calling/texting status, enabled channels (SMS, voice, meetings, meeting voice, comments pane, programmatic), Slack binding, and calendar feed availability; and — when the run was started by an automation — the automation: asset id, name, run id, step id, published version and fingerprint, publisher, active grant count and its Treasury principal row. Answers in any run: a plain chat reports principal.kind == 'user'. Anything it could not resolve is listed under notes; it never fails.
     ///
     /// # Arguments
     ///

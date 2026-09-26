@@ -342,11 +342,13 @@ impl AssetsClient {
             .await
     }
 
-    /// Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type.
+    /// Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type. With `live_sync=true`, a spreadsheet's .xlsx or a PPTX Studio presentation's .pptx also carries the Athena for Microsoft 365 add-in's link record, so opening it in Excel or PowerPoint with the add-in installed starts syncing it with the asset; other asset types ignore the flag.
     ///
     /// # Arguments
     ///
     /// * `asset_id` - Unique identifier of the asset to download
+    /// * `live_sync` - Office live sync: when true and the asset is an Athena spreadsheet or a PPTX Studio presentation, the downloaded .xlsx / .pptx carries the Athena for Microsoft 365 add-in's link record and opens already syncing with this asset. Ignored for every other asset type.
+    /// * `addin_id` - GUID of the installed add-in manifest the live-sync record should reference (defaults to this deployment's Athena add-in). Only read together with `live_sync`; use it to target a preview-channel sideload.
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -355,6 +357,7 @@ impl AssetsClient {
     pub async fn download(
         &self,
         asset_id: &str,
+        request: &AssetsDownloadQueryRequest,
         options: Option<RequestOptions>,
     ) -> Result<ByteStream, ApiError> {
         self.http_client
@@ -362,7 +365,10 @@ impl AssetsClient {
                 Method::GET,
                 &format!("api/v0/assets/{}/download", asset_id),
                 None,
-                None,
+                QueryBuilder::new()
+                    .bool("live_sync", request.live_sync.clone())
+                    .serialize("addin_id", request.addin_id.clone())
+                    .build(),
                 options,
             )
             .await
