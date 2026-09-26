@@ -14,6 +14,8 @@ pub mod sheets;
 pub use sheets::SheetsClient;
 pub mod structured_data_extractor;
 pub use structured_data_extractor::StructuredDataExtractorClient;
+pub mod system_operations;
+pub use system_operations::SystemOperationsClient;
 pub mod tasks;
 pub use tasks::TasksClient;
 pub struct ToolsClient {
@@ -24,6 +26,7 @@ pub struct ToolsClient {
     pub olympus_drive: OlympusDriveClient,
     pub sheets: SheetsClient,
     pub structured_data_extractor: StructuredDataExtractorClient,
+    pub system_operations: SystemOperationsClient,
     pub tasks: TasksClient,
 }
 
@@ -37,6 +40,7 @@ impl ToolsClient {
             olympus_drive: OlympusDriveClient::new(config.clone())?,
             sheets: SheetsClient::new(config.clone())?,
             structured_data_extractor: StructuredDataExtractorClient::new(config.clone())?,
+            system_operations: SystemOperationsClient::new(config.clone())?,
             tasks: TasksClient::new(config.clone())?,
         })
     }

@@ -7,15 +7,20 @@ Full command reference for `athena`.
 - [`athena agents general`](#athena-agents-general)
 - [`athena aop`](#athena-aop)
 - [`athena api`](#athena-api)
+- [`athena approvals`](#athena-approvals)
 - [`athena assets`](#athena-assets)
+- [`athena automations`](#athena-automations)
 - [`athena collab-agents`](#athena-collab-agents)
 - [`athena computer`](#athena-computer)
 - [`athena databases`](#athena-databases)
+- [`athena events`](#athena-events)
 - [`athena meetings`](#athena-meetings)
 - [`athena presentation`](#athena-presentation)
 - [`athena query`](#athena-query)
+- [`athena scripts`](#athena-scripts)
 - [`athena semantic-model`](#athena-semantic-model)
 - [`athena sessions`](#athena-sessions)
+- [`athena system`](#athena-system)
 - [`athena threads`](#athena-threads)
 - [`athena toolkits`](#athena-toolkits)
 - [`athena tools`](#athena-tools)
@@ -25,6 +30,7 @@ Full command reference for `athena`.
 - [`athena tools olympus-drive`](#athena-tools-olympus-drive)
 - [`athena tools sheets`](#athena-tools-sheets)
 - [`athena tools structured-data-extractor`](#athena-tools-structured-data-extractor)
+- [`athena tools system-operations`](#athena-tools-system-operations)
 - [`athena tools tasks`](#athena-tools-tasks)
 - [`athena users`](#athena-users)
 - [`athena workspaces`](#athena-workspaces)
@@ -41,6 +47,16 @@ Call the agent with the messages list, wait for the agent to complete,
 and return the result.
 
 `POST /api/v0/agents/general/invoke`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena agents general invoke-async` `[BETA]`
+
+Start a general-agent run and return immediately with a `thread_id`. Use this instead of `/agents/general/invoke` for any call that may take more than a few seconds (tool use, multi-step work), so the HTTP connection is never held open past client or proxy timeouts. Poll `GET /threads/{thread_id}/status` until `status` is `completed` or `failed`; pass `include_messages=true` to read the agent's reply. Supply the `thread_id` of a general-agent thread you can access to continue it; 404/403 when it is unknown/not yours, 409 while a run is still in progress on it.
+
+`POST /api/v0/agents/general/invoke-async`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
@@ -72,13 +88,37 @@ DEPRECATED: This endpoint is deprecated. Please use /aop/execute-async instead f
 
 #### `athena aop execute-async` `[BETA]`
 
-Start execution of an Agent Operating Procedure (AOP) asset asynchronously. Returns immediately with a thread_id for tracking execution progress without waiting for completion.
+Start execution of an Agent Operating Procedure (AOP) asset asynchronously. Returns immediately with a thread_id for tracking execution progress without waiting for completion. Send an `Idempotency-Key` header to make the launch safe to retry: if the response is lost, repeating the identical request with the same key returns the original `thread_id` (with `deduplicated: true`) instead of starting a second run. Keys are private to your account; reusing a key with different parameters is rejected with 422, and a retry that races the first attempt gets 409.
 
 `POST /api/v0/aop/execute-async`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
+| `--idempotency-key` | `string` | No | Optional caller-chosen key that makes this launch safe to retry. Repeating the identical request with the same key replays the original response instead of starting another run. |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena aop execute-batch` `[BETA]`
+
+Start many Agent Operating Procedure (AOP) runs under one batch handle. Each run is queued exactly like `POST /aop/execute-async`; the response returns a `batch_id` so the caller polls `GET /aop/batches/{batch_id}` once per batch instead of once per thread. Pass the `batch_id` back to append more runs to the same batch. Runs are launched independently: a run that fails to launch is reported with an error and does not stop the others. Runs are idempotent within a batch: a run whose `idempotency_key` (or, when omitted, `client_ref`) was already launched into the same batch with the same parameters is not started again; its original outcome is replayed with `deduplicated: true`.
+
+`POST /api/v0/aop/execute-batch`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena aop get-batch-status` `[BETA]`
+
+Aggregate lifecycle status of every run launched under a batch handle from `POST /aop/execute-batch`: counts per canonical run status, an `is_complete` flag, and a cursor-paged list of runs. Poll this once per batch instead of `GET /threads/{thread_id}/status` per thread; fetch a run's messages from the thread status endpoint only once it is terminal. This read never loads transcripts.
+
+`GET /api/v0/aop/batches/{batch_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--batch-id` | `string` | Yes | Batch handle returned by execute-batch |
+| `--status` | `string` | No | Which runs to list: `terminal` (completed/failed/canceled), `active` (everything else) or `all`. Counts always cover the whole batch. |
+| `--cursor` | `string` | No | `next_cursor` from the previous page |
+| `--limit` | `integer` | No | Maximum runs to return in this page |
 
 #### `athena aop get-config` `[BETA]`
 
@@ -92,7 +132,7 @@ Retrieve the full configuration of an AOP asset by its ID. Returns prompt, agent
 
 #### `athena aop update-config` `[BETA]`
 
-Overwrite the configuration of an existing AOP asset. Replaces the entire AOP configuration (prompt, agent config, structured output, etc.) with the provided values. Fields not included in the request body will be reset to their defaults, except user_notification_configs, which is preserved from the existing configuration when omitted; send an explicit null to clear it.
+Overwrite the configuration of an existing AOP asset. Replaces the entire AOP configuration (prompt, agent config, structured output, etc.) with the provided values. Fields not included in the request body will be reset to their defaults, except user_notification_configs, which is preserved from the existing configuration when omitted; send an explicit null to clear it. The update is rejected with 400 when the configuration would enable more tools at run time than the per-run limit, counting every tool of each toolkit @mentioned in the prompt; the detail names toolkits to remove and the existing configuration is left untouched.
 
 `PUT /api/v0/aop/{asset_id}/config`
 
@@ -127,6 +167,55 @@ type, then sends a new Inngest execution event. Auth: session owner or admin.
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
+### `athena approvals`
+
+#### `athena approvals decide` `[BETA]`
+
+Record the caller's decision on an active approval; the waiting run resumes once the mode's aggregation settles it. The caller must be one of the approval's listed approvers and still satisfy the selector that named them, and may not decide what they published or started unless the step allows self-approval. An edited_payload is accepted only against the approval's editable_schema; a standing request only when the approval's gate allows standing grants, on an approving option (otherwise 400 with detail.reason standing_not_allowed). Every refusal carries detail.reason with the decision service's code.
+
+`POST /api/v0/approvals/{approval_id}/decide`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--approval-id` | `string` | Yes | Unique identifier of the approval |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena approvals get` `[BETA]`
+
+One approval with its decisions and deliveries. The approval must be of the caller's workspace and the caller named on it (an approver, or the publisher or starter it gates) or a viewer of its automation; anything else is 404.
+
+`GET /api/v0/approvals/{approval_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--approval-id` | `string` | Yes | Unique identifier of the approval |
+
+#### `athena approvals list` `[BETA]`
+
+The caller's approval inbox across subject kinds: the approvals of the caller's workspace that name the caller as an approver, newest first, each with its decisions and deliveries. Session interrupts projected onto the object appear read-only; decide them in the session. Keyset-paginated: pass the previous page's next_before and next_before_id to continue.
+
+`GET /api/v0/approvals`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--subject-kind` | `string` | No | Only these subject kinds (repeat the parameter or separate with commas): automation_step, session_interrupt, publish, proposal |
+| `--state` | `string` | No | Only approvals in this state: pending, escalated, decided, expired or invalidated |
+| `--limit` | `integer` | No | Page size (1 to 200) |
+| `--before` | `string` | No | The previous page's next_before; omit for the first page |
+| `--before-id` | `string` | No | The previous page's next_before_id, sent together with before |
+
+#### `athena approvals revoke-grant` `[BETA]`
+
+Revoke an approval grant: a standing grant stops admitting runs at once; a one-shot audit row is marked withdrawn. The grant must be of the caller's workspace and scoped to an automation the caller may view; the grantor may revoke their own grant, an editor of the automation anyone's. Idempotent on an already-revoked grant.
+
+`POST /api/v0/approvals/grants/{grant_id}/revoke`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--grant-id` | `string` | Yes | Unique identifier of the approval grant |
 
 ---
 
@@ -185,13 +274,15 @@ Create a new project with custom metadata. Projects can be typed (e.g., 'candida
 
 #### `athena assets download` `[BETA]`
 
-Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type.
+Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type. With `live_sync=true`, a spreadsheet's .xlsx or a PPTX Studio presentation's .pptx also carries the Athena for Microsoft 365 add-in's link record, so opening it in Excel or PowerPoint with the add-in installed starts syncing it with the asset; other asset types ignore the flag.
 
 `GET /api/v0/assets/{asset_id}/download`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes | Unique identifier of the asset to download |
+| `--live-sync` | `boolean` | No | Office live sync: when true and the asset is an Athena spreadsheet or a PPTX Studio presentation, the downloaded .xlsx / .pptx carries the Athena for Microsoft 365 add-in's link record and opens already syncing with this asset. Ignored for every other asset type. |
+| `--addin-id` | `string` | No | GUID of the installed add-in manifest the live-sync record should reference (defaults to this deployment's Athena add-in). Only read together with `live_sync`; use it to target a preview-channel sideload. |
 
 #### `athena assets duplicate` `[BETA]`
 
@@ -304,6 +395,151 @@ Update the workspace-level access on an asset. Only users who have edit access t
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes | Unique identifier of the asset |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
+### `athena automations`
+
+#### `athena automations cancel-run` `[BETA]`
+
+Cancel a run: its terminal state, its open steps and the trigger execution that started it are written durably first, then the interpreter is told to stop. Cancelling a run that already ended is a no-op that reports already_terminal.
+
+`POST /api/v0/automations/runs/{run_id}/cancel`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--run-id` | `string` | Yes | Unique identifier of the run |
+
+#### `athena automations create` `[BETA]`
+
+Create an automation asset in the caller's workspace (or the given one), optionally inside a folder and optionally seeded with a draft definition. Nothing runs until the automation is published. Automations are admin-only and workspace-enrolled in Phase 1: a denial is a 403 whose detail.reason is not_provisioned, not_permitted or workspace_not_enrolled.
+
+`POST /api/v0/automations`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena automations create-follow-up` `[BETA]`
+
+Follow up on a session later, as its owner: creates and publishes a `kind: follow_up` automation that fires once — at an instant (`when.at`), after a delay (`when.after`) or on an event's first occurrence (`when.event_type`, optional CEL `when.match`) — and then continues the session with the note (`then: resume`) or only tells the caller (`then: notify`). The caller must be able to open the session; its home is `project_asset_id`, else the project the session sits in. Refusals are 400 with `detail.code` (`follow_up_when`, `follow_up_in_the_past`, `follow_up_home_required`, `follow_up_home_invalid`, `follow_up_definition_invalid` with `detail.issues`) and 404 for a session the caller cannot open (`follow_up_thread_not_visible`); nothing is written on a refusal.
+
+`POST /api/v0/automations/follow-ups`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena automations decide-approval` `[BETA]`
+
+Record the caller's decision on a pending approval and resume the waiting run. The caller must be one of the approval's listed approvers and may not decide an approval they requested; an option the approval did not offer, or a second decision, is refused with 400.
+
+`POST /api/v0/automations/approvals/{approval_id}/decide`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--approval-id` | `string` | Yes | Unique identifier of the approval |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena automations dry-run` `[BETA]`
+
+Start a dry run of the automation's current version: a rehearsal (`mode: dry_run`) whose read tools and `judge` steps run as the automation and whose every writing tool call, message, event, webhook, non-read request, approval, agent or AOP session, wait and delay is recorded captured instead of happening. It passes the same gates, budget and inputs checks as POST /automations/{asset_id}/run (the same 400 refusals, `detail.code = INVALID_RUN_INPUTS` for inputs the schema refuses) but no concurrency policy, and announces no run event. Returns the run id to poll with GET /automations/runs/{run_id}. An `Idempotency-Key` works as on `run`, in a scope of its own.
+
+`POST /api/v0/automations/{asset_id}/dry-run`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+| `--idempotency-key` | `string` | No | Caller-chosen key that makes the launch safe to retry. A repeated request with the same key and parameters replays the first response instead of queuing another run. |
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena automations get` `[BETA]`
+
+Read an automation whole: asset facts, the indexed mirror (enabled, current version, fingerprint, principal, next fire), the draft definition (from the @latest snapshot when there is one, else the live Keryx document), the current published version with its definition, the version history, and every trigger-engine row publish materialised, paused rows included with their reason.
+
+`GET /api/v0/automations/{asset_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+
+#### `athena automations get-run` `[BETA]`
+
+Read one run and every step attempt recorded for it, in execution order: status, timings, cost, the session a step opened, the approval it waits on, and its error.
+
+`GET /api/v0/automations/runs/{run_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--run-id` | `string` | Yes | Unique identifier of the run |
+
+#### `athena automations get-step-output` `[BETA]`
+
+Read the whole output of one step attempt. A step whose output fit the ledger answers with that object; a step whose row carries `output_ref` (its `output` is a truncated preview) streams the stored object back through the storage abstraction, so a multi-megabyte result never has to fit a GraphQL response. The step row id is the `step_id`-independent `astep_…` id the run detail lists. Until the attempt has recorded an output the route answers 404, so a 200 body is always one JSON object.
+
+`GET /api/v0/automations/runs/{run_id}/steps/{step_row_id}/output`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--run-id` | `string` | Yes | Unique identifier of the run |
+| `--step-row-id` | `string` | Yes | Row id of the step attempt (`astep_…`) |
+
+#### `athena automations list-runs` `[BETA]`
+
+List the automation's runs, newest first, with offset pagination and an optional run_status filter. Use next_offset for the next page.
+
+`GET /api/v0/automations/{asset_id}/runs`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+| `--run-status` | `string` | No | Only runs in these statuses (scheduled, queued, running, needs_input, completed, failed, canceled). Repeat the parameter or pass a comma-separated list. |
+| `--limit` | `integer` | No | Maximum number of runs per page (1-200) |
+| `--offset` | `integer` | No | Number of runs to skip for pagination |
+
+#### `athena automations publish` `[BETA]`
+
+Compile the draft definition into an immutable, fingerprinted version and materialise its triggers. Idempotent: an unchanged fingerprint records no new version and reconciles the trigger rows in place; triggers that left the definition are paused, never deleted. A definition that does not compile is refused with 400 and every problem listed in detail.issues.
+
+`POST /api/v0/automations/{asset_id}/publish`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+
+#### `athena automations redrive-run` `[BETA]`
+
+Redrive a failed or canceled run: a new run of the same pinned version that resumes at one top-level step, with the source's finished step attempts before it copied instead of run again. `from_step_id` names the step; omitted, it is the first top-level step that failed without finishing (a failure inside a container resumes at the container), else the first unfinished one. The source's inputs are re-validated against its version, and the budget and `policies.concurrency` admit the redrive like a manual run. A refusal is 400 with `detail.code = REDRIVE_REFUSED` and `detail.reason` = `redrive_source_not_redrivable` (not failed or canceled, or a child run: redrive its parent), `redrive_point_nested` (redrive the container), `redrive_point_unknown` or `redrive_nothing_left`. Poll the new run with GET /automations/runs/{run_id}.
+
+`POST /api/v0/automations/runs/{run_id}/redrive`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--run-id` | `string` | Yes | Unique identifier of the run |
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena automations run` `[BETA]`
+
+Start a manual run of the automation's current version and queue it for the interpreter; returns the run id to poll with GET /automations/runs/{run_id}. The inputs are validated against the version's `inputs` schema with declared defaults filled in; a refusal is 400 with `detail.code = INVALID_RUN_INPUTS`, `detail.issues[]` naming each problem's `path` and `message`, and `detail.subject` = `inputs` (fix the request body) or `schema` (the version's pinned schema is invalid; republish the automation). Also refused with 400 when the automation has no published version, is archived, or the interpreter is switched off. POST /automations/{asset_id}/dry-run rehearses the same launch. Send an `Idempotency-Key` header to make the launch safe to retry: repeating the identical request with the same key replays the original response (deduplicated: true) instead of queuing a second run; the same key with different parameters is rejected with 422.
+
+`POST /api/v0/automations/{asset_id}/run`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+| `--idempotency-key` | `string` | No | Caller-chosen key that makes the launch safe to retry. A repeated request with the same key and parameters replays the first response instead of queuing another run. |
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena automations update-definition` `[BETA]`
+
+Replace the draft definition in the automation's Keryx document — the server-side counterpart of the Definition tab, written through the same Y.Doc path the AOP config API uses, so open editors converge on it live. The document is shape-validated (detail.issues lists every problem); tools, cron and expressions are checked at publish. An existing @latest snapshot is re-pointed at the new draft so publish reads what was written. Nothing runs until the automation is published.
+
+`PUT /api/v0/automations/{asset_id}/definition`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
@@ -546,11 +782,31 @@ Update rows matching the filter conditions. Filter conditions are passed as quer
 
 ---
 
+### `athena events`
+
+#### `athena events list-catalogue` `[BETA]`
+
+Every event type the platform publishes, ordered by type: its stream category, canonical producer, description, the JSON Schema of its payload (null while it has none) and whether it is published through the transactional outbox — the types an automation's `event` trigger and `wait_for_event` step may name. Deploy-static metadata identical for every caller; it changes only with a release. Gate: the Automations gate (a 403 whose detail.reason is not_provisioned, not_permitted or workspace_not_enrolled).
+
+`GET /api/v0/events/catalogue`
+
+#### `athena events replay` `[BETA]`
+
+Replay a window of the event audit log (at most 31 days, at most 500 events per call, paged with next_cursor) against one automation. `shadow` (the default) evaluates each event against the automation's triggers — its current draft compiled in memory (`source: draft`, the default) or its published rows — and compares the verdict with the trigger executions the engine recorded; nothing is written. `live` (`source: published` only) re-sends each would-fire event as a copy that fires this automation's rules and no other, starting its runs; a copy already sent for the same published version is not sent again. The report carries ids and verdicts, never payloads. Gates: the Automations gate (staff, enrolled workspace), then VIEW on the automation; `live` also needs EDIT.
+
+`POST /api/v0/events/replay`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
 ### `athena meetings`
 
 #### `athena meetings download` `[BETA]`
 
-Download a meeting artifact. By default streams a ZIP archive containing metadata.json plus every available artifact (video recording, raw transcript, formatted transcript, chat). Pass the artifact parameter to download a single artifact instead.
+Download a meeting artifact. By default streams a ZIP archive containing metadata.json plus every available artifact (video recording, raw transcript, formatted transcript, chat). Pass the artifact parameter to download a single artifact instead. Works for every meeting, whether its artifacts are stored on the meeting itself (meetings captured since September 2026, whose artifact asset IDs are null) or as separate child assets.
 
 `GET /api/v0/meetings/{asset_id}/download`
 
@@ -561,7 +817,7 @@ Download a meeting artifact. By default streams a ZIP archive containing metadat
 
 #### `athena meetings get` `[BETA]`
 
-Retrieve a single meeting by its asset ID, including status, AI summary, participants, and the asset IDs of its downloadable artifacts (recording, transcripts, chat).
+Retrieve a single meeting by its asset ID, including status, AI summary, participants, and the asset IDs of its downloadable artifacts (recording, transcripts, chat). Meetings captured since September 2026 store their artifacts on the meeting itself, so those IDs are null for them; use the download endpoint, which serves both shapes.
 
 `GET /api/v0/meetings/{asset_id}`
 
@@ -629,11 +885,79 @@ Get the result of an SQL query over given assets.
 
 ---
 
+### `athena scripts`
+
+#### `athena scripts create` `[BETA]`
+
+Create a script asset — code that runs with no model — in the caller's workspace (or the given one), optionally inside a folder and seeded with its source. The contract (language, entrypoint, args schema, timeout) starts at the language's defaults. Scripts are admin-only and workspace-enrolled while Automations are internal: a denial is a 403 whose detail.reason is not_provisioned, not_permitted or workspace_not_enrolled.
+
+`POST /api/v0/scripts`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena scripts get-run` `[BETA]`
+
+Read one run of a script: status, exit code, timing, and — for the person who started it, or a viewer of the automation whose step did — its output and error message.
+
+`GET /api/v0/scripts/runs/{run_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--run-id` | `string` | Yes | Unique identifier of the run |
+
+#### `athena scripts get-run-logs` `[BETA]`
+
+What a run printed — its stdout and stderr tails, as stored when it settled, up to 1 MiB together; empty streams when it printed nothing or has not settled. Only for the person who started the run, or a viewer of the automation whose step did: anyone else is 403 with detail.code = SCRIPT_RUN_DETAILS_FORBIDDEN.
+
+`GET /api/v0/scripts/runs/{run_id}/logs`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--run-id` | `string` | Yes | Unique identifier of the run |
+
+#### `athena scripts get-run-output` `[BETA]`
+
+A settled run's whole output — the full JSON even when GET /scripts/runs/{run_id} carries a preview (output_truncated); null for a run that wrote none or has not settled. Only for the person who started the run, or a viewer of the automation whose step did: anyone else is 403 with detail.code = SCRIPT_RUN_DETAILS_FORBIDDEN.
+
+`GET /api/v0/scripts/runs/{run_id}/output`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--run-id` | `string` | Yes | Unique identifier of the run |
+
+#### `athena scripts list-runs` `[BETA]`
+
+List the script's runs, newest first, with offset pagination; use next_offset for the next page. Each run's output and error message are filled only where details_visible.
+
+`GET /api/v0/scripts/{asset_id}/runs`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the script asset |
+| `--limit` | `integer` | No | Maximum number of runs per page (1-100) |
+| `--offset` | `integer` | No | Number of runs to skip for pagination |
+
+#### `athena scripts run` `[BETA]`
+
+Run the script's newest saved version (its live source when it has none) as the caller, in a fresh sandbox with no secrets. Needs VIEW on the script. Answers at once with the queued run; poll GET /scripts/runs/{run_id} for its status and output. The args are validated against the script's args_schema first: a refusal is 400 with detail.code = SCRIPT_RUN_REFUSED, detail.reason = the executor's code and detail.issues[] naming each problem's path and message. Send an Idempotency-Key header to make the request safe to retry: the same key from the same caller for the same script answers the run it started, whatever the body says. A run that was claimed but could not be handed to the worker is settled sandbox_unavailable and answered 503.
+
+`POST /api/v0/scripts/{asset_id}/run`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the script asset |
+| `--idempotency-key` | `string` | No | Caller-chosen key that makes the request safe to retry. The same key from the same caller for the same script answers the run it started instead of starting another. |
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+---
+
 ### `athena semantic-model`
 
 #### `athena semantic-model generate-token` `[BETA]`
 
-Generate a short-lived JWT token for direct access to the semantic model's Cube REST API. Use this token to query /cubejs-api/v1/load and /cubejs-api/v1/meta directly. Token expires after 1 hour. The token carries only a credential-free, user/workspace/schema-scoped authorization grant — database credentials are NOT included and are resolved server-side by Cube via callback. Dataset-backed models must use the authenticated query endpoint instead so source Dataset permissions are checked per query.
+Generate a short-lived JWT token for direct access to the semantic model's Cube REST API. Use this token to query /cubejs-api/v1/load and /cubejs-api/v1/meta directly. Token expires after 1 hour. The token carries only a credential-free, user/workspace/schema-scoped authorization grant — database credentials are NOT included and are resolved server-side by Cube via callback. Lakehouse-backed models must use the authenticated query endpoint instead so namespace permissions are checked per query.
 
 `POST /api/v0/semantic-model/{asset_id}/generate-token`
 
@@ -734,6 +1058,77 @@ Clear the calling user's read receipt so the session shows as unread again. Idem
 
 ---
 
+### `athena system`
+
+#### `athena system acknowledge-incident` `[BETA]`
+
+Acknowledge an open incident: the caller owns it now. Needs edit permission on the incident's project; recorded on the timeline with the caller's ref and announced as incident.updated. Refused with 409 (detail.code INCIDENT_NOT_ACTIVE, detail.reason already_acknowledged, invalid_transition or incident_closed) when the incident is not open.
+
+`POST /api/v0/incidents/{incident_id}/acknowledge`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--incident-id` | `string` | Yes | Unique identifier of the incident |
+
+#### `athena system check` `[BETA]`
+
+Queue a manual run of the environment's generated detector — the same check its schedule runs, as its own principal: every node read (events first, budgeted probes second, never a wake), health rows recorded, one system.health.changed per transition. Returns the run id; poll GET /automations/runs/{run_id}, then re-read the map. Refused with 409 (detail.code SYSTEM_SPEC_NOT_DEPLOYED) when the environment has no generated detector — publish the spec, or promote it to production, first.
+
+`POST /api/v0/projects/{project_id}/system/check`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--project-id` | `string` | Yes | Unique identifier of the project asset |
+| `--environment` | `development | production` | No | The spec environment: development (the default) or production. Health and incidents are kept per environment and never mix. |
+
+#### `athena system get` `[BETA]`
+
+A project's system map in one environment: every node of the effective spec version with its health reading (state, reason, since, freshness, deadline, last writer), the edges, the active incidents and the generated detector and healer — the same map the GraphQL projectSystem query returns. A node whose bound asset is not shared with the caller is hidden (key and type only, state hidden) and counted in hidden_count; counts, edges and incidents cover only what the caller can see. published is false before the first publish. Reads only; nothing is probed.
+
+`GET /api/v0/projects/{project_id}/system`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--project-id` | `string` | Yes | Unique identifier of the project asset |
+| `--environment` | `development | production` | No | The spec environment: development (the default) or production. Health and incidents are kept per environment and never mix. |
+
+#### `athena system get-incident` `[BETA]`
+
+One incident with its timeline. The incident is resolved inside the caller's workspace and to its project first: an unknown id, another workspace's incident, a project the caller cannot view, and an incident whose opened-on asset or node binding is not shared with the caller all read 404.
+
+`GET /api/v0/incidents/{incident_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--incident-id` | `string` | Yes | Unique identifier of the incident |
+
+#### `athena system list-incidents` `[BETA]`
+
+A project's incidents, newest first, optionally narrowed to one environment and to states — the same page the GraphQL projectSystemIncidents query returns. An incident is listed only when the caller can view the asset it was opened on and its node's current binding; the others are counted in hidden_count and never returned. Offset-paginated: pass next_offset as offset for the next page.
+
+`GET /api/v0/incidents`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--project-id` | `string` | Yes | The project whose incidents to list |
+| `--environment` | `string` | No | Only this spec environment; both when omitted |
+| `--state` | `string` | No | Only these states (repeat the parameter or separate with commas): open, acknowledged, mitigating, resolved, closed |
+| `--limit` | `integer` | No | Page size (1 to 200) |
+| `--offset` | `integer` | No | Incidents to skip; the previous page's next_offset |
+
+#### `athena system resolve-incident` `[BETA]`
+
+Resolve an active incident with a reason, recorded on its timeline and announced as incident.resolved; the detector's sweep closes it after the spec's close_after_resolved window. Needs edit permission on the incident's project. Refused with 409 (detail.code INCIDENT_NOT_ACTIVE) when the incident is already resolved or closed, and with 400 (detail.code INCIDENT_REFUSED, detail.reason reason_required) for a blank reason.
+
+`POST /api/v0/incidents/{incident_id}/resolve`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--incident-id` | `string` | Yes | Unique identifier of the incident |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
 ### `athena threads`
 
 #### `athena threads batch-stop` `[BETA]`
@@ -766,6 +1161,16 @@ Check the status of a thread execution by thread ID. Returns thread status and a
 |------|------|----------|-------------|
 | `--thread-id` | `string` | Yes | The unique thread ID to check status for |
 | `--include-messages` | `string` | No | Whether to materialize checkpoint messages. By default, deployments with lightweight active reads enabled omit messages while a run is scheduled, queued, or running, and include them once it is terminal. Set true to force messages or false to skip them. |
+
+#### `athena threads get-status-batch` `[BETA]`
+
+Read the lifecycle status of up to 200 threads in one call, whether they were started by `POST /aop/execute-async` or `POST /aop/execute-batch`. Returns aggregate counts plus one compact entry per thread (status, terminal flag, output availability, timestamps) without loading any messages; fetch results with `GET /threads/{thread_id}/status` once `output_available` is true. Only threads you launched are returned: unknown IDs and other users' threads are listed in `not_found` and are indistinguishable.
+
+`POST /api/v0/threads/status-batch`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 #### `athena threads stop` `[BETA]`
 
@@ -965,7 +1370,7 @@ List the (non-suspended) members of this run's workspace with their names, email
 
 #### `athena tools agent-identity who-am-i` `[BETA]`
 
-Describe the identity of THIS run: the acting user (name, email, user id), the run workspace, and — when running as a collab agent — the agent's own identity: title, owner, workspace, reserved email address, phone number and its calling/texting status, enabled channels (SMS, voice, meetings, meeting voice, comments pane, programmatic), Slack binding, and calendar feed availability.
+Describe the identity of THIS run as a typed JSON document: the principal it acts as (a person, a collab agent, or an automation), the acting user (name, email, user id), the run workspace, and — when running as a collab agent — the agent's own identity: title, owner, workspace, reserved email address, phone number and its calling/texting status, enabled channels (SMS, voice, meetings, meeting voice, comments pane, programmatic), Slack binding, and calendar feed availability; and — when the run was started by an automation — the automation: asset id, name, run id, step id, published version and fingerprint, publisher, active grant count and its Treasury principal row. Answers in any run: a plain chat reports principal.kind == 'user'. Anything it could not resolve is listed under notes; it never fails.
 
 `POST /api/v0/tools/agent-identity/who-am-i`
 
@@ -1358,6 +1763,110 @@ You can configure these behaviors with the `map` and `reduce` fields.
 
 ---
 
+### `athena tools system-operations`
+
+#### `athena tools system-operations dashboard-render` `[BETA]`
+
+Render a dashboard's figure tiles through the figure-render service as the caller and report counts (rendered, rejected, transient, hidden, skipped). Emits dashboard.rendered. Reads only: nothing is persisted; PNG refs arrive with the step output store.
+
+`POST /api/v0/tools/system-operations/dashboard-render`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools system-operations incident-close-resolved` `[BETA]`
+
+The detector's sweep: close the project environment's incidents that were resolved longer ago than the spec's close_after_resolved window (or the given duration). Never touches an active incident. The caller needs EDIT on the project asset.
+
+`POST /api/v0/tools/system-operations/incident-close-resolved`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools system-operations incident-open` `[BETA]`
+
+Open an incident for a system-spec node that will not converge, or touch the one it already has (one open incident per node: a re-trigger appends the failing check, re-evaluates severity and pages nobody). Notifies the spec's on-call people on its channels when the incident opens or escalates to critical; on-call agents are recorded for the agent layer. The caller needs EDIT on the project asset.
+
+`POST /api/v0/tools/system-operations/incident-open`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools system-operations incident-resolve` `[BETA]`
+
+Resolve one of the project's open, acknowledged or mitigating incidents with a reason (the node recovered, or a person fixed it). A resolved or closed incident is refused. The caller needs EDIT on the project asset.
+
+`POST /api/v0/tools/system-operations/incident-resolve`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools system-operations lakehouse-sync-run` `[BETA]`
+
+Admit one run of a lakehouse sync now, outside its schedule. The caller needs EDIT on the sync asset; the run executes as the definition's own principal with the source connection resolved server-side, exactly as a scheduled tick does. Coalesces into an active run. Returns the run id.
+
+`POST /api/v0/tools/system-operations/lakehouse-sync-run`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools system-operations semantic-model-refresh` `[BETA]`
+
+Re-deploy a semantic model's working copy to Cube through the model's own deploy path (validated, staged on an isolated tenant, the deployed alias moved only on success; the deployer must hold every source namespace). The caller needs EDIT on the model asset. Returns the new schema version and hash, or the deploy error.
+
+`POST /api/v0/tools/system-operations/semantic-model-refresh`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools system-operations system-health-check` `[BETA]`
+
+Evaluate every node of a project's published system spec in one environment — events first, budgeted read-only probes second — record one check per node, update each node's health state and emit system.health.changed exactly once per (state, reason) transition. The caller needs VIEW on the project and reads a node only when it can view the node's bound asset. Never wakes, resumes or repairs anything; returns counts and the transitions.
+
+`POST /api/v0/tools/system-operations/system-health-check`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools system-operations system-health-read` `[BETA]`
+
+Read the current health state of a project's nodes in one environment from the health ledger — the digest gate's first step. The caller needs VIEW on the project; only nodes whose bound asset the caller can view are returned. Reads only.
+
+`POST /api/v0/tools/system-operations/system-health-read`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools system-operations system-health-repair-attempt` `[BETA]`
+
+Count one repair attempt on a system-spec node and report the total, whether the spec's after_runbooks_fail budget is spent, and — for an automation node — the inputs of its latest successful run (searched across its newest 500 completed runs) to replay. The caller needs EDIT on the project asset.
+
+`POST /api/v0/tools/system-operations/system-health-repair-attempt`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools system-operations system-health-repair-reset` `[BETA]`
+
+Set a system-spec node's repair-attempt counter back to zero once it reads healthy again. The caller needs EDIT on the project asset.
+
+`POST /api/v0/tools/system-operations/system-health-repair-reset`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
 ### `athena tools tasks`
 
 #### `athena tools tasks run-task` `[BETA]`
@@ -1422,6 +1931,16 @@ Counts of the caller's connected Microsoft 365 sources (mail, files, sites, chat
 
 ### `athena workspaces`
 
+#### `athena workspaces create-presence-token` `[BETA]`
+
+Admin only. Mint a short-lived, read-only Keryx token for a workspace's live presence feed (the awareness room the People page renders). The token is bound to the calling user, so Keryx narrows every frame to the documents that user may open; it can never publish presence or write document content. Requires the presence roster to be enabled for the deployment and opted in for the workspace. Computer-asset sandbox credentials are refused: call with the viewing user's own token.
+
+`POST /api/v0/workspaces/{workspace_id}/presence-token`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes | The workspace whose presence feed to read. |
+
 #### `athena workspaces get-configuration` `[BETA]`
 
 Retrieve the configuration for a workspace. Includes disclaimer settings. Requires workspace owner or admin permissions.
@@ -1441,6 +1960,29 @@ Retrieve the persisted per-workspace Tool Registry policy. The response contains
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--workspace-id` | `string` | Yes |  |
+
+#### `athena workspaces resolve-presence` `[BETA]`
+
+Admin only. Resolve the guids a presence feed carries into display titles, asset kinds, and project membership, and optionally list the projects and members of the workspace. Every id is checked against the calling user's own read permission as an ordinary member; anything the caller could not open is omitted rather than reported. Same gates as the presence-token mint.
+
+`POST /api/v0/workspaces/{workspace_id}/presence/resolve`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes | The workspace whose presence feed to read. |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena workspaces search-members` `[BETA]`
+
+Prefix-search the people an asset in this workspace can be shared with — active members plus external viewers provisioned for the workspace — by email, first name or last name. Built for share pickers: a query of at least two characters is required, results are capped, and only name and email are returned (no user ids). Callers must be a member of the workspace (or a deployment admin). External SSO viewers may search only their own workspace, only see people in their own email domain, receive at most 10 results per call, and hold a per-viewer budget of 120 searches per 10 minutes (429 with Retry-After when exhausted; 503 if the budget cannot be enforced).
+
+`GET /api/v0/workspaces/{workspace_id}/members`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes | Unique identifier of the workspace to search |
+| `--q` | `string` | Yes | Search prefix, matched case-insensitively against email, first name and last name |
+| `--limit` | `integer` | No | Maximum number of people to return |
 
 #### `athena workspaces update-configuration` `[BETA]`
 

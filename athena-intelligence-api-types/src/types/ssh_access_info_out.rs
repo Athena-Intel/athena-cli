@@ -14,6 +14,9 @@ pub struct SshAccessInfoOut {
     /// SSH gateway port.
     #[serde(default)]
     pub port: i64,
+    /// Lifetimes, in minutes, this environment offers for a temporary token from `create_ssh_access`, ascending. The first is the default when none is requested; a request above the last is refused.
+    #[serde(default)]
+    pub token_expiry_minutes_options: Vec<i64>,
     /// The SSH username — the computer's asset id, which selects identity (registered-key) authentication at the gateway.
     #[serde(default)]
     pub username: String,
@@ -31,6 +34,7 @@ pub struct SshAccessInfoOutBuilder {
     command: Option<String>,
     host: Option<String>,
     port: Option<i64>,
+    token_expiry_minutes_options: Option<Vec<i64>>,
     username: Option<String>,
 }
 
@@ -50,6 +54,11 @@ impl SshAccessInfoOutBuilder {
         self
     }
 
+    pub fn token_expiry_minutes_options(mut self, value: Vec<i64>) -> Self {
+        self.token_expiry_minutes_options = Some(value);
+        self
+    }
+
     pub fn username(mut self, value: impl Into<String>) -> Self {
         self.username = Some(value.into());
         self
@@ -60,12 +69,14 @@ impl SshAccessInfoOutBuilder {
     /// - [`command`](SshAccessInfoOutBuilder::command)
     /// - [`host`](SshAccessInfoOutBuilder::host)
     /// - [`port`](SshAccessInfoOutBuilder::port)
+    /// - [`token_expiry_minutes_options`](SshAccessInfoOutBuilder::token_expiry_minutes_options)
     /// - [`username`](SshAccessInfoOutBuilder::username)
     pub fn build(self) -> Result<SshAccessInfoOut, BuildError> {
         Ok(SshAccessInfoOut {
             command: self.command.ok_or_else(|| BuildError::missing_field("command"))?,
             host: self.host.ok_or_else(|| BuildError::missing_field("host"))?,
             port: self.port.ok_or_else(|| BuildError::missing_field("port"))?,
+            token_expiry_minutes_options: self.token_expiry_minutes_options.ok_or_else(|| BuildError::missing_field("token_expiry_minutes_options"))?,
             username: self.username.ok_or_else(|| BuildError::missing_field("username"))?,
         })
     }

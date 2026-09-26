@@ -34,15 +34,15 @@ use athena_intelligence_api_sdk::api::*;
 
 pub fn register(app: CliApp) -> CliApp {
     let app = app.command(
-        clap::Command::new("get-config")
-            .about("Get AOP configuration")
-            .arg(clap::Arg::new("asset_id").required(true))
+        clap::Command::new("get-batch-status")
+            .about("Get Batch Execution Status")
+            .arg(clap::Arg::new("batch_id").required(true))
         ,
         |matches, ctx| {
-            let asset_id = matches.get_one::<String>("asset_id").unwrap();
+            let batch_id = matches.get_one::<String>("batch_id").unwrap();
             let client = super::sdk::client(ctx);
             let result = super::sdk::block_on(
-                client.aop.get_config(asset_id),
+                client.aop.get_batch_status(batch_id),
             )?;
             println!("{}", serde_json::to_string_pretty(&result).unwrap());
             Ok(())
@@ -55,7 +55,7 @@ pub fn register(app: CliApp) -> CliApp {
 Then build and test:
 ```bash
 cargo build
-athena-intelligence-api get-config <asset_id>
+athena-intelligence-api get-batch-status <batch_id>
 ```
 
 ### 2. Available SDK Clients
@@ -66,13 +66,18 @@ with the following sub-clients:
 | Field | Type | Description |
 |-------|------|-------------|
 | `client.aop` | `athena_intelligence_api_sdk::api::AopClient` | aop operations |
+| `client.approvals` | `athena_intelligence_api_sdk::api::ApprovalsClient` | approvals operations |
 | `client.assets` | `athena_intelligence_api_sdk::api::AssetsClient` | assets operations |
+| `client.automations` | `athena_intelligence_api_sdk::api::AutomationsClient` | automations operations |
 | `client.collab_agents` | `athena_intelligence_api_sdk::api::CollabAgentsClient` | collab_agents operations |
 | `client.computer` | `athena_intelligence_api_sdk::api::ComputerClient` | computer operations |
 | `client.databases` | `athena_intelligence_api_sdk::api::DatabasesClient` | databases operations |
+| `client.events` | `athena_intelligence_api_sdk::api::EventsClient` | events operations |
+| `client.system` | `athena_intelligence_api_sdk::api::SystemClient` | system operations |
 | `client.users` | `athena_intelligence_api_sdk::api::UsersClient` | users operations |
 | `client.meetings` | `athena_intelligence_api_sdk::api::MeetingsClient` | meetings operations |
 | `client.query` | `athena_intelligence_api_sdk::api::QueryClient` | query operations |
+| `client.scripts` | `athena_intelligence_api_sdk::api::ScriptsClient` | scripts operations |
 | `client.semantic_model` | `athena_intelligence_api_sdk::api::SemanticModelClient` | semantic_model operations |
 | `client.sessions` | `athena_intelligence_api_sdk::api::SessionsClient` | sessions operations |
 | `client.threads` | `athena_intelligence_api_sdk::api::ThreadsClient` | threads operations |
@@ -84,6 +89,7 @@ with the following sub-clients:
 | `client.olympus_drive` | `athena_intelligence_api_sdk::api::OlympusDriveClient` | olympus_drive operations |
 | `client.sheets` | `athena_intelligence_api_sdk::api::SheetsClient` | sheets operations |
 | `client.structured_data_extractor` | `athena_intelligence_api_sdk::api::StructuredDataExtractorClient` | structured_data_extractor operations |
+| `client.system_operations` | `athena_intelligence_api_sdk::api::SystemOperationsClient` | system_operations operations |
 | `client.tasks` | `athena_intelligence_api_sdk::api::TasksClient` | tasks operations |
 | `client.presentation` | `athena_intelligence_api_sdk::api::PresentationClient` | presentation operations |
 | `client.workspaces` | `athena_intelligence_api_sdk::api::WorkspacesClient` | workspaces operations |
