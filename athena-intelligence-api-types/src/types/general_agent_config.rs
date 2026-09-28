@@ -3,7 +3,7 @@ pub use crate::prelude::*;
 use super::*;
 
 /// Configurable fields for the agent.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct GeneralAgentConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled_tools: Option<Vec<GeneralAgentConfigEnabledToolsItem>>,
@@ -11,6 +11,9 @@ pub struct GeneralAgentConfig {
     pub knowledge_base_asset_ids: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// A JSON Schema (type: object) the agent's final answer must conform to. When set, the response carries the validated payload in `structured_output` and the request fails with a 500 rather than returning prose that does not match the schema.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub structured_output: Option<HashMap<String, serde_json::Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_prompt: Option<String>,
 }
@@ -27,6 +30,7 @@ pub struct GeneralAgentConfigBuilder {
     enabled_tools: Option<Vec<GeneralAgentConfigEnabledToolsItem>>,
     knowledge_base_asset_ids: Option<Vec<String>>,
     model: Option<String>,
+    structured_output: Option<HashMap<String, serde_json::Value>>,
     system_prompt: Option<String>,
 }
 
@@ -46,6 +50,11 @@ impl GeneralAgentConfigBuilder {
         self
     }
 
+    pub fn structured_output(mut self, value: HashMap<String, serde_json::Value>) -> Self {
+        self.structured_output = Some(value);
+        self
+    }
+
     pub fn system_prompt(mut self, value: impl Into<String>) -> Self {
         self.system_prompt = Some(value.into());
         self
@@ -57,6 +66,7 @@ impl GeneralAgentConfigBuilder {
             enabled_tools: self.enabled_tools,
             knowledge_base_asset_ids: self.knowledge_base_asset_ids,
             model: self.model,
+            structured_output: self.structured_output,
             system_prompt: self.system_prompt,
         })
     }
