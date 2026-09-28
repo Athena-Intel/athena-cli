@@ -7,6 +7,9 @@ use super::*;
 pub struct GeneralAgentResponse {
     #[serde(default)]
     pub messages: Vec<GeneralAgentResponseMessage>,
+    /// The agent's final answer as an object matching `config.structured_output`. Null when no schema was requested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub structured_output: Option<HashMap<String, serde_json::Value>>,
 }
 
 impl GeneralAgentResponse {
@@ -19,11 +22,17 @@ impl GeneralAgentResponse {
 #[non_exhaustive]
 pub struct GeneralAgentResponseBuilder {
     messages: Option<Vec<GeneralAgentResponseMessage>>,
+    structured_output: Option<HashMap<String, serde_json::Value>>,
 }
 
 impl GeneralAgentResponseBuilder {
     pub fn messages(mut self, value: Vec<GeneralAgentResponseMessage>) -> Self {
         self.messages = Some(value);
+        self
+    }
+
+    pub fn structured_output(mut self, value: HashMap<String, serde_json::Value>) -> Self {
+        self.structured_output = Some(value);
         self
     }
 
@@ -33,6 +42,7 @@ impl GeneralAgentResponseBuilder {
     pub fn build(self) -> Result<GeneralAgentResponse, BuildError> {
         Ok(GeneralAgentResponse {
             messages: self.messages.ok_or_else(|| BuildError::missing_field("messages"))?,
+            structured_output: self.structured_output,
         })
     }
 }

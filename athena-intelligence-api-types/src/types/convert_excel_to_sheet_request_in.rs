@@ -7,7 +7,7 @@ pub struct ConvertExcelToSheetRequestIn {
     /// ID of the Excel (.xlsx) asset to convert into an Athena sheet
     #[serde(default)]
     pub excel_asset_id: String,
-    /// Optional password used to decrypt a password-protected workbook. Password-protected workbooks always convert on the 'legacy' engine.
+    /// Optional password used to decrypt a password-protected workbook. Password-protected workbooks convert on either engine (they are decrypted server-side before an rnc import).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
     /// Return the sheet asset immediately and convert in the background. Large workbooks outlive the gateway's ~60s response window on the synchronous path — with run_async the caller polls athena_metadata.conversionStatus ('converting' | 'completed' | 'failed', with conversionError on failure) instead.

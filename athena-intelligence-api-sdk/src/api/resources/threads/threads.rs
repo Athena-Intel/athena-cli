@@ -38,6 +38,31 @@ impl ThreadsClient {
             .await
     }
 
+    /// Read the lifecycle status of up to 200 threads in one call, whether they were started by `POST /aop/execute-async` or `POST /aop/execute-batch`. Returns aggregate counts plus one compact entry per thread (status, terminal flag, output availability, timestamps) without loading any messages; fetch results with `GET /threads/{thread_id}/status` once `output_available` is true. Only threads you launched are returned: unknown IDs and other users' threads are listed in `not_found` and are indistinguishable.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn get_status_batch(
+        &self,
+        request: &ThreadStatusBatchRequestIn,
+        options: Option<RequestOptions>,
+    ) -> Result<ThreadStatusBatchResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                "api/v0/threads/status-batch",
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
     /// Stop multiple running thread executions in a single request. This endpoint accepts thread IDs (the same IDs used with the single-thread stop endpoint). Each thread is stopped independently - failures for individual threads do not affect other threads in the batch.
     ///
     /// # Arguments

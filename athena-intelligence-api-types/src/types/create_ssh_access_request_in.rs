@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
 pub struct CreateSshAccessRequestIn {
-    /// How long the SSH access token should remain valid, in minutes (1–1440)
+    /// How long the SSH access token should remain valid, in minutes (1-1440). The environment may cap this lower (see `token_expiry_minutes_options` on `get_ssh_access`); omit it to get the environment's shortest offered lifetime.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_in_minutes: Option<i64>,
 }
