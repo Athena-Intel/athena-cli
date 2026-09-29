@@ -56,6 +56,15 @@
 //! commands run, so nothing may be registered under it. The device calls go
 //! through a plain `HttpConfig::build_client()` client, never the SDK
 //! executor, so a stale key is not attached to an unauthenticated login.
+//!
+//! `--dry-run` is registered by the framework on every command, but the SDK
+//! client these handlers call always sends, so each handler checks the flag
+//! itself ([`dry_run_requested`]). The single-request commands
+//! (`read-asset`, `read-asset-capabilities`, `assets download`) print the
+//! request in the generated commands' dry-run shape and exit without sending
+//! it; the commands with dependent requests or local side effects
+//! (`meetings browse`, `sessions browse`, `ssh`, `login`, `logout`) refuse it
+//! ([`refuse_dry_run`]).
 
 use std::any::Any;
 use std::io::Write as _;
@@ -67,6 +76,7 @@ use dialoguer::{theme::ColorfulTheme, Input, Select};
 use fern_cli_sdk::app::CliApp;
 use fern_cli_sdk::auth::active_store;
 use fern_cli_sdk::error::CliError;
+use fern_cli_sdk::openapi::discovery::GlobalHeader;
 use fern_cli_sdk::openapi::AppContext;
 use fern_cli_sdk::sdk_executor::SdkRequestExecutor;
 use reqwest::Method;
@@ -92,9 +102,6 @@ struct ReadAssetArgs {
     #[arg(long, default_value_t = 50)]
     page_limit: usize,
 }
-
-#[derive(clap::Args)]
-struct ReadAssetCapabilitiesArgs {}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ReadCapabilities {
@@ -164,6 +171,145 @@ fn print_json<T: Serialize>(value: &T) {
     }
 }
 
+/// Printed in place of a secret in `--dry-run` output.
+const REDACTED: &str = "<redacted>";
+
+/// Whether `--dry-run` was passed.
+///
+/// The framework registers `--dry-run` as a global flag on the root command,
+/// so clap propagates it into every custom command's matches and every
+/// command's `--help` lists it. Nothing hands it to custom handlers, though,
+/// and the SDK client they call always sends: each handler checks it before
+/// its first request. Subcommand matches are searched too, so the flag counts
+/// wherever it was parsed (`athena ssh token <computer> --dry-run`).
+fn dry_run_requested(matches: &clap::ArgMatches) -> bool {
+    let here = matches
+        .try_get_one::<bool>("dry-run")
+        .ok()
+        .flatten()
+        .copied()
+        .unwrap_or(false);
+    here || matches
+        .subcommand()
+        .is_some_and(|(_, sub)| dry_run_requested(sub))
+}
+
+/// Refuse `--dry-run` for a command that has no single request to preview.
+///
+/// These commands run dependent calls, change local state (the keyring, SSH
+/// keys, `~/.ssh/config`, downloaded files), or both, so printing one request
+/// would misdescribe what they do. Without this check they ignore the flag
+/// and run for real.
+fn refuse_dry_run(matches: &clap::ArgMatches, command: &str) -> Result<(), CliError> {
+    if dry_run_requested(matches) {
+        return Err(CliError::Validation(format!(
+            "--dry-run is not supported by `{command}`: it runs dependent requests or \
+             changes local state, so there is no single request to preview. Nothing was \
+             sent and nothing was changed."
+        )));
+    }
+    Ok(())
+}
+
+/// The base URL the SDK client sends to before the executor applies any
+/// `--base-url` override: `sdk::client` builds on `ClientConfig::default()`.
+fn sdk_base_url() -> String {
+    athena_intelligence_api_sdk::ClientConfig::default().base_url
+}
+
+/// The URL a request to `path` goes to.
+///
+/// `root_url` joined with `path` the way the SDK joins them (`join_url`),
+/// then the `--base-url` / `ATHENA_BASE_URL` override applied the way the CLI
+/// executor applies it at send time (`CliExecutor::resolve_url` in
+/// `src/sdk_executor.rs`): scheme, host and port come from the override, and a
+/// non-root override path is prepended to the request path.
+fn request_url(root_url: &str, base_url_override: Option<&str>, path: &str) -> String {
+    let joined = format!(
+        "{}/{}",
+        root_url.trim_end_matches('/'),
+        path.trim_start_matches('/')
+    );
+    let Ok(mut url) = reqwest::Url::parse(&joined) else {
+        return joined;
+    };
+    if let Some(Ok(base)) = base_url_override.map(reqwest::Url::parse) {
+        url.set_scheme(base.scheme()).ok();
+        if let Some(host) = base.host_str() {
+            url.set_host(Some(host)).ok();
+        }
+        url.set_port(base.port()).ok();
+        let base_path = base.path().trim_end_matches('/');
+        if !base_path.is_empty() {
+            let original_path = url.path().to_string();
+            url.set_path(&format!("{base_path}{original_path}"));
+        }
+    }
+    url.to_string()
+}
+
+/// A `--dry-run` preview in the shape the generated commands print: `url`,
+/// `method`, `query_params`, `headers`, `body`, `is_multipart_upload`, and
+/// `content_type` when there is a body.
+fn dry_run_preview(
+    method: Method,
+    url: String,
+    headers: Vec<(String, String)>,
+    body: Option<serde_json::Value>,
+) -> serde_json::Value {
+    let has_body = body.is_some();
+    let mut info = serde_json::json!({
+        "dry_run": true,
+        "url": url,
+        "method": method.as_str(),
+        "query_params": Vec::<(String, String)>::new(),
+        "headers": headers,
+        "body": body,
+        "is_multipart_upload": false,
+    });
+    if has_body {
+        info["content_type"] = serde_json::json!("application/json");
+    }
+    info
+}
+
+/// The spec's global headers (`x-fern-global-headers`) that resolve to a value
+/// for this invocation, each paired with [`REDACTED`].
+///
+/// The executor stamps them on every request, so the preview lists them as the
+/// generated path does, but never their values: the only one today,
+/// `X-Athena-Session-Credential`, is a bearer credential. Auth headers are
+/// left out, as they are on the generated path.
+fn redacted_global_headers(
+    matches: &clap::ArgMatches,
+    declared: &[GlobalHeader],
+) -> Vec<(String, String)> {
+    declared
+        .iter()
+        .filter(|header| global_header_resolves(matches, header))
+        .map(|header| (header.header.clone(), REDACTED.to_string()))
+        .collect()
+}
+
+/// Whether a global header will carry a value: from its flag (the framework
+/// derives the clap id as `__global_header::<wire name>` and folds the
+/// header's `env` into it), from its environment variable directly, or from a
+/// spec default.
+fn global_header_resolves(matches: &clap::ArgMatches, header: &GlobalHeader) -> bool {
+    let non_empty = |value: &str| !value.trim().is_empty();
+    let from_flag = matches
+        .try_get_one::<String>(&format!("__global_header::{}", header.header))
+        .ok()
+        .flatten()
+        .is_some_and(|value| non_empty(value));
+    let from_env = header
+        .env
+        .as_deref()
+        .and_then(|name| std::env::var(name).ok())
+        .is_some_and(|value| non_empty(&value));
+    from_flag || from_env || header.default.is_some()
+}
+
 /// Build a `CliError::Validation` (exit code 3) from a single failed read's
 /// teaching error, so scripts and agents get a meaningful exit code and an
 /// actionable hint instead of having to inspect the JSON envelope.
@@ -223,13 +369,18 @@ fn with_offset(asset_id: &str, offset: u64) -> String {
     format!("{base}?{}", params.join("&"))
 }
 
+/// The `POST /api/v0/tools/asset/read` request body.
+fn read_body(asset_ids: &[String], password: Option<&str>) -> serde_json::Value {
+    serde_json::json!({ "asset_ids": asset_ids, "password": password })
+}
+
 fn read_once(
     ctx: &AppContext,
     asset_ids: &[String],
     password: &Option<String>,
 ) -> Result<AssetReadResponse, CliError> {
     let client = super::sdk::client(ctx);
-    let body = serde_json::json!({ "asset_ids": asset_ids, "password": password });
+    let body = read_body(asset_ids, password.as_deref());
     super::sdk::block_on(
         client
             .tools
@@ -238,7 +389,11 @@ fn read_once(
     )
 }
 
-fn handle_read_asset(args: ReadAssetArgs, ctx: &AppContext) -> Result<(), CliError> {
+fn handle_read_asset(
+    args: ReadAssetArgs,
+    matches: &clap::ArgMatches,
+    ctx: &AppContext,
+) -> Result<(), CliError> {
     if args.asset_ids.len() > MAX_BATCH {
         return Err(CliError::Validation(format!(
             "read-asset accepts at most {MAX_BATCH} asset ids per call ({} given).",
@@ -256,6 +411,19 @@ fn handle_read_asset(args: ReadAssetArgs, ctx: &AppContext) -> Result<(), CliErr
         return Err(CliError::Validation(
             "--page-limit must be at least 1.".to_string(),
         ));
+    }
+
+    if dry_run_requested(matches) {
+        // Only the first request is knowable in advance: --page-all's
+        // follow-ups carry offsets read from each response.
+        let password = args.password.as_ref().map(|_| REDACTED);
+        print_json(&dry_run_preview(
+            Method::POST,
+            request_url(&sdk_base_url(), ctx.base_url_override(), READ_PATH),
+            redacted_global_headers(matches, &ctx.spec().global_headers),
+            Some(read_body(&args.asset_ids, password)),
+        ));
+        return Ok(());
     }
 
     let mut response = read_once(ctx, &args.asset_ids, &args.password)?;
@@ -402,9 +570,19 @@ fn warn_if_truncated(response: &AssetReadResponse) {
 }
 
 fn handle_read_asset_capabilities(
-    _args: ReadAssetCapabilitiesArgs,
+    matches: &clap::ArgMatches,
     ctx: &AppContext,
 ) -> Result<(), CliError> {
+    if dry_run_requested(matches) {
+        print_json(&dry_run_preview(
+            Method::GET,
+            request_url(&sdk_base_url(), ctx.base_url_override(), CAPABILITIES_PATH),
+            redacted_global_headers(matches, &ctx.spec().global_headers),
+            None,
+        ));
+        return Ok(());
+    }
+
     let client = super::sdk::client(ctx);
     let response: AssetCapabilitiesResponse = super::sdk::block_on(
         client
@@ -426,11 +604,12 @@ fn handle_read_asset_capabilities(
 ///
 /// Called from `main.rs` during startup.
 pub fn register(app: CliApp) -> CliApp {
-    app.command_typed_with(
-        clap::Command::new("read-asset")
-            .about("Read assets with anchors, formats, pagination, and progressive disclosure")
-            .long_about(
-                "Read one or more Athena assets via the public read_asset API.\n\n\
+    app.command(
+        <ReadAssetArgs as clap::Args>::augment_args(
+            clap::Command::new("read-asset")
+                .about("Read assets with anchors, formats, pagination, and progressive disclosure")
+                .long_about(
+                    "Read one or more Athena assets via the public read_asset API.\n\n\
                  Each ASSET_ID may carry citation-style read options, e.g.\n\
                  'asset_xxx?anchor=page&page=3&format=text'. Versioned\n\
                  ('asset_xxx@version') and live ('asset_xxx_providerId') ids are\n\
@@ -438,14 +617,27 @@ pub fn register(app: CliApp) -> CliApp {
                  asset type's read capabilities; a failed read returns a structured\n\
                  teaching error. Run 'read-asset-capabilities' to see what every\n\
                  asset type supports.",
-            ),
-        handle_read_asset,
+                ),
+        ),
+        Box::new(|matches, ctx| {
+            let args = <ReadAssetArgs as clap::FromArgMatches>::from_arg_matches(matches)
+                .map_err(|e| CliError::Validation(e.to_string()))?;
+            let ctx = ctx
+                .downcast_ref::<AppContext>()
+                .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
+            handle_read_asset(args, matches, ctx)
+        }),
     )
-    .command_typed_with(
+    .command(
         clap::Command::new("read-asset-capabilities").about(
             "List read_asset capabilities (formats, anchors, pagination) for every asset type",
         ),
-        handle_read_asset_capabilities,
+        Box::new(|matches, ctx| {
+            let ctx = ctx
+                .downcast_ref::<AppContext>()
+                .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
+            handle_read_asset_capabilities(matches, ctx)
+        }),
     )
     .command_under(
         &["assets"],
@@ -512,6 +704,7 @@ pub fn register(app: CliApp) -> CliApp {
                     .help("Directory to save downloaded artifacts into"),
             ),
         Box::new(|matches, ctx| {
+            refuse_dry_run(matches, "athena meetings browse")?;
             let ctx = ctx
                 .downcast_ref::<AppContext>()
                 .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
@@ -553,6 +746,7 @@ pub fn register(app: CliApp) -> CliApp {
                     .help("Directory to save downloaded exports into"),
             ),
         Box::new(|matches, ctx| {
+            refuse_dry_run(matches, "athena sessions browse")?;
             let ctx = ctx
                 .downcast_ref::<AppContext>()
                 .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
@@ -562,6 +756,7 @@ pub fn register(app: CliApp) -> CliApp {
     .command(
         build_login_command(),
         Box::new(|matches, ctx| {
+            refuse_dry_run(matches, "athena login")?;
             let ctx = ctx
                 .downcast_ref::<AppContext>()
                 .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
@@ -570,11 +765,15 @@ pub fn register(app: CliApp) -> CliApp {
     )
     .command(
         build_logout_command(),
-        Box::new(|_matches, _ctx| handle_logout()),
+        Box::new(|matches, _ctx| {
+            refuse_dry_run(matches, "athena logout")?;
+            handle_logout()
+        }),
     )
     .command(
         build_ssh_command(),
         Box::new(|matches, ctx| {
+            refuse_dry_run(matches, "athena ssh")?;
             let ctx = ctx
                 .downcast_ref::<AppContext>()
                 .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
@@ -974,7 +1173,17 @@ fn download_asset_file(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(
     let output = matches.get_one::<String>("output").cloned();
 
     let root = ctx.spec().root_url.trim_end_matches('/').to_string();
-    let url = format!("{root}/api/v0/assets/{asset_id}/download");
+    let path = format!("api/v0/assets/{asset_id}/download");
+    if dry_run_requested(matches) {
+        print_json(&dry_run_preview(
+            Method::GET,
+            request_url(&root, ctx.base_url_override(), &path),
+            redacted_global_headers(matches, &ctx.spec().global_headers),
+            None,
+        ));
+        return Ok(());
+    }
+    let url = format!("{root}/{path}");
     let executor = ctx.build_sdk_executor();
 
     tokio::task::block_in_place(|| {
@@ -3294,6 +3503,273 @@ fn _assert_context_downcast(ctx: &dyn Any) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── --dry-run ─────────────────────────────────────────────────────────
+
+    /// The CLI as `main.rs` builds it, custom commands included.
+    fn cli_app() -> CliApp {
+        use fern_cli_sdk::auth::{ApiKeyAuth, AuthCredentialSource};
+        use fern_cli_sdk::openapi::OpenApiBinding;
+
+        register(
+            CliApp::new("athena")
+                .auth(
+                    ApiKeyAuth::new("APIKeyHeader").source(AuthCredentialSource::any(vec![
+                        AuthCredentialSource::cli("api-key"),
+                        AuthCredentialSource::from_env("ATHENA_API_KEY"),
+                    ])),
+                )
+                .binding(OpenApiBinding::new().spec(include_str!("openapi0.json"))),
+        )
+    }
+
+    type Seen = std::sync::Arc<std::sync::Mutex<Vec<String>>>;
+
+    /// A local HTTP server that records each request line and answers
+    /// `200 {"results":[]}`, so a test can see exactly what a command sent.
+    fn recording_server() -> (String, Seen) {
+        use std::io::{BufRead, BufReader, Read};
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let base = format!("http://{}", listener.local_addr().expect("addr"));
+        let seen: Seen = Default::default();
+        let recorder = std::sync::Arc::clone(&seen);
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { return };
+                let Ok(clone) = stream.try_clone() else {
+                    return;
+                };
+                let mut reader = BufReader::new(clone);
+                let mut request_line = String::new();
+                if reader.read_line(&mut request_line).unwrap_or(0) == 0 {
+                    continue;
+                }
+                let mut content_length = 0usize;
+                loop {
+                    let mut line = String::new();
+                    if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+                        break;
+                    }
+                    if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                        content_length = value.trim().parse().unwrap_or(0);
+                    }
+                }
+                let mut body = vec![0u8; content_length];
+                let _ = reader.read_exact(&mut body);
+                recorder
+                    .lock()
+                    .expect("recorder")
+                    .push(request_line.trim().to_string());
+                let payload = r#"{"results":[]}"#;
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\
+                     Content-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                    payload.len()
+                );
+            }
+        });
+        (base, seen)
+    }
+
+    fn run(args: &[&str]) -> i32 {
+        cli_app().try_run_from(args.iter().copied())
+    }
+
+    #[test]
+    fn read_asset_dry_run_sends_nothing() {
+        let (base, seen) = recording_server();
+        let code = run(&[
+            "athena",
+            "read-asset",
+            "asset_x?anchor=page&page=2",
+            "--password",
+            "hunter2",
+            "--page-all",
+            "--dry-run",
+            "--base-url",
+            &base,
+            "--api-key",
+            "test-key",
+        ]);
+        assert_eq!(code, 0);
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "--dry-run sent {:?}",
+            seen.lock().unwrap()
+        );
+    }
+
+    /// The control for the test above: without `--dry-run` the same harness
+    /// sees the request, so an empty recording really means nothing was sent.
+    #[test]
+    fn read_asset_without_dry_run_reaches_the_server() {
+        let (base, seen) = recording_server();
+        let code = run(&[
+            "athena",
+            "read-asset",
+            "asset_x",
+            "--base-url",
+            &base,
+            "--api-key",
+            "test-key",
+        ]);
+        assert_eq!(code, 0);
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 1, "{seen:?}");
+        assert!(
+            seen[0].starts_with("POST /api/v0/tools/asset/read "),
+            "{seen:?}"
+        );
+    }
+
+    #[test]
+    fn capabilities_and_download_dry_runs_send_nothing() {
+        let (base, seen) = recording_server();
+        let capabilities = run(&[
+            "athena",
+            "read-asset-capabilities",
+            "--dry-run",
+            "--base-url",
+            &base,
+            "--api-key",
+            "test-key",
+        ]);
+        let download = run(&[
+            "athena",
+            "assets",
+            "download",
+            "asset_x",
+            "--output",
+            "-",
+            "--dry-run",
+            "--base-url",
+            &base,
+            "--api-key",
+            "test-key",
+        ]);
+        assert_eq!((capabilities, download), (0, 0));
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "{:?}",
+            seen.lock().unwrap()
+        );
+    }
+
+    #[test]
+    fn commands_without_a_single_request_refuse_dry_run() {
+        let (base, seen) = recording_server();
+        let code = run(&[
+            "athena",
+            "ssh",
+            "token",
+            "asset_x",
+            "--dry-run",
+            "--base-url",
+            &base,
+            "--api-key",
+            "test-key",
+        ]);
+        assert_ne!(code, 0);
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "{:?}",
+            seen.lock().unwrap()
+        );
+    }
+
+    #[test]
+    fn request_url_joins_root_and_path_without_an_override() {
+        assert_eq!(
+            request_url("https://api.athenaintel.com/", None, READ_PATH),
+            "https://api.athenaintel.com/api/v0/tools/asset/read"
+        );
+    }
+
+    #[test]
+    fn request_url_applies_the_override_like_the_executor() {
+        assert_eq!(
+            request_url(
+                "https://api.athenaintel.com",
+                Some("http://127.0.0.1:8080"),
+                READ_PATH
+            ),
+            "http://127.0.0.1:8080/api/v0/tools/asset/read"
+        );
+        assert_eq!(
+            request_url(
+                "https://api.athenaintel.com",
+                Some("https://proxy.example/athena/"),
+                CAPABILITIES_PATH
+            ),
+            "https://proxy.example/athena/api/v0/tools/asset/capabilities"
+        );
+    }
+
+    #[test]
+    fn dry_run_preview_has_the_generated_commands_shape() {
+        let with_body = dry_run_preview(
+            Method::POST,
+            "https://api.athenaintel.com/api/v0/tools/asset/read".to_string(),
+            Vec::new(),
+            Some(read_body(&["asset_x".to_string()], Some(REDACTED))),
+        );
+        let keys: Vec<&str> = with_body
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "body",
+                "content_type",
+                "dry_run",
+                "headers",
+                "is_multipart_upload",
+                "method",
+                "query_params",
+                "url"
+            ]
+        );
+        assert_eq!(with_body["method"], "POST");
+        assert_eq!(with_body["body"]["password"], REDACTED);
+        let without_body = dry_run_preview(
+            Method::GET,
+            "https://api.athenaintel.com/api/v0/tools/asset/capabilities".to_string(),
+            Vec::new(),
+            None,
+        );
+        assert!(without_body.get("content_type").is_none());
+        assert!(without_body["body"].is_null());
+    }
+
+    #[test]
+    fn global_header_values_are_never_printed() {
+        let session = GlobalHeader {
+            header: "X-Athena-Session-Credential".to_string(),
+            ..Default::default()
+        };
+        let command = clap::Command::new("athena").arg(
+            clap::Arg::new("__global_header::X-Athena-Session-Credential")
+                .long("session-credential"),
+        );
+        let with_credential =
+            command
+                .clone()
+                .get_matches_from(["athena", "--session-credential", "athsess_secret"]);
+        assert_eq!(
+            redacted_global_headers(&with_credential, std::slice::from_ref(&session)),
+            vec![(
+                "X-Athena-Session-Credential".to_string(),
+                REDACTED.to_string()
+            )]
+        );
+        let without = command.get_matches_from(["athena"]);
+        assert!(redacted_global_headers(&without, std::slice::from_ref(&session)).is_empty());
+    }
 
     #[test]
     fn content_disposition_plain_filename() {
