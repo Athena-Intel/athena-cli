@@ -8,7 +8,7 @@ pub struct ConversationAssetInfo {
     /// Agent configuration used in conversation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
-    /// Complete athena metadata for the conversation asset
+    /// Athena metadata for the conversation asset. Stored credentials are masked and last_read_at holds only the caller's own read receipt.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub athena_metadata: Option<HashMap<String, serde_json::Value>>,
     /// ID of the conversation asset
