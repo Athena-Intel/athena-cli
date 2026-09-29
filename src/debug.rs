@@ -43,6 +43,9 @@ const REDACTED_HEADERS: &[&str] = &[
     "x-xsrf-token",
     "x-session-token",
     "x-access-token",
+    // Re-applied by athena-fern-config/.github/workflows/regenerate-cli.yml —
+    // the sandbox session credential, a spec global header, not an auth scheme.
+    "x-athena-session-credential",
 ];
 
 // Note: The previous `BODY_SENSITIVE_KEYS` exact-match array has been replaced
