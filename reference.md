@@ -591,7 +591,7 @@ The surface, sender and agent cards that open every context (R2).
 
 #### `athena capabilities get-contract` `[BETA]`
 
-The committed, normalized snapshot of what every asset type broadcasts.
+The normalized contract of what every asset type broadcasts, from the live registry.
 
 `GET /api/v0/capabilities/contract`
 

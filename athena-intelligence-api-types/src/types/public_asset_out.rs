@@ -8,7 +8,7 @@ pub struct PublicAssetOut {
     /// File type after Athena processing/conversion (e.g., 'txt', 'pdf', 'md')
     #[serde(default)]
     pub athena_converted_type: String,
-    /// Internal metadata used by Athena system (e.g., {'source': 'kb', 'topic': 'insights'})
+    /// Internal metadata used by Athena system (e.g., {'source': 'kb', 'topic': 'insights'}). Never carries a stored credential: connection-string passwords are masked as '****' and secret keys are removed; last_read_at holds only the caller's own read receipt.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub athena_metadata: Option<HashMap<String, serde_json::Value>>,
     /// Original asset type from AssetType enum (e.g., 'document', 'presentation', 'spreadsheet')

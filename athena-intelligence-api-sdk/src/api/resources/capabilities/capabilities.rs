@@ -199,7 +199,7 @@ impl CapabilitiesClient {
             .await
     }
 
-    /// The committed, normalized snapshot of what every asset type broadcasts.
+    /// The normalized contract of what every asset type broadcasts, from the live registry.
     ///
     /// # Arguments
     ///
