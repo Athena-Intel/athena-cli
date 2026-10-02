@@ -11,6 +11,9 @@ pub struct SshAccessInfoOut {
     /// SSH gateway hostname for this environment.
     #[serde(default)]
     pub host: String,
+    /// Whether this environment's SSH gateway accepts registered-key logins. When false, `command` is refused at the gateway; connect with a temporary token from `create_ssh_access` instead.
+    #[serde(default)]
+    pub key_auth_enabled: bool,
     /// SSH gateway port.
     #[serde(default)]
     pub port: i64,
@@ -33,6 +36,7 @@ impl SshAccessInfoOut {
 pub struct SshAccessInfoOutBuilder {
     command: Option<String>,
     host: Option<String>,
+    key_auth_enabled: Option<bool>,
     port: Option<i64>,
     token_expiry_minutes_options: Option<Vec<i64>>,
     username: Option<String>,
@@ -46,6 +50,11 @@ impl SshAccessInfoOutBuilder {
 
     pub fn host(mut self, value: impl Into<String>) -> Self {
         self.host = Some(value.into());
+        self
+    }
+
+    pub fn key_auth_enabled(mut self, value: bool) -> Self {
+        self.key_auth_enabled = Some(value);
         self
     }
 
@@ -68,6 +77,7 @@ impl SshAccessInfoOutBuilder {
     /// This method will fail if any of the following fields are not set:
     /// - [`command`](SshAccessInfoOutBuilder::command)
     /// - [`host`](SshAccessInfoOutBuilder::host)
+    /// - [`key_auth_enabled`](SshAccessInfoOutBuilder::key_auth_enabled)
     /// - [`port`](SshAccessInfoOutBuilder::port)
     /// - [`token_expiry_minutes_options`](SshAccessInfoOutBuilder::token_expiry_minutes_options)
     /// - [`username`](SshAccessInfoOutBuilder::username)
@@ -75,6 +85,7 @@ impl SshAccessInfoOutBuilder {
         Ok(SshAccessInfoOut {
             command: self.command.ok_or_else(|| BuildError::missing_field("command"))?,
             host: self.host.ok_or_else(|| BuildError::missing_field("host"))?,
+            key_auth_enabled: self.key_auth_enabled.ok_or_else(|| BuildError::missing_field("key_auth_enabled"))?,
             port: self.port.ok_or_else(|| BuildError::missing_field("port"))?,
             token_expiry_minutes_options: self.token_expiry_minutes_options.ok_or_else(|| BuildError::missing_field("token_expiry_minutes_options"))?,
             username: self.username.ok_or_else(|| BuildError::missing_field("username"))?,

@@ -20,7 +20,7 @@ pub struct EmailDraftResponseOut {
     /// Provider message id backing the draft. Gmail accounts only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message_id: Option<String>,
-    /// Account provider as Athena reports it: `gmail` or `outlook` for accounts connected through the Integrations page; `google` or `microsoft365` for directly-connected accounts (read-only for drafts).
+    /// Account provider as Athena reports it: `gmail` or `outlook` for accounts connected through the Integrations page; `google` or `microsoft365` for directly-connected accounts.
     #[serde(default)]
     pub provider: String,
     /// The message this draft replies to, when it is a reply.

@@ -4,13 +4,13 @@ use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
 pub struct DuplicateAssetRequestIn {
-    /// Optional destination folder for the duplicated asset
+    /// Optional destination folder for the duplicated asset. The copy is created inside the folder and inherits its sharing. The caller needs edit access to the folder, which must be in the destination workspace.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_folder_id: Option<String>,
     /// ID of the asset to duplicate
     #[serde(default)]
     pub source_asset_id: String,
-    /// Workspace to create the duplicate in. If omitted, the source asset's workspace is used.
+    /// Workspace to create the duplicate in. If omitted, the parent folder's workspace is used when parent_folder_id is provided; otherwise the source asset's workspace is used. The caller must be a member of the destination workspace.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<String>,
 }

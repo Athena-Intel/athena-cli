@@ -5,7 +5,7 @@
 //!
 //! ## Type Categories
 //!
-//! - **Request/Response Types**: 242 types for API operations
+//! - **Request/Response Types**: 243 types for API operations
 //! - **Model Types**: 141 types for data representation
 
 pub mod assets_collab_token_request_access;
@@ -165,7 +165,6 @@ pub mod general_agent_response_message_kwargs;
 pub mod generated_automation_out;
 pub mod get_table_response;
 pub mod grid_range;
-pub mod image_url_content;
 pub mod incident_detail_out;
 pub mod incident_event_out;
 pub mod incident_out;
@@ -178,6 +177,7 @@ pub mod input_message;
 pub mod invoke_tool_response_out;
 pub mod list_toolkits_response_out;
 pub mod list_tools_response_out;
+pub mod me_email_preferences_response_out;
 pub mod me_share_point_provisioning_out;
 pub mod me_sources_response_out;
 pub mod meeting_artifacts_out;
@@ -235,6 +235,8 @@ pub mod sheet_operation_response;
 pub mod snapshot_import_progress;
 pub mod ssh_access_info_out;
 pub mod ssh_access_response_out;
+pub mod ssh_access_token_list_out;
+pub mod ssh_access_token_out;
 pub mod ssh_key_list_response_out;
 pub mod ssh_key_out;
 pub mod standing_grant_in;
@@ -246,7 +248,6 @@ pub mod system_edge_out;
 pub mod system_node_out;
 pub mod system_version_out;
 pub mod table_row_data;
-pub mod text_content;
 pub mod text_format_model_baseline_offset;
 pub mod text_format_model;
 pub mod theme_color;
@@ -549,7 +550,6 @@ pub use general_agent_response_message_kwargs::GeneralAgentResponseMessageKwargs
 pub use generated_automation_out::GeneratedAutomationOut;
 pub use get_table_response::GetTableResponse;
 pub use grid_range::GridRange;
-pub use image_url_content::ImageUrlContent;
 pub use incident_detail_out::IncidentDetailOut;
 pub use incident_event_out::IncidentEventOut;
 pub use incident_out::IncidentOut;
@@ -562,6 +562,7 @@ pub use input_message::InputMessage;
 pub use invoke_tool_response_out::InvokeToolResponseOut;
 pub use list_toolkits_response_out::ListToolkitsResponseOut;
 pub use list_tools_response_out::ListToolsResponseOut;
+pub use me_email_preferences_response_out::MeEmailPreferencesResponseOut;
 pub use me_share_point_provisioning_out::MeSharePointProvisioningOut;
 pub use me_sources_response_out::MeSourcesResponseOut;
 pub use meeting_artifacts_out::MeetingArtifactsOut;
@@ -619,6 +620,8 @@ pub use sheet_operation_response::SheetOperationResponse;
 pub use snapshot_import_progress::SnapshotImportProgress;
 pub use ssh_access_info_out::SshAccessInfoOut;
 pub use ssh_access_response_out::SshAccessResponseOut;
+pub use ssh_access_token_list_out::SshAccessTokenListOut;
+pub use ssh_access_token_out::SshAccessTokenOut;
 pub use ssh_key_list_response_out::SshKeyListResponseOut;
 pub use ssh_key_out::SshKeyOut;
 pub use standing_grant_in::StandingGrantIn;
@@ -630,7 +633,6 @@ pub use system_edge_out::SystemEdgeOut;
 pub use system_node_out::SystemNodeOut;
 pub use system_version_out::SystemVersionOut;
 pub use table_row_data::TableRowData;
-pub use text_content::TextContent;
 pub use text_format_model_baseline_offset::TextFormatModelBaselineOffset;
 pub use text_format_model::TextFormatModel;
 pub use theme_color::ThemeColor;
