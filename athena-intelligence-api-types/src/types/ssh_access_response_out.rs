@@ -17,6 +17,9 @@ pub struct SshAccessResponseOut {
     /// SSH access token used for authentication
     #[serde(default)]
     pub token: String,
+    /// Id of the minted token in `list_ssh_access_tokens`; pass it to `revoke_ssh_access_token` to revoke it without the raw token.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_id: Option<String>,
 }
 
 impl SshAccessResponseOut {
@@ -32,6 +35,7 @@ pub struct SshAccessResponseOutBuilder {
     expires_in_minutes: Option<i64>,
     proxy_command: Option<String>,
     token: Option<String>,
+    token_id: Option<String>,
 }
 
 impl SshAccessResponseOutBuilder {
@@ -55,6 +59,11 @@ impl SshAccessResponseOutBuilder {
         self
     }
 
+    pub fn token_id(mut self, value: impl Into<String>) -> Self {
+        self.token_id = Some(value.into());
+        self
+    }
+
     /// Consumes the builder and constructs a [`SshAccessResponseOut`].
     /// This method will fail if any of the following fields are not set:
     /// - [`command`](SshAccessResponseOutBuilder::command)
@@ -66,6 +75,7 @@ impl SshAccessResponseOutBuilder {
             expires_in_minutes: self.expires_in_minutes.ok_or_else(|| BuildError::missing_field("expires_in_minutes"))?,
             proxy_command: self.proxy_command,
             token: self.token.ok_or_else(|| BuildError::missing_field("token"))?,
+            token_id: self.token_id,
         })
     }
 }

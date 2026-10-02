@@ -20,7 +20,7 @@ pub struct EmailSearchResponseOut {
     /// Human-readable caveats about the results, when there are any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
-    /// Account provider as Athena reports it: `gmail` or `outlook` for accounts connected through the Integrations page; `google` or `microsoft365` for directly-connected accounts (read-only for drafts).
+    /// Account provider as Athena reports it: `gmail` or `outlook` for accounts connected through the Integrations page; `google` or `microsoft365` for directly-connected accounts.
     #[serde(default)]
     pub provider: String,
     /// The query as executed.

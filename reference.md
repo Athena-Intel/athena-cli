@@ -244,7 +244,7 @@ Convert an uploaded Excel (.xlsx) asset into a new, editable Athena sheet asset 
 
 #### `athena assets create` `[BETA]`
 
-Create a new asset such as a spreadsheet, document, folder, database, computer, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. In capability enforce mode, computer creation requires computer.create and returns 403 when denied.
+Create a new asset such as a spreadsheet, document, folder, database, computer, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied.
 
 `POST /api/v0/assets/create`
 
@@ -699,9 +699,19 @@ Read the existing computer's durable initialization progress after creation. Req
 
 #### `athena computer get-ssh-access` `[BETA]`
 
-Return the SSH gateway host, port, username, and ready-made command for connecting to a computer with a registered SSH public key (see `add_ssh_key`). The username is the computer's asset id; the gateway authorizes the connection against your current edit permission on the computer and starts it if it is stopped. Unlike `create_ssh_access`, this mints nothing and never wakes the computer. Returns 409 when the computer's provider does not support SSH.
+Return the SSH gateway host, port, username, and ready-made command for connecting to a computer with a registered SSH public key (see `add_ssh_key`). The username is the computer's asset id; the gateway authorizes the connection against your current edit permission on the computer and starts it if it is stopped. Unlike `create_ssh_access`, this mints nothing and never wakes the computer. `key_auth_enabled` is false where the environment's gateway accepts tokens only. Returns 409 when the computer's provider does not support SSH.
 
 `GET /api/v0/computer/{asset_id}/ssh-access`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+
+#### `athena computer list-ssh-access-tokens` `[BETA]`
+
+List the unrevoked temporary SSH tokens YOU minted for this computer with `create_ssh_access` — each with its id, the token's last 4 characters, and its creation and expiry times. Tokens that expired in the last 15 minutes are included with `expired: true`, because a session opened before expiry can outlive it briefly. The token itself is never returned again after it is minted, and tokens other users minted are not listed. Requires edit access to the computer. Tokens minted before this listing existed are not listed; they expire on their own.
+
+`GET /api/v0/computer/{asset_id}/ssh-access/tokens`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
@@ -717,6 +727,17 @@ Revoke a previously issued SSH access token for a computer asset. Use the token 
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena computer revoke-ssh-access-token` `[BETA]`
+
+Revoke a temporary SSH token you minted for this computer, by the id `list_ssh_access_tokens` returns. The token stops admitting connections and every open SSH session using it is disconnected. An expired token can still be revoked, which ends a session that outlived its expiry. Returns 404 for an id that is not one of your unrevoked tokens on this computer. Requires edit access to the computer.
+
+`DELETE /api/v0/computer/{asset_id}/ssh-access/tokens/{token_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--token-id` | `string` | Yes |  |
 
 #### `athena computer start-computer` `[BETA]`
 
@@ -2024,6 +2045,12 @@ List the SSH public keys registered on the caller's Athena account. A registered
 Returns basic information about the authenticated user including name, email, workspace details, and all workspaces the user has access to.
 
 `GET /api/v0/me`
+
+#### `athena users me-email-preferences` `[BETA]`
+
+The caller's email preferences for agent-sent mail in their current workspace: the domains and specific addresses they have approved as recipients, plus their custom drafting instruction. Built for computer-asset apps that compose or send email on the user's behalf, so they apply the same recipient policy the chat email tools enforce — a recipient is approved when its full address is in `approved_emails` or its domain is in `approved_domains` (both compared case-insensitively). Read-only: the policy is edited from Settings → Email & Meetings (`manage_url`).
+
+`GET /api/v0/me/email-preferences`
 
 #### `athena users me-sources` `[BETA]`
 
