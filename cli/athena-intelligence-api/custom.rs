@@ -3771,6 +3771,51 @@ mod tests {
         assert!(redacted_global_headers(&without, std::slice::from_ref(&session)).is_empty());
     }
 
+    /// The generated commands' `--dry-run` used to print every header
+    /// verbatim, the session credential included. `src/` is regenerated and
+    /// athena-fern-config's regenerate-cli.yml re-applies the redaction, so
+    /// this test lives here, where it survives regeneration: a generator
+    /// change that defeats the overlay fails the regeneration PR.
+    #[test]
+    fn generated_dry_run_redacts_the_session_credential() {
+        let (base, seen) = recording_server();
+        let mut out = Vec::new();
+        let code = cli_app().try_run_from_with_output(
+            [
+                "athena",
+                "--format",
+                "json",
+                "tools",
+                "invoke",
+                "--tool-id",
+                "read_asset",
+                "--arguments",
+                r#"{"asset_ids":["asset_x"]}"#,
+                "--session-credential",
+                "athsess_test",
+                "--dry-run",
+                "--base-url",
+                &base,
+                "--api-key",
+                "test-key",
+            ],
+            &mut out,
+        );
+        let printed = String::from_utf8(out).expect("utf-8 output");
+        assert_eq!(code, 0, "{printed}");
+        assert!(!printed.contains("athsess_test"), "{printed}");
+        let preview: serde_json::Value = serde_json::from_str(&printed).expect("JSON preview");
+        assert_eq!(
+            preview["headers"],
+            serde_json::json!([["X-Athena-Session-Credential", REDACTED]])
+        );
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "{:?}",
+            seen.lock().unwrap()
+        );
+    }
+
     #[test]
     fn content_disposition_plain_filename() {
         assert_eq!(
