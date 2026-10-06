@@ -59,7 +59,7 @@ impl CapabilitiesClient {
     ///
     /// * `asset_id` - The asset id.
     /// * `agent` - Whose broadcast: none (default), default, a managed agent id, collab_agent:<asset_id>, or toolkits:a,b to simulate an agent.
-    /// * `surface` - Surface key: spaces (default), slack, sms, email, voice, api, cli, ...
+    /// * `surface` - Surface key: cli (default; these routes' client), api, spaces, slack, sms, email, voice, ...
     /// * `policies` - Simulated policies to overlay.
     /// * `include_blocked` - List blocked action names instead of a count.
     /// * `resolve_anchors` - Read real sheet and slide ids into the cite block.
@@ -98,7 +98,7 @@ impl CapabilitiesClient {
     /// * `asset_id` - The asset id.
     /// * `action` - Action name.
     /// * `agent` - Whose broadcast: none (default), default, a managed agent id, collab_agent:<asset_id>, or toolkits:a,b to simulate an agent.
-    /// * `surface` - Surface key: spaces (default), slack, sms, email, voice, api, cli, ...
+    /// * `surface` - Surface key: cli (default; these routes' client), api, spaces, slack, sms, email, voice, ...
     /// * `policies` - Simulated policies to overlay.
     /// * `card_version` - The manifest_version of the card the caller acted from.
     /// * `options` - Additional request options such as headers, timeout, etc.
@@ -137,7 +137,7 @@ impl CapabilitiesClient {
     /// * `action` - Action name.
     /// * `event` - Event name.
     /// * `agent` - Whose broadcast: none (default), default, a managed agent id, collab_agent:<asset_id>, or toolkits:a,b to simulate an agent.
-    /// * `surface` - Surface key: spaces (default), slack, sms, email, voice, api, cli, ...
+    /// * `surface` - Surface key: cli (default; these routes' client), api, spaces, slack, sms, email, voice, ...
     /// * `policies` - Simulated policies to overlay.
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
@@ -167,12 +167,42 @@ impl CapabilitiesClient {
             .await
     }
 
+    /// Take one action the way its can-result names: re-check the card version (R17), check the action, and run it only when it is allowed through a tool, by the same admission as tools invoke. Blocked, needs_approval and capability_changed answers run nothing.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - The asset id.
+    /// * `surface` - cli (default) or api: do runs tools through the API tool surface, so the check is made for one of the surfaces it serves.
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn do_action(
+        &self,
+        asset_id: &str,
+        request: &CapabilityDoRequestIn,
+        options: Option<RequestOptions>,
+    ) -> Result<CapabilityDoResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!("api/v0/capabilities/assets/{}/do", asset_id),
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                QueryBuilder::new()
+                    .string("surface", request.surface.clone())
+                    .build(),
+                options,
+            )
+            .await
+    }
+
     /// The surface, sender and agent cards that open every context (R2).
     ///
     /// # Arguments
     ///
     /// * `agent` - Whose broadcast: none (default), default, a managed agent id, collab_agent:<asset_id>, or toolkits:a,b to simulate an agent.
-    /// * `surface` - Surface key: spaces (default), slack, sms, email, voice, api, cli, ...
+    /// * `surface` - Surface key: cli (default; these routes' client), api, spaces, slack, sms, email, voice, ...
     /// * `policies` - Simulated policies to overlay.
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
@@ -253,7 +283,7 @@ impl CapabilitiesClient {
     ///
     /// * `asset_type` - Asset type value.
     /// * `agent` - Whose broadcast: none (default), default, a managed agent id, collab_agent:<asset_id>, or toolkits:a,b to simulate an agent.
-    /// * `surface` - Surface key: spaces (default), slack, sms, email, voice, api, cli, ...
+    /// * `surface` - Surface key: cli (default; these routes' client), api, spaces, slack, sms, email, voice, ...
     /// * `policies` - Simulated policies to overlay.
     /// * `assumed_access` - Simulated sender access: view, edit, owner or staff.
     /// * `options` - Additional request options such as headers, timeout, etc.

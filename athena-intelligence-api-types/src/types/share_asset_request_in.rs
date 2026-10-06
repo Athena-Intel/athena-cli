@@ -10,7 +10,7 @@ pub struct ShareAssetRequestIn {
     /// Optional personal message to include in the notification email (max 2000 characters)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
-    /// Whether to send email notifications to recipients
+    /// Whether to notify recipients (email, plus a Slack DM when their workspace has Athena for Slack)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notify: Option<bool>,
     /// List of users to share the asset with. Each entry specifies an email address and the permission level to grant.

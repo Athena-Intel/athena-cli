@@ -64,7 +64,7 @@ impl ComputerClient {
             .await
     }
 
-    /// Return the SSH gateway host, port, username, and ready-made command for connecting to a computer with a registered SSH public key (see `add_ssh_key`). The username is the computer's asset id; the gateway authorizes the connection against your current edit permission on the computer and starts it if it is stopped. Unlike `create_ssh_access`, this mints nothing and never wakes the computer. Returns 409 when the computer's provider does not support SSH.
+    /// Return the SSH gateway host, port, username, and ready-made command for connecting to a computer with a registered SSH public key (see `add_ssh_key`). The username is the computer's asset id; the gateway authorizes the connection against your current edit permission on the computer and starts it if it is stopped. Unlike `create_ssh_access`, this mints nothing and never wakes the computer. `key_auth_enabled` is false where the environment's gateway accepts tokens only. Returns 409 when the computer's provider does not support SSH.
     ///
     /// # Arguments
     ///
@@ -135,6 +135,60 @@ impl ComputerClient {
                 Method::DELETE,
                 &format!("api/v0/computer/{}/ssh-access", asset_id),
                 Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// List the unrevoked temporary SSH tokens YOU minted for this computer with `create_ssh_access` — each with its id, the token's last 4 characters, and its creation and expiry times. Tokens that expired in the last 15 minutes are included with `expired: true`, because a session opened before expiry can outlive it briefly. The token itself is never returned again after it is minted, and tokens other users minted are not listed. Requires edit access to the computer. Tokens minted before this listing existed are not listed; they expire on their own.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn list_ssh_access_tokens(
+        &self,
+        asset_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<SshAccessTokenListOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                &format!("api/v0/computer/{}/ssh-access/tokens", asset_id),
+                None,
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Revoke a temporary SSH token you minted for this computer, by the id `list_ssh_access_tokens` returns. The token stops admitting connections and every open SSH session using it is disconnected. An expired token can still be revoked, which ends a session that outlived its expiry. Returns 404 for an id that is not one of your unrevoked tokens on this computer. Requires edit access to the computer.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn revoke_ssh_access_token(
+        &self,
+        asset_id: &str,
+        token_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<RevokeSshAccessResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::DELETE,
+                &format!(
+                    "api/v0/computer/{}/ssh-access/tokens/{}",
+                    asset_id, token_id
+                ),
+                None,
                 None,
                 options,
             )

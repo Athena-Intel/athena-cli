@@ -20,7 +20,7 @@ pub struct Sheet {
     pub frozen_row_count: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hidden: Option<bool>,
-    /// The order of the new sheet
+    /// 0-based tab position of the new sheet (0 = first tab)
     #[serde(default)]
     pub index: i64,
     /// List of merged cell ranges in the sheet. Each merge combines multiple cells into a single cell. The top-left cell (startRowIndex, startColumnIndex) becomes the anchor cell that displays the content. Example: To merge cells A1:C3, use GridRange(startRowIndex=1, endRowIndex=3, startColumnIndex=1, endColumnIndex=3). Defaults to empty list (no merged cells).

@@ -11,7 +11,7 @@ pub struct CanQueryRequest {
     /// Whose broadcast: none (default), default, a managed agent id, collab_agent:<asset_id>, or toolkits:a,b to simulate an agent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
-    /// Surface key: spaces (default), slack, sms, email, voice, api, cli, ...
+    /// Surface key: cli (default; these routes' client), api, spaces, slack, sms, email, voice, ...
     #[serde(skip_serializing_if = "Option::is_none")]
     pub surface: Option<String>,
     /// Simulated policies to overlay.

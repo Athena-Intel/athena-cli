@@ -36,6 +36,9 @@ pub struct PublicAssetOut {
     /// MIME type or Athena-specific media type (e.g., 'text/plain', 'application/pdf', 'athena/document')
     #[serde(default)]
     pub media_type: String,
+    /// ID of the folder that directly contains this asset, or null when the asset is at the workspace root
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_folder_id: Option<String>,
     /// AI-generated summary of the asset content
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
@@ -79,6 +82,7 @@ pub struct PublicAssetOutBuilder {
     is_archived: Option<bool>,
     is_hidden: Option<bool>,
     media_type: Option<String>,
+    parent_folder_id: Option<String>,
     summary: Option<String>,
     summary_ready: Option<bool>,
     summary_status: Option<String>,
@@ -136,6 +140,11 @@ impl PublicAssetOutBuilder {
 
     pub fn media_type(mut self, value: impl Into<String>) -> Self {
         self.media_type = Some(value.into());
+        self
+    }
+
+    pub fn parent_folder_id(mut self, value: impl Into<String>) -> Self {
+        self.parent_folder_id = Some(value.into());
         self
     }
 
@@ -199,6 +208,7 @@ impl PublicAssetOutBuilder {
             is_archived: self.is_archived.ok_or_else(|| BuildError::missing_field("is_archived"))?,
             is_hidden: self.is_hidden.ok_or_else(|| BuildError::missing_field("is_hidden"))?,
             media_type: self.media_type.ok_or_else(|| BuildError::missing_field("media_type"))?,
+            parent_folder_id: self.parent_folder_id,
             summary: self.summary,
             summary_ready: self.summary_ready.ok_or_else(|| BuildError::missing_field("summary_ready"))?,
             summary_status: self.summary_status,
