@@ -1952,7 +1952,9 @@ pub async fn execute_method(
             "url": input.full_url,
             "method": method.http_method,
             "query_params": input.query_params,
-            "headers": input.header_params,
+            // Re-applied by athena-fern-config/.github/workflows/regenerate-cli.yml —
+            // credential values (the sandbox session credential) never reach dry-run output.
+            "headers": crate::debug::redact_dry_run_headers(&input.header_params, extra_headers),
             "body": input.body,
             "is_multipart_upload": input.is_upload,
         });

@@ -482,6 +482,42 @@ fn print_body_preview(line_prefix: &str, label: &str, body: &str) {
     }
 }
 
+// Re-applied by athena-fern-config/.github/workflows/regenerate-cli.yml — the
+// generated `--dry-run` output printed every request header verbatim, the
+// sandbox session credential included.
+
+/// Printed in place of a credential in `--dry-run` output, as the hand-written
+/// commands in `custom.rs` print it.
+const DRY_RUN_REDACTED: &str = "<redacted>";
+
+/// The request headers a `--dry-run` preview prints, with credentials replaced
+/// by [`DRY_RUN_REDACTED`].
+///
+/// A value is redacted when its header is a spec global header
+/// (`x-fern-global-headers`, passed as `global_headers`: the only one,
+/// `X-Athena-Session-Credential`, is a bearer credential) or one the debug dump
+/// always redacts (`REDACTED_HEADERS`: `Authorization`, `X-API-KEY`, the session
+/// credential, ...). Names are kept, so the preview still lists every header the
+/// request would carry.
+pub(crate) fn redact_dry_run_headers(
+    headers: &[(String, String)],
+    global_headers: &[(String, String)],
+) -> Vec<(String, String)> {
+    headers
+        .iter()
+        .map(|(name, value)| {
+            let global = global_headers
+                .iter()
+                .any(|(global_name, _)| global_name.eq_ignore_ascii_case(name));
+            if global || is_sensitive_header(name, &[]) {
+                (name.clone(), DRY_RUN_REDACTED.to_string())
+            } else {
+                (name.clone(), value.clone())
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
