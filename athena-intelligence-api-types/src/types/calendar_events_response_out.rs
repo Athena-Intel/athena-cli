@@ -11,7 +11,7 @@ pub struct CalendarEventsResponseOut {
     /// Number of events returned.
     #[serde(default)]
     pub count: i64,
-    /// Account provider as Athena reports it: `gmail` or `outlook` for accounts connected through the Integrations page; `google` or `microsoft365` for directly-connected accounts (read-only for drafts).
+    /// Account provider as Athena reports it: `gmail` or `outlook` for accounts connected through the Integrations page; `google` or `microsoft365` for directly-connected accounts.
     #[serde(default)]
     pub provider: String,
     /// Matching events in ascending start order.

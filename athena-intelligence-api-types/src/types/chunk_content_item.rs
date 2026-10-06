@@ -9,15 +9,15 @@ pub enum ChunkContentItem {
         #[serde(rename = "text")]
         #[non_exhaustive]
         Text {
-            #[serde(flatten)]
-            data: TextContent,
+            #[serde(default)]
+            text: String,
         },
 
         #[serde(rename = "image_url")]
         #[non_exhaustive]
         ImageUrl {
-            #[serde(flatten)]
-            data: ImageUrlContent,
+            #[serde(default)]
+            image_url: HashMap<String, String>,
         },
 
         /// Catch-all variant for unrecognized discriminant values.
@@ -28,12 +28,12 @@ pub enum ChunkContentItem {
 }
 
 impl ChunkContentItem {
-    pub fn text(data: TextContent) -> Self {
-        Self::Text { data }
+    pub fn text(text: String) -> Self {
+        Self::Text { text }
     }
 
-    pub fn image_url(data: ImageUrlContent) -> Self {
-        Self::ImageUrl { data }
+    pub fn image_url(image_url: HashMap<String, String>) -> Self {
+        Self::ImageUrl { image_url }
     }
 
     pub fn unknown(value: serde_json::Value) -> Self {

@@ -28,6 +28,30 @@ impl UsersClient {
             .await
     }
 
+    /// The caller's email preferences for agent-sent mail in their current workspace: the domains and specific addresses they have approved as recipients, plus their custom drafting instruction. Built for computer-asset apps that compose or send email on the user's behalf, so they apply the same recipient policy the chat email tools enforce — a recipient is approved when its full address is in `approved_emails` or its domain is in `approved_domains` (both compared case-insensitively). Read-only: the policy is edited from Settings → Email & Meetings (`manage_url`).
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn me_email_preferences(
+        &self,
+        options: Option<RequestOptions>,
+    ) -> Result<MeEmailPreferencesResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                "api/v0/me/email-preferences",
+                None,
+                None,
+                options,
+            )
+            .await
+    }
+
     /// Counts of the caller's connected Microsoft 365 sources (mail, files, sites, chats) plus live SharePoint provisioning progress. Built for computer-asset apps to render a 'setting up your sources' state right after a viewer's first sign-in, while the background fan-outs are still filling in SharePoint and Teams.
     ///
     /// # Arguments

@@ -43,6 +43,8 @@ pub enum ApiError {
     },
     #[error("ServiceUnavailableError: {message}")]
     ServiceUnavailableError { message: String },
+    #[error("GoneError: {message}")]
+    GoneError { message: String },
     #[error("TooManyRequestsError: Rate limit exceeded - {message}")]
     TooManyRequestsError {
         message: String,
@@ -263,6 +265,23 @@ impl ApiError {
                     }
                 }
                 return Self::ServiceUnavailableError {
+                    message: body.unwrap_or("Unknown error").to_string(),
+                };
+            }
+            410 => {
+                // Parse error body for GoneError;
+                if let Some(body_str) = body {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body_str) {
+                        return Self::GoneError {
+                            message: parsed
+                                .get("message")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown error")
+                                .to_string(),
+                        };
+                    }
+                }
+                return Self::GoneError {
                     message: body.unwrap_or("Unknown error").to_string(),
                 };
             }
