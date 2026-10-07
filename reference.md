@@ -307,7 +307,7 @@ Retrieve a single asset by its ID. Returns comprehensive metadata including crea
 
 #### `athena assets get-activity-delta` `[BETA]`
 
-Admin only. Report what changed between two Keryx clocks — for spreadsheets, the per-cell before/after values; for documents, the inserted and deleted text; for presentations, the affected slides. Take the clocks from the activity endpoint. Computed by the same differ the in-app Activity pane renders, so the payload matches what a user sees. Always inspect delta.coverage: caps and non-decodable bulk regions are reported there rather than silently omitted.
+Admin only. Report what changed between two Keryx clocks — for spreadsheets, the per-cell before/after values and row/column inserts and deletes (axis_changes); for documents, the inserted and deleted text; for presentations, the affected slides. Take the clocks from the activity endpoint. Computed by the same differ the in-app Activity pane renders, so the payload matches what a user sees. Always inspect delta.coverage: caps and non-decodable bulk regions are reported there rather than silently omitted.
 
 `GET /api/v0/assets/{asset_id}/activity/delta`
 
@@ -637,6 +637,31 @@ One page of an agent's tools, filterable by effect class, toolkit and text; tool
 | `--query` | `string` | No | Free-text filter. |
 | `--include-asset-scoped` | `boolean` | No | Include tools tied to one asset type. |
 
+#### `athena capabilities list-subscription-events` `[BETA]`
+
+What one of the caller's subscriptions heard, oldest first and a page at a time: by default only the events queued and not yet delivered, the read an agent makes mid-run without ending its turn. VIEW on the asset is re-checked (403 access_lost); anyone else's subscription is 404.
+
+`GET /api/v0/capabilities/subscriptions/{subscription_id}/events`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--subscription-id` | `string` | Yes | The subscription id. |
+| `--pending` | `boolean` | No | Only events queued and not yet delivered (default). |
+| `--cursor` | `string` | No | The next_cursor of the previous page. |
+
+#### `athena capabilities list-subscriptions` `[BETA]`
+
+The caller's own asset subscriptions, newest first and a page at a time (next_cursor): open ones, or every one with include_closed. Filtering by asset needs VIEW on it.
+
+`GET /api/v0/capabilities/subscriptions`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | No | Only subscriptions on this asset (VIEW required). |
+| `--include-closed` | `boolean` | No | Also list cancelled and expired subscriptions. |
+| `--cursor` | `string` | No | The next_cursor of the previous page. |
+| `--limit` | `integer` | No | Page size. |
+
 #### `athena capabilities list-types` `[BETA]`
 
 Every asset type's broadcast summary, the surfaces and the simulated policy presets.
@@ -657,6 +682,27 @@ The L1 card an asset broadcasts for you, an agent and a surface: status, access,
 | `--policies` | `string` | No | Simulated policies to overlay. |
 | `--include-blocked` | `boolean` | No | List blocked action names instead of a count. |
 | `--resolve-anchors` | `boolean` | No | Read real sheet and slide ids into the cite block. |
+
+#### `athena capabilities subscribe` `[BETA]`
+
+Watch an asset for events its card offers. From inside an agent run a matching event continues that run's conversation (target thread); elsewhere events queue under the caller (target inbox). Bounded by a wake budget and an expiry. Refusals are 400/403/409 with detail.code; an identical open subscription is returned, not duplicated.
+
+`POST /api/v0/capabilities/assets/{asset_id}/subscriptions`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | The asset id. |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena capabilities unsubscribe` `[BETA]`
+
+Cancel one of the caller's subscriptions; one already closed is returned unchanged, anyone else's is 404.
+
+`DELETE /api/v0/capabilities/subscriptions/{subscription_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--subscription-id` | `string` | Yes | The subscription id. |
 
 ---
 
