@@ -5,11 +5,14 @@
 //!
 //! ## Type Categories
 //!
-//! - **Request/Response Types**: 246 types for API operations
-//! - **Model Types**: 141 types for data representation
+//! - **Request/Response Types**: 255 types for API operations
+//! - **Model Types**: 143 types for data representation
 
 pub mod assets_collab_token_request_access;
 pub mod automations_follow_up_create_request_in_then;
+pub mod capabilities_capability_subscribe_request_in_target;
+pub mod capabilities_capability_subscribe_request_in_when_idle;
+pub mod capabilities_capability_subscribe_request_in_while_running;
 pub mod databases_insert_data_request_data;
 pub mod events_replay_events_in_mode;
 pub mod events_replay_events_in_source;
@@ -98,6 +101,11 @@ pub mod capability_context_response_out;
 pub mod capability_do_response_out_status;
 pub mod capability_do_response_out;
 pub mod capability_document_response_out;
+pub mod capability_subscribe_response_out;
+pub mod capability_subscription_event_out;
+pub mod capability_subscription_events_response_out;
+pub mod capability_subscription_list_response_out;
+pub mod capability_subscription_out;
 pub mod capability_tool_page_response_out;
 pub mod capability_types_response_out;
 pub mod cell_format_horizontal_alignment;
@@ -295,6 +303,7 @@ pub mod automation_approval_decide_request_in;
 pub mod follow_up_create_request_in;
 pub mod automation_definition_update_request_in;
 pub mod capability_do_request_in;
+pub mod capability_subscribe_request_in;
 pub mod collab_agent_send_message_request_in;
 pub mod deploy_computer_request_in;
 pub mod create_ssh_access_request_in;
@@ -373,6 +382,8 @@ pub mod read_query_request;
 pub mod can_query_request;
 pub mod describe_query_request;
 pub mod get_context_query_request;
+pub mod list_subscriptions_query_request;
+pub mod list_subscription_events_query_request;
 pub mod get_type_manifest_query_request;
 pub mod select_query_request;
 pub mod list_incidents_query_request;
@@ -398,6 +409,9 @@ pub mod delete_request;
 
 pub use assets_collab_token_request_access::CollabTokenRequestAccess;
 pub use automations_follow_up_create_request_in_then::FollowUpCreateRequestInThen;
+pub use capabilities_capability_subscribe_request_in_target::CapabilitySubscribeRequestInTarget;
+pub use capabilities_capability_subscribe_request_in_when_idle::CapabilitySubscribeRequestInWhenIdle;
+pub use capabilities_capability_subscribe_request_in_while_running::CapabilitySubscribeRequestInWhileRunning;
 pub use databases_insert_data_request_data::InsertDataRequestData;
 pub use events_replay_events_in_mode::ReplayEventsInMode;
 pub use events_replay_events_in_source::ReplayEventsInSource;
@@ -486,6 +500,11 @@ pub use capability_context_response_out::CapabilityContextResponseOut;
 pub use capability_do_response_out_status::CapabilityDoResponseOutStatus;
 pub use capability_do_response_out::CapabilityDoResponseOut;
 pub use capability_document_response_out::CapabilityDocumentResponseOut;
+pub use capability_subscribe_response_out::CapabilitySubscribeResponseOut;
+pub use capability_subscription_event_out::CapabilitySubscriptionEventOut;
+pub use capability_subscription_events_response_out::CapabilitySubscriptionEventsResponseOut;
+pub use capability_subscription_list_response_out::CapabilitySubscriptionListResponseOut;
+pub use capability_subscription_out::CapabilitySubscriptionOut;
 pub use capability_tool_page_response_out::CapabilityToolPageResponseOut;
 pub use capability_types_response_out::CapabilityTypesResponseOut;
 pub use cell_format_horizontal_alignment::CellFormatHorizontalAlignment;
@@ -683,6 +702,7 @@ pub use automation_approval_decide_request_in::AutomationApprovalDecideRequestIn
 pub use follow_up_create_request_in::FollowUpCreateRequestIn;
 pub use automation_definition_update_request_in::AutomationDefinitionUpdateRequestIn;
 pub use capability_do_request_in::CapabilityDoRequestIn;
+pub use capability_subscribe_request_in::CapabilitySubscribeRequestIn;
 pub use collab_agent_send_message_request_in::CollabAgentSendMessageRequestIn;
 pub use deploy_computer_request_in::DeployComputerRequestIn;
 pub use create_ssh_access_request_in::CreateSshAccessRequestIn;
@@ -761,6 +781,8 @@ pub use read_query_request::ReadQueryRequest;
 pub use can_query_request::CanQueryRequest;
 pub use describe_query_request::DescribeQueryRequest;
 pub use get_context_query_request::GetContextQueryRequest;
+pub use list_subscriptions_query_request::ListSubscriptionsQueryRequest;
+pub use list_subscription_events_query_request::ListSubscriptionEventsQueryRequest;
 pub use get_type_manifest_query_request::GetTypeManifestQueryRequest;
 pub use select_query_request::SelectQueryRequest;
 pub use list_incidents_query_request::ListIncidentsQueryRequest;

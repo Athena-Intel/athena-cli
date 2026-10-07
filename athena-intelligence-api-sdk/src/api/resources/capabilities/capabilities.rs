@@ -197,6 +197,33 @@ impl CapabilitiesClient {
             .await
     }
 
+    /// Watch an asset for events its card offers. From inside an agent run a matching event continues that run's conversation (target thread); elsewhere events queue under the caller (target inbox). Bounded by a wake budget and an expiry. Refusals are 400/403/409 with detail.code; an identical open subscription is returned, not duplicated.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - The asset id.
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn subscribe(
+        &self,
+        asset_id: &str,
+        request: &CapabilitySubscribeRequestIn,
+        options: Option<RequestOptions>,
+    ) -> Result<CapabilitySubscribeResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!("api/v0/capabilities/assets/{}/subscriptions", asset_id),
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
     /// The surface, sender and agent cards that open every context (R2).
     ///
     /// # Arguments
@@ -248,6 +275,101 @@ impl CapabilitiesClient {
                 "api/v0/capabilities/contract",
                 None,
                 None,
+                options,
+            )
+            .await
+    }
+
+    /// The caller's own asset subscriptions, newest first and a page at a time (next_cursor): open ones, or every one with include_closed. Filtering by asset needs VIEW on it.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - Only subscriptions on this asset (VIEW required).
+    /// * `include_closed` - Also list cancelled and expired subscriptions.
+    /// * `cursor` - The next_cursor of the previous page.
+    /// * `limit` - Page size.
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn list_subscriptions(
+        &self,
+        request: &ListSubscriptionsQueryRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<CapabilitySubscriptionListResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                "api/v0/capabilities/subscriptions",
+                None,
+                QueryBuilder::new()
+                    .serialize("asset_id", request.asset_id.clone())
+                    .bool("include_closed", request.include_closed.clone())
+                    .serialize("cursor", request.cursor.clone())
+                    .int("limit", request.limit.clone())
+                    .build(),
+                options,
+            )
+            .await
+    }
+
+    /// Cancel one of the caller's subscriptions; one already closed is returned unchanged, anyone else's is 404.
+    ///
+    /// # Arguments
+    ///
+    /// * `subscription_id` - The subscription id.
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn unsubscribe(
+        &self,
+        subscription_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<CapabilitySubscriptionOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::DELETE,
+                &format!("api/v0/capabilities/subscriptions/{}", subscription_id),
+                None,
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// What one of the caller's subscriptions heard, oldest first and a page at a time: by default only the events queued and not yet delivered, the read an agent makes mid-run without ending its turn. VIEW on the asset is re-checked (403 access_lost); anyone else's subscription is 404.
+    ///
+    /// # Arguments
+    ///
+    /// * `subscription_id` - The subscription id.
+    /// * `pending` - Only events queued and not yet delivered (default).
+    /// * `cursor` - The next_cursor of the previous page.
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn list_subscription_events(
+        &self,
+        subscription_id: &str,
+        request: &ListSubscriptionEventsQueryRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<CapabilitySubscriptionEventsResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                &format!(
+                    "api/v0/capabilities/subscriptions/{}/events",
+                    subscription_id
+                ),
+                None,
+                QueryBuilder::new()
+                    .bool("pending", request.pending.clone())
+                    .serialize("cursor", request.cursor.clone())
+                    .build(),
                 options,
             )
             .await
