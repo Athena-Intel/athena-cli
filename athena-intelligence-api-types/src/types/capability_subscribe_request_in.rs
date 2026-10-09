@@ -16,10 +16,10 @@ pub struct CapabilitySubscribeRequestIn {
     /// Per-event filters merged over its defaults, e.g. {"exclude_agents": false}; your own changes never wake you.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filters: Option<HashMap<String, serde_json::Value>>,
-    /// Most turns this subscription may start (20 by default).
+    /// Most turns this subscription may start (50 by default).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_wakes: Option<i64>,
-    /// Most turns per hour (6 by default).
+    /// Most turns per hour (20 by default).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_wakes_per_hour: Option<i64>,
     /// What you subscribed for, read back at every delivery.

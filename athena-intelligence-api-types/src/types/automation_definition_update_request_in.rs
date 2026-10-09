@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AutomationDefinitionUpdateRequestIn {
-    /// The complete draft definition document (schema_version 1). Replaces the draft; nothing runs until the automation is published
+    /// The complete draft definition document (schema_version 2; a schema_version 1 document is read through the v1→v2 upgrader). Replaces the draft; nothing runs until the automation is published
     #[serde(default)]
     pub definition: HashMap<String, serde_json::Value>,
 }
