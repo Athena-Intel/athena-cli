@@ -15,8 +15,14 @@ pub struct CapabilitySubscriptionEventOut {
     pub event_type: String,
     #[serde(default)]
     pub id: String,
+    /// Why it did or did not start a turn: delivered, held, no_change, subsumed, conditions_false or closed; null while it waits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
     #[serde(default)]
     pub payload: HashMap<String, serde_json::Value>,
+    /// The run it started, when the delivery knew it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<String>,
     /// queued, delivering, delivered or skipped.
     #[serde(default)]
     pub status: String,
@@ -36,7 +42,9 @@ pub struct CapabilitySubscriptionEventOutBuilder {
     event_id: Option<String>,
     event_type: Option<String>,
     id: Option<String>,
+    outcome: Option<String>,
     payload: Option<HashMap<String, serde_json::Value>>,
+    run_id: Option<String>,
     status: Option<String>,
 }
 
@@ -66,8 +74,18 @@ impl CapabilitySubscriptionEventOutBuilder {
         self
     }
 
+    pub fn outcome(mut self, value: impl Into<String>) -> Self {
+        self.outcome = Some(value.into());
+        self
+    }
+
     pub fn payload(mut self, value: HashMap<String, serde_json::Value>) -> Self {
         self.payload = Some(value);
+        self
+    }
+
+    pub fn run_id(mut self, value: impl Into<String>) -> Self {
+        self.run_id = Some(value.into());
         self
     }
 
@@ -91,7 +109,9 @@ impl CapabilitySubscriptionEventOutBuilder {
             event_id: self.event_id.ok_or_else(|| BuildError::missing_field("event_id"))?,
             event_type: self.event_type.ok_or_else(|| BuildError::missing_field("event_type"))?,
             id: self.id.ok_or_else(|| BuildError::missing_field("id"))?,
+            outcome: self.outcome,
             payload: self.payload.ok_or_else(|| BuildError::missing_field("payload"))?,
+            run_id: self.run_id,
             status: self.status.ok_or_else(|| BuildError::missing_field("status"))?,
         })
     }

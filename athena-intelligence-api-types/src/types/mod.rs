@@ -6,7 +6,7 @@
 //! ## Type Categories
 //!
 //! - **Request/Response Types**: 255 types for API operations
-//! - **Model Types**: 143 types for data representation
+//! - **Model Types**: 153 types for data representation
 
 pub mod assets_collab_token_request_access;
 pub mod automations_follow_up_create_request_in_then;
@@ -102,10 +102,20 @@ pub mod capability_do_response_out_status;
 pub mod capability_do_response_out;
 pub mod capability_document_response_out;
 pub mod capability_subscribe_response_out;
+pub mod capability_subscription_anchor_out;
+pub mod capability_subscription_coalesce_out;
+pub mod capability_subscription_delivery_out;
 pub mod capability_subscription_event_out;
 pub mod capability_subscription_events_response_out;
+pub mod capability_subscription_latest_event_out;
+pub mod capability_subscription_limits_out;
 pub mod capability_subscription_list_response_out;
 pub mod capability_subscription_out;
+pub mod capability_subscription_rate_out;
+pub mod capability_subscription_skipped_out;
+pub mod capability_subscription_subject_out;
+pub mod capability_subscription_trigger_event_out;
+pub mod capability_subscription_trigger_out;
 pub mod capability_tool_page_response_out;
 pub mod capability_types_response_out;
 pub mod cell_format_horizontal_alignment;
@@ -501,10 +511,20 @@ pub use capability_do_response_out_status::CapabilityDoResponseOutStatus;
 pub use capability_do_response_out::CapabilityDoResponseOut;
 pub use capability_document_response_out::CapabilityDocumentResponseOut;
 pub use capability_subscribe_response_out::CapabilitySubscribeResponseOut;
+pub use capability_subscription_anchor_out::CapabilitySubscriptionAnchorOut;
+pub use capability_subscription_coalesce_out::CapabilitySubscriptionCoalesceOut;
+pub use capability_subscription_delivery_out::CapabilitySubscriptionDeliveryOut;
 pub use capability_subscription_event_out::CapabilitySubscriptionEventOut;
 pub use capability_subscription_events_response_out::CapabilitySubscriptionEventsResponseOut;
+pub use capability_subscription_latest_event_out::CapabilitySubscriptionLatestEventOut;
+pub use capability_subscription_limits_out::CapabilitySubscriptionLimitsOut;
 pub use capability_subscription_list_response_out::CapabilitySubscriptionListResponseOut;
 pub use capability_subscription_out::CapabilitySubscriptionOut;
+pub use capability_subscription_rate_out::CapabilitySubscriptionRateOut;
+pub use capability_subscription_skipped_out::CapabilitySubscriptionSkippedOut;
+pub use capability_subscription_subject_out::CapabilitySubscriptionSubjectOut;
+pub use capability_subscription_trigger_event_out::CapabilitySubscriptionTriggerEventOut;
+pub use capability_subscription_trigger_out::CapabilitySubscriptionTriggerOut;
 pub use capability_tool_page_response_out::CapabilityToolPageResponseOut;
 pub use capability_types_response_out::CapabilityTypesResponseOut;
 pub use cell_format_horizontal_alignment::CellFormatHorizontalAlignment;
