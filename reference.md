@@ -356,7 +356,7 @@ Admin only. List the edit history of a collaborative asset, newest first: who ed
 
 #### `athena assets move` `[BETA]`
 
-Move an asset into a folder or to the workspace root. The asset ID determines the workspace used for authorization; parent_folder_id must belong to the same workspace.
+Move an asset into a folder or to the workspace root. The asset ID determines the workspace used for authorization; parent_folder_id must belong to the same workspace. A move into a drive (target_drive_id, or a parent_folder_id inside a drive) carries the asset's whole folder subtree, so it is refused unless the caller can edit every item in it.
 
 `POST /api/v0/assets/{asset_id}/move`
 
@@ -486,6 +486,17 @@ Read the whole output of one step attempt. A step whose output fit the ledger an
 | `--run-id` | `string` | Yes | Unique identifier of the run |
 | `--step-row-id` | `string` | Yes | Row id of the step attempt (`astep_…`) |
 
+#### `athena automations get-webhook` `[BETA]`
+
+Read a published `webhook` trigger's inbound endpoint and its live secret. POST deliveries to the API host plus `path` with the secret in `X-Athena-Hook-Secret` (and optionally an `X-Athena-Hook-Delivery` id that makes retries idempotent); a JSON body reaches the trigger as `event.data.payload`. The secret is minted when the trigger is first published and kept across republishes.
+
+`GET /api/v0/automations/{asset_id}/webhooks/{trigger_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+| `--trigger-id` | `string` | Yes | The `webhook` trigger's id (triggers[].id) |
+
 #### `athena automations list-runs` `[BETA]`
 
 List the automation's runs, newest first, with offset pagination and an optional run_status filter. Use next_offset for the next page.
@@ -519,6 +530,17 @@ Redrive a failed or canceled run: a new run of the same pinned version that resu
 |------|------|----------|-------------|
 | `--run-id` | `string` | Yes | Unique identifier of the run |
 | `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena automations rotate-webhook` `[BETA]`
+
+Mint a fresh secret for a published `webhook` trigger and return the endpoint with it. The old secret stops working at once, so update the caller right after. Republishing never rotates the secret.
+
+`POST /api/v0/automations/{asset_id}/webhooks/{trigger_id}/rotate`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+| `--trigger-id` | `string` | Yes | The `webhook` trigger's id (triggers[].id) |
 
 #### `athena automations run` `[BETA]`
 

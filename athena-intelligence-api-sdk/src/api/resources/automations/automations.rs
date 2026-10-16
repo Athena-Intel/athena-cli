@@ -367,4 +367,63 @@ impl AutomationsClient {
             )
             .await
     }
+
+    /// Read a published `webhook` trigger's inbound endpoint and its live secret. POST deliveries to the API host plus `path` with the secret in `X-Athena-Hook-Secret` (and optionally an `X-Athena-Hook-Delivery` id that makes retries idempotent); a JSON body reaches the trigger as `event.data.payload`. The secret is minted when the trigger is first published and kept across republishes.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - Unique identifier of the automation asset
+    /// * `trigger_id` - The `webhook` trigger's id (triggers[].id)
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn get_webhook(
+        &self,
+        asset_id: &str,
+        trigger_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<AutomationWebhookEndpointOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                &format!("api/v0/automations/{}/webhooks/{}", asset_id, trigger_id),
+                None,
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Mint a fresh secret for a published `webhook` trigger and return the endpoint with it. The old secret stops working at once, so update the caller right after. Republishing never rotates the secret.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - Unique identifier of the automation asset
+    /// * `trigger_id` - The `webhook` trigger's id (triggers[].id)
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn rotate_webhook(
+        &self,
+        asset_id: &str,
+        trigger_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<AutomationWebhookEndpointOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!(
+                    "api/v0/automations/{}/webhooks/{}/rotate",
+                    asset_id, trigger_id
+                ),
+                None,
+                None,
+                options,
+            )
+            .await
+    }
 }
