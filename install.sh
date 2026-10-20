@@ -31,9 +31,9 @@ need tar
 # an `auth="-H Authorization:Bearer ${TOKEN}"` string and relying on unquoted
 # word splitting does not work in POSIX sh: the space splits it into `-H`,
 # `Authorization:Bearer`, and the token as a stray positional argument, so curl
-# sends a header with an empty value and the token is silently dropped. Every
-# private-repo download then 401s — which is every download, since this repo is
-# private.
+# sends a header with an empty value and the token is silently dropped, so the
+# authenticated route silently falls back to the unauthenticated rate limit.
+# GITHUB_TOKEN is optional: the repo and its releases are public.
 dl() {
   if [ -n "${GITHUB_TOKEN:-}" ]; then
     curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" "$@"
@@ -113,24 +113,36 @@ Tracked in https://github.com/$REPO/issues/1"
 esac
 
 # --- resolve the release ------------------------------------------------------
-# One JSON fetch serves two purposes: the tag_name gives the version, and the
-# assets array gives the API asset ids that fetch_asset() needs on the
-# authenticated route. dl(), not bare curl: /releases/... on a private repo
-# 404s unauthenticated, and the error below tells the user to export
-# GITHUB_TOKEN — advice that only works if this request actually sends it.
+# Without GITHUB_TOKEN nothing here touches api.github.com: the public release
+# page redirects /releases/latest to /releases/tag/v<version>, and the browser
+# download URL needs no release JSON. That keeps a plain `curl | sh` clear of
+# the unauthenticated API rate limit (60 requests/hour per IP, shared across a
+# NAT or CI runner). With GITHUB_TOKEN set, one authenticated JSON fetch gives
+# both the tag_name and the asset ids that fetch_asset() needs.
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT INT TERM
 release_json="$tmp/release.json"
 
-if [ -n "${ATHENA_VERSION:-}" ]; then
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+  if [ -n "${ATHENA_VERSION:-}" ]; then
+    version="${ATHENA_VERSION#v}"
+    dl "$API_BASE/repos/$REPO/releases/tags/v${version}" -o "$release_json" \
+      || die "could not read release v${version} — check the version at https://github.com/$REPO/releases"
+  else
+    dl "$API_BASE/repos/$REPO/releases/latest" -o "$release_json" \
+      || die "could not determine the latest release — set ATHENA_VERSION explicitly"
+    version="$(sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' "$release_json" | head -1)"
+    [ -n "$version" ] || die "release JSON has no tag_name — cannot determine the version."
+  fi
+elif [ -n "${ATHENA_VERSION:-}" ]; then
   version="${ATHENA_VERSION#v}"
-  dl "$API_BASE/repos/$REPO/releases/tags/v${version}" -o "$release_json" \
-    || die "could not read release v${version} — check the version at https://github.com/$REPO/releases (GITHUB_TOKEN is optional; it only raises the GitHub API rate limit)."
 else
-  dl "$API_BASE/repos/$REPO/releases/latest" -o "$release_json" \
-    || die "could not determine the latest release — set ATHENA_VERSION explicitly (GITHUB_TOKEN is optional; it only raises the GitHub API rate limit)."
-  version="$(sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' "$release_json" | head -1)"
-  [ -n "$version" ] || die "release JSON has no tag_name — cannot determine the version."
+  latest_url="$(curl -fsSI -o /dev/null -w '%{redirect_url}' "$DL_BASE/$REPO/releases/latest")" \
+    || die "could not determine the latest release — set ATHENA_VERSION explicitly"
+  version="${latest_url##*/releases/tag/}"
+  version="${version#v}"
+  [ -n "$version" ] && [ "$version" != "$latest_url" ] \
+    || die "could not parse the latest release tag from $DL_BASE/$REPO/releases/latest — set ATHENA_VERSION explicitly"
 fi
 
 asset="athena-${version}-${target}.tar.gz"
@@ -140,9 +152,8 @@ echo "Installing athena ${version} (${target}) -> ${INSTALL_DIR}/${BIN_NAME}"
 
 fetch_asset "$asset" "$tmp/$asset" \
   || die "download failed for $asset (release v${version}).
-Without GITHUB_TOKEN this uses the public download path, which a private repo
-rejects. Export a token with repo read access and re-run:
-  GITHUB_TOKEN=\"\$(gh auth token)\" sh -c \"\$(curl -fsSL <this script>)\""
+Check that the release exists at https://github.com/$REPO/releases/tag/v${version}
+and that it has an asset for your platform (${target})."
 
 tar -xzf "$tmp/$asset" -C "$tmp"
 
