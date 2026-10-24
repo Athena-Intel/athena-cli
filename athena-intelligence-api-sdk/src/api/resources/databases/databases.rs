@@ -17,10 +17,13 @@ impl DatabasesClient {
     ///
     /// **Status Values:**
     /// - `running` - Database is active and accepting connections
-    /// - `suspended` - Database is suspended (scale-to-zero), will auto-resume on first query
-    /// - `starting` - Database is waking up
-    /// - `failed` - Database failed to start
-    /// - `unknown` - Status could not be determined
+    /// - `suspended` - Database is suspended (scale-to-zero). It wakes on `POST /databases/{asset_id}/wake` or on the first SQL request. When `reason` is `ComputeUnschedulable`, no node could host its compute size: waking it only restarts the same wait
+    /// - `starting` - Database is waking up, or its compute is being recreated
+    /// - `creating` - Database is being created; it has no compute yet
+    /// - `failed` - Database failed to start, or its creation failed (`message` says which)
+    /// - `unknown` - Status could not be determined (the control plane did not answer); retry
+    ///
+    /// A database suspends (scales to zero) after `suspend_timeout_seconds` without activity; `GET`/`PATCH /databases/{asset_id}/settings` read and set that window, and 0 keeps it running. Reading the compute status or the settings never wakes a suspended database. Two things do: `POST /databases/{asset_id}/wake`, which answers at once while the compute starts, or any request that runs SQL on it, such as `POST /databases/{asset_id}/sql`, which waits for the compute up to 120 seconds; if the compute is still starting then, the answer is 503 with `Retry-After` and the statement did not run. A cold start usually takes 30 seconds to 2 minutes.
     ///
     /// # Arguments
     ///
@@ -259,6 +262,61 @@ impl DatabasesClient {
             .await
     }
 
+    /// Read the database's auto-suspend window, the same setting as auto-suspend in the database's Settings in Athena. Reading never wakes the database.
+    ///
+    /// A database suspends (scales to zero) after `suspend_timeout_seconds` without activity; `GET`/`PATCH /databases/{asset_id}/settings` read and set that window, and 0 keeps it running. Reading the compute status or the settings never wakes a suspended database. Two things do: `POST /databases/{asset_id}/wake`, which answers at once while the compute starts, or any request that runs SQL on it, such as `POST /databases/{asset_id}/sql`, which waits for the compute up to 120 seconds; if the compute is still starting then, the answer is 503 with `Retry-After` and the statement did not run. A cold start usually takes 30 seconds to 2 minutes.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn get_settings(
+        &self,
+        asset_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<DatabaseComputeSettingsResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                &format!("api/v0/databases/{}/settings", asset_id),
+                None,
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Set the database's auto-suspend window: 0 keeps the database running (it never suspends, and keeps using compute capacity), otherwise 60 to 86400 seconds. The same setting, values and edit-access rule as auto-suspend in the database's Settings in Athena; the change applies at once and does not restart or wake the database.
+    ///
+    /// A database suspends (scales to zero) after `suspend_timeout_seconds` without activity; `GET`/`PATCH /databases/{asset_id}/settings` read and set that window, and 0 keeps it running. Reading the compute status or the settings never wakes a suspended database. Two things do: `POST /databases/{asset_id}/wake`, which answers at once while the compute starts, or any request that runs SQL on it, such as `POST /databases/{asset_id}/sql`, which waits for the compute up to 120 seconds; if the compute is still starting then, the answer is 503 with `Retry-After` and the statement did not run. A cold start usually takes 30 seconds to 2 minutes.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn update_settings(
+        &self,
+        asset_id: &str,
+        request: &DatabaseComputeSettingsUpdateRequestIn,
+        options: Option<RequestOptions>,
+    ) -> Result<DatabaseComputeSettingsResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::PATCH,
+                &format!("api/v0/databases/{}/settings", asset_id),
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
     /// Execute a SQL statement against the database. SELECT queries return columns and rows. Non-SELECT statements (CREATE, INSERT, UPDATE, DELETE, ALTER, DROP, etc.) return execution statuses.
     ///
     /// # Arguments
@@ -279,6 +337,33 @@ impl DatabasesClient {
                 Method::POST,
                 &format!("api/v0/databases/{}/sql", asset_id),
                 Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Start a suspended database's compute and answer at once, without waiting for it to run. Poll `GET /databases/{asset_id}/compute-status` until it reports `running`. Waking a running database resets its idle clock and answers 200 with `running`, so it is safe to call before every batch of work. The same action as Resume Database in Athena; it needs edit access to the database.
+    ///
+    /// A database suspends (scales to zero) after `suspend_timeout_seconds` without activity; `GET`/`PATCH /databases/{asset_id}/settings` read and set that window, and 0 keeps it running. Reading the compute status or the settings never wakes a suspended database. Two things do: `POST /databases/{asset_id}/wake`, which answers at once while the compute starts, or any request that runs SQL on it, such as `POST /databases/{asset_id}/sql`, which waits for the compute up to 120 seconds; if the compute is still starting then, the answer is 503 with `Retry-After` and the statement did not run. A cold start usually takes 30 seconds to 2 minutes.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn wake(
+        &self,
+        asset_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<DatabaseWakeResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!("api/v0/databases/{}/wake", asset_id),
+                None,
                 None,
                 options,
             )

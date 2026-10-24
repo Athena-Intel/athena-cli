@@ -21,6 +21,10 @@ impl TasksClient {
     /// detail.code `ENVIRONMENT_FEATURE_DISABLED` and detail.key `task_studio_toolkit`
     /// before creating or running a job. This restriction also applies to administrators.
     ///
+    /// A task the workspace Tool Registry holds for approval returns HTTP 403 with
+    /// detail.code `tool_requires_approval` before running: an API call carries no
+    /// approval. Run it from a chat session or behind an automation's approval gate.
+    ///
     /// # Arguments
     ///
     /// * `options` - Additional request options such as headers, timeout, etc.

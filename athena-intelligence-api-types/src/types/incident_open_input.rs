@@ -16,6 +16,9 @@ pub struct IncidentOpenInput {
     /// Project asset id (asset_…) whose system spec the node belongs to. The caller needs EDIT on it.
     #[serde(default)]
     pub project_asset_id: String,
+    /// Severity for a node with no health reading — an incident opened from an outside signal (a PostHog alert, a webhook) under a `node_key` such as `signal:<fingerprint>`. Ignored when the node has a reading: its severity comes from the reading. A touch with `critical` escalates an open `warning` incident once.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub severity: Option<IncidentOpenInputSeverity>,
     /// Optional title; defaults to the node's current health reading.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -34,6 +37,7 @@ pub struct IncidentOpenInputBuilder {
     environment: Option<String>,
     node_key: Option<String>,
     project_asset_id: Option<String>,
+    severity: Option<IncidentOpenInputSeverity>,
     title: Option<String>,
 }
 
@@ -58,6 +62,11 @@ impl IncidentOpenInputBuilder {
         self
     }
 
+    pub fn severity(mut self, value: IncidentOpenInputSeverity) -> Self {
+        self.severity = Some(value);
+        self
+    }
+
     pub fn title(mut self, value: impl Into<String>) -> Self {
         self.title = Some(value.into());
         self
@@ -74,6 +83,7 @@ impl IncidentOpenInputBuilder {
             environment: self.environment.ok_or_else(|| BuildError::missing_field("environment"))?,
             node_key: self.node_key.ok_or_else(|| BuildError::missing_field("node_key"))?,
             project_asset_id: self.project_asset_id.ok_or_else(|| BuildError::missing_field("project_asset_id"))?,
+            severity: self.severity,
             title: self.title,
         })
     }

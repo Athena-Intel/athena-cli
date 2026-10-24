@@ -2,7 +2,7 @@ pub use crate::prelude::*;
 #[allow(unused_imports)]
 use super::*;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct UpdateSheetCellRequest {
     /// The ID of the spreadsheet asset
     #[serde(default)]
@@ -10,6 +10,9 @@ pub struct UpdateSheetCellRequest {
     /// 1-based column index (e.g., 1 = column A)
     #[serde(default)]
     pub column: i64,
+    /// Optional cell format (textFormat, backgroundColor, numberFormat, alignment, borders) applied in the same write as the value, like `formatting` on range/update.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub formatting: Option<CellFormat>,
     /// 1-based row index (e.g., 1 = first row)
     #[serde(default)]
     pub row: i64,
@@ -35,6 +38,7 @@ impl UpdateSheetCellRequest {
 pub struct UpdateSheetCellRequestBuilder {
     asset_id: Option<String>,
     column: Option<i64>,
+    formatting: Option<CellFormat>,
     row: Option<i64>,
     sheet_id: Option<i64>,
     treat_as_text: Option<bool>,
@@ -49,6 +53,11 @@ impl UpdateSheetCellRequestBuilder {
 
     pub fn column(mut self, value: i64) -> Self {
         self.column = Some(value);
+        self
+    }
+
+    pub fn formatting(mut self, value: CellFormat) -> Self {
+        self.formatting = Some(value);
         self
     }
 
@@ -82,6 +91,7 @@ impl UpdateSheetCellRequestBuilder {
         Ok(UpdateSheetCellRequest {
             asset_id: self.asset_id.ok_or_else(|| BuildError::missing_field("asset_id"))?,
             column: self.column.ok_or_else(|| BuildError::missing_field("column"))?,
+            formatting: self.formatting,
             row: self.row.ok_or_else(|| BuildError::missing_field("row"))?,
             sheet_id: self.sheet_id,
             treat_as_text: self.treat_as_text,

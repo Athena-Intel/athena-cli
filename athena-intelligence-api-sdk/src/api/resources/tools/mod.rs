@@ -4,6 +4,8 @@ use reqwest::Method;
 
 pub mod agent_identity;
 pub use agent_identity::AgentIdentityClient;
+pub mod asset_graph;
+pub use asset_graph::AssetGraphClient;
 pub mod calendar;
 pub use calendar::CalendarClient;
 pub mod email;
@@ -21,6 +23,7 @@ pub use tasks::TasksClient;
 pub struct ToolsClient {
     pub http_client: HttpClient,
     pub agent_identity: AgentIdentityClient,
+    pub asset_graph: AssetGraphClient,
     pub calendar: CalendarClient,
     pub email: EmailClient,
     pub olympus_drive: OlympusDriveClient,
@@ -35,6 +38,7 @@ impl ToolsClient {
         Ok(Self {
             http_client: HttpClient::new(config.clone())?,
             agent_identity: AgentIdentityClient::new(config.clone())?,
+            asset_graph: AssetGraphClient::new(config.clone())?,
             calendar: CalendarClient::new(config.clone())?,
             email: EmailClient::new(config.clone())?,
             olympus_drive: OlympusDriveClient::new(config.clone())?,
