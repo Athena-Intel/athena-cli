@@ -49,7 +49,7 @@ impl AssetsClient {
             .await
     }
 
-    /// Convert an uploaded Excel (.xlsx) asset into a new, editable Athena sheet asset — the same conversion the Athena UI performs. The new sheet is created alongside the source Excel asset. Pass run_async for large workbooks to get the sheet immediately and poll athena_metadata.conversionStatus for completion.
+    /// Convert an uploaded Excel (.xlsx) asset into an editable Athena sheet — the same conversion the Athena UI performs. By default a new sheet asset is created alongside the source Excel asset; pass run_async for large workbooks to get the sheet immediately and poll its athena_metadata.conversionStatus for completion. With in_place the uploaded file itself becomes the sheet and keeps its asset id (sheet_asset_id is excel_asset_id, and no second asset is created); poll that asset until its media_type is 'athena/spreadsheet', or until athena_metadata.sheet_upload_conversion.status is 'failed' or 'skipped'.
     ///
     /// # Arguments
     ///
@@ -74,7 +74,7 @@ impl AssetsClient {
             .await
     }
 
-    /// Create a new asset such as a spreadsheet, document, folder, database, computer, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied.
+    /// Create a new asset such as a spreadsheet, document, folder, database, computer, user interface, skill, collab agent, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied. Databases accept suspend_timeout_seconds, the auto-suspend window from the database's Settings in Athena: 0 keeps the database running (it never suspends, and keeps using capacity), otherwise 60 to 86400 seconds. A database is provisioned in the background: poll GET /api/v0/databases/{asset_id}/compute-status until it reports running or suspended.
     ///
     /// # Arguments
     ///
@@ -197,6 +197,36 @@ impl AssetsClient {
                 &format!("api/v0/assets/{}", asset_id),
                 Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
                 None,
+                options,
+            )
+            .await
+    }
+
+    /// Read the access that you, or another user, have on an asset, and every grant that gives it. The level is what Athena's permission checks decide for the user in the asset's own workspace, whichever workspace is active for your key: 'view' can open the asset, 'edit' can also change it and manage its sharing, 'owner' created it and can edit it, and 'none' cannot open it. Each source names one grant: 'owner', 'direct' (shared with the user), 'group' (shared with a workspace group the user belongs to), 'workspace' (shared with the whole workspace), 'drive' (a role on the drive) or 'other' (access the share list does not hold, for example an environment admin). A folder's sharing reaches each asset inside it as that asset's own share, so a 'workspace' source on a sub-folder shows that a share of its parent folder reached it. Without user_id the route reads your own access; you need view access to the asset and membership in its workspace. To read another user's access, pass their user_id; you need edit access to the asset, as for sharing it. A user who is not a member of the asset's workspace, or who does not exist, reads as 'none' with is_member false. A suspended member reads as 'none' with no sources, and is_member still reports their membership. When a permission check cannot be answered (for example on an asset in a drive while the authorization service is unavailable), the route answers 503 and never a level. The route never changes a permission.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - Unique identifier of the asset
+    /// * `user_id` - The user whose access to read. Leave it out to read your own. Reading another user's access needs edit access to the asset.
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn get_access(
+        &self,
+        asset_id: &str,
+        request: &GetAccessQueryRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<AssetAccessOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                &format!("api/v0/assets/{}/access", asset_id),
+                None,
+                QueryBuilder::new()
+                    .serialize("user_id", request.user_id.clone())
+                    .build(),
                 options,
             )
             .await
@@ -342,6 +372,32 @@ impl AssetsClient {
             .await
     }
 
+    /// Turn an uploaded HTML file into a user interface (an app) under its own id — the conversion the Athena app's Convert to user interface performs. The asset keeps its id, folder, links and sharing (its title drops the .html extension), and no second asset is created. An uploaded HTML file stays a file until a request like this one asks: nothing converts on its own. The switch is one-way; the original upload stays downloadable from the asset's Versions pane. Requires edit access to the file. Idempotent: an asset that already is a user interface is answered as it is, with converted false. A refused conversion answers with a detail object: code CONVERSION_REFUSED, the reason, and a message saying why.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - ID of the uploaded HTML file to turn into a user interface
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn convert_to_user_interface(
+        &self,
+        asset_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<ConvertToUserInterfaceResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!("api/v0/assets/{}/convert-to-user-interface", asset_id),
+                None,
+                None,
+                options,
+            )
+            .await
+    }
+
     /// Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type. With `live_sync=true`, a spreadsheet's .xlsx, a PPTX Studio presentation's .pptx or a Word document's .docx also carries the Athena for Microsoft 365 add-in's link record, so opening it in Excel, PowerPoint or Word with the add-in installed starts syncing it with the asset; other asset types ignore the flag.
     ///
     /// # Arguments
@@ -374,7 +430,7 @@ impl AssetsClient {
             .await
     }
 
-    /// Move an asset into a folder or to the workspace root. The asset ID determines the workspace used for authorization; parent_folder_id must belong to the same workspace.
+    /// Move an asset into a folder or to the workspace root. The asset ID determines the workspace used for authorization; parent_folder_id must belong to the same workspace. A move into a drive (target_drive_id, or a parent_folder_id inside a drive) carries the asset's whole folder subtree, so it is refused unless the caller can edit every item in it.
     ///
     /// # Arguments
     ///
@@ -394,6 +450,33 @@ impl AssetsClient {
             .execute_request(
                 Method::POST,
                 &format!("api/v0/assets/{}/move", asset_id),
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Publish a skill or collab agent so it is live for everyone who uses it. Omit version_id to snapshot and publish the current draft, or pass an existing version to promote it. Requires edit access to the asset.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - ID of the skill or collab agent to publish
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn publish(
+        &self,
+        asset_id: &str,
+        request: &PublishAssetRequestIn,
+        options: Option<RequestOptions>,
+    ) -> Result<PublishAssetResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!("api/v0/assets/{}/publish", asset_id),
                 Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
                 None,
                 options,

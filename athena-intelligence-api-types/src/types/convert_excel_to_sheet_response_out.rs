@@ -8,7 +8,7 @@ pub struct ConvertExcelToSheetResponseOut {
     /// Type of the created sheet asset
     #[serde(default)]
     pub asset_type: String,
-    /// Conversion status for background (run_async) conversions: 'converting' immediately after the request. Poll the asset's athena_metadata.conversionStatus for 'completed' | 'failed'. Null for synchronous conversions, which have already completed.
+    /// Conversion status for background (run_async) conversions: 'converting' immediately after the request. Poll the asset's athena_metadata.conversionStatus for 'completed' | 'failed'. Null for synchronous conversions, which have already completed. An in_place conversion still running answers 'converting' too; see in_place for how to poll it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conversion_status: Option<String>,
     /// ID of the source Excel asset
@@ -17,7 +17,7 @@ pub struct ConvertExcelToSheetResponseOut {
     /// ID of the sheet asset's parent folder
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_folder_id: Option<String>,
-    /// ID of the newly created Athena sheet asset
+    /// ID of the Athena sheet: a new asset, or excel_asset_id itself for an in_place conversion
     #[serde(default)]
     pub sheet_asset_id: String,
     /// Title of the created sheet asset

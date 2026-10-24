@@ -15,7 +15,7 @@ pub struct AutomationTriggerRowOut {
     pub enabled: bool,
     #[serde(default)]
     pub event_type: String,
-    /// schedule | table_change | run_completed
+    /// schedule | table_change | run_completed | event | webhook
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

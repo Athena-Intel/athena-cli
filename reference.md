@@ -26,6 +26,7 @@ Full command reference for `athena`.
 - [`athena toolkits`](#athena-toolkits)
 - [`athena tools`](#athena-tools)
 - [`athena tools agent-identity`](#athena-tools-agent-identity)
+- [`athena tools asset-graph`](#athena-tools-asset-graph)
 - [`athena tools calendar`](#athena-tools-calendar)
 - [`athena tools email`](#athena-tools-email)
 - [`athena tools olympus-drive`](#athena-tools-olympus-drive)
@@ -55,7 +56,7 @@ and return the result.
 
 #### `athena agents general invoke-async` `[BETA]`
 
-Start a general-agent run and return immediately with a `thread_id`. Use this instead of `/agents/general/invoke` for any call that may take more than a few seconds (tool use, multi-step work), so the HTTP connection is never held open past client or proxy timeouts. Poll `GET /threads/{thread_id}/status` until `status` is `completed` or `failed`; pass `include_messages=true` to read the agent's reply. Supply the `thread_id` of a general-agent thread you can access to continue it; 404/403 when it is unknown/not yours, 409 while a run is still in progress on it.
+Start a general-agent run and return immediately with a `thread_id`. Use this instead of `/agents/general/invoke` for any call that may take more than a few seconds (tool use, multi-step work), so the HTTP connection is never held open past client or proxy timeouts. Poll `GET /threads/{thread_id}/status` until `status` is `completed` or `failed`; pass `include_messages=true` to read the agent's reply. Supply the `thread_id` of a general-agent thread you can access to continue it; 404/403 when it is unknown/not yours, 409 while a run is still in progress on it or while it is archived (restore it to continue it).
 
 `POST /api/v0/agents/general/invoke-async`
 
@@ -234,7 +235,7 @@ Archive an asset by its ID. The asset will be hidden from active listings (e.g. 
 
 #### `athena assets convert-excel-to-sheet` `[BETA]`
 
-Convert an uploaded Excel (.xlsx) asset into a new, editable Athena sheet asset — the same conversion the Athena UI performs. The new sheet is created alongside the source Excel asset. Pass run_async for large workbooks to get the sheet immediately and poll athena_metadata.conversionStatus for completion.
+Convert an uploaded Excel (.xlsx) asset into an editable Athena sheet — the same conversion the Athena UI performs. By default a new sheet asset is created alongside the source Excel asset; pass run_async for large workbooks to get the sheet immediately and poll its athena_metadata.conversionStatus for completion. With in_place the uploaded file itself becomes the sheet and keeps its asset id (sheet_asset_id is excel_asset_id, and no second asset is created); poll that asset until its media_type is 'athena/spreadsheet', or until athena_metadata.sheet_upload_conversion.status is 'failed' or 'skipped'.
 
 `POST /api/v0/assets/convert-excel-to-sheet`
 
@@ -242,9 +243,19 @@ Convert an uploaded Excel (.xlsx) asset into a new, editable Athena sheet asset 
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
+#### `athena assets convert-to-user-interface` `[BETA]`
+
+Turn an uploaded HTML file into a user interface (an app) under its own id — the conversion the Athena app's Convert to user interface performs. The asset keeps its id, folder, links and sharing (its title drops the .html extension), and no second asset is created. An uploaded HTML file stays a file until a request like this one asks: nothing converts on its own. The switch is one-way; the original upload stays downloadable from the asset's Versions pane. Requires edit access to the file. Idempotent: an asset that already is a user interface is answered as it is, with converted false. A refused conversion answers with a detail object: code CONVERSION_REFUSED, the reason, and a message saying why.
+
+`POST /api/v0/assets/{asset_id}/convert-to-user-interface`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | ID of the uploaded HTML file to turn into a user interface |
+
 #### `athena assets create` `[BETA]`
 
-Create a new asset such as a spreadsheet, document, folder, database, computer, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied.
+Create a new asset such as a spreadsheet, document, folder, database, computer, user interface, skill, collab agent, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied. Databases accept suspend_timeout_seconds, the auto-suspend window from the database's Settings in Athena: 0 keeps the database running (it never suspends, and keeps using capacity), otherwise 60 to 86400 seconds. A database is provisioned in the background: poll GET /api/v0/databases/{asset_id}/compute-status until it reports running or suspended.
 
 `POST /api/v0/assets/create`
 
@@ -305,6 +316,17 @@ Retrieve a single asset by its ID. Returns comprehensive metadata including crea
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes | Unique identifier of the asset to retrieve |
 
+#### `athena assets get-access` `[BETA]`
+
+Read the access that you, or another user, have on an asset, and every grant that gives it. The level is what Athena's permission checks decide for the user in the asset's own workspace, whichever workspace is active for your key: 'view' can open the asset, 'edit' can also change it and manage its sharing, 'owner' created it and can edit it, and 'none' cannot open it. Each source names one grant: 'owner', 'direct' (shared with the user), 'group' (shared with a workspace group the user belongs to), 'workspace' (shared with the whole workspace), 'drive' (a role on the drive) or 'other' (access the share list does not hold, for example an environment admin). A folder's sharing reaches each asset inside it as that asset's own share, so a 'workspace' source on a sub-folder shows that a share of its parent folder reached it. Without user_id the route reads your own access; you need view access to the asset and membership in its workspace. To read another user's access, pass their user_id; you need edit access to the asset, as for sharing it. A user who is not a member of the asset's workspace, or who does not exist, reads as 'none' with is_member false. A suspended member reads as 'none' with no sources, and is_member still reports their membership. When a permission check cannot be answered (for example on an asset in a drive while the authorization service is unavailable), the route answers 503 and never a level. The route never changes a permission.
+
+`GET /api/v0/assets/{asset_id}/access`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the asset |
+| `--user-id` | `string` | No | The user whose access to read. Leave it out to read your own. Reading another user's access needs edit access to the asset. |
+
 #### `athena assets get-activity-delta` `[BETA]`
 
 Admin only. Report what changed between two Keryx clocks — for spreadsheets, the per-cell before/after values and row/column inserts and deletes (axis_changes); for documents, the inserted and deleted text; for presentations, the affected slides. Take the clocks from the activity endpoint. Computed by the same differ the in-app Activity pane renders, so the payload matches what a user sees. Always inspect delta.coverage: caps and non-decodable bulk regions are reported there rather than silently omitted.
@@ -356,13 +378,24 @@ Admin only. List the edit history of a collaborative asset, newest first: who ed
 
 #### `athena assets move` `[BETA]`
 
-Move an asset into a folder or to the workspace root. The asset ID determines the workspace used for authorization; parent_folder_id must belong to the same workspace.
+Move an asset into a folder or to the workspace root. The asset ID determines the workspace used for authorization; parent_folder_id must belong to the same workspace. A move into a drive (target_drive_id, or a parent_folder_id inside a drive) carries the asset's whole folder subtree, so it is refused unless the caller can edit every item in it.
 
 `POST /api/v0/assets/{asset_id}/move`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes | Unique identifier of the asset to move |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena assets publish` `[BETA]`
+
+Publish a skill or collab agent so it is live for everyone who uses it. Omit version_id to snapshot and publish the current draft, or pass an existing version to promote it. Requires edit access to the asset.
+
+`POST /api/v0/assets/{asset_id}/publish`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | ID of the skill or collab agent to publish |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 #### `athena assets rename` `[BETA]`
@@ -486,6 +519,17 @@ Read the whole output of one step attempt. A step whose output fit the ledger an
 | `--run-id` | `string` | Yes | Unique identifier of the run |
 | `--step-row-id` | `string` | Yes | Row id of the step attempt (`astep_…`) |
 
+#### `athena automations get-webhook` `[BETA]`
+
+Read a published `webhook` trigger's inbound endpoint and its live secret. POST deliveries to the API host plus `path` with the secret in `X-Athena-Hook-Secret` (and optionally an `X-Athena-Hook-Delivery` id that makes retries idempotent); a JSON body reaches the trigger as `event.data.payload`. The secret is minted when the trigger is first published and kept across republishes.
+
+`GET /api/v0/automations/{asset_id}/webhooks/{trigger_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+| `--trigger-id` | `string` | Yes | The `webhook` trigger's id (triggers[].id) |
+
 #### `athena automations list-runs` `[BETA]`
 
 List the automation's runs, newest first, with offset pagination and an optional run_status filter. Use next_offset for the next page.
@@ -519,6 +563,17 @@ Redrive a failed or canceled run: a new run of the same pinned version that resu
 |------|------|----------|-------------|
 | `--run-id` | `string` | Yes | Unique identifier of the run |
 | `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena automations rotate-webhook` `[BETA]`
+
+Mint a fresh secret for a published `webhook` trigger and return the endpoint with it. The old secret stops working at once, so update the caller right after. Republishing never rotates the secret.
+
+`POST /api/v0/automations/{asset_id}/webhooks/{trigger_id}/rotate`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+| `--trigger-id` | `string` | Yes | The `webhook` trigger's id (triggers[].id) |
 
 #### `athena automations run` `[BETA]`
 
@@ -725,7 +780,7 @@ Submit a message to a collab agent through its Programmatic channel. The agent m
 
 #### `athena computer create-ssh-access` `[BETA]`
 
-Generate a time-limited SSH access token for a computer asset. Returns a full SSH command and token that can be used to connect to the computer's underlying VM and run commands. The computer must support SSH access and be in a running state.
+Generate a time-limited SSH access token for a computer asset. Returns a full SSH command and token that can be used to connect to the computer's underlying VM and run commands. The computer must support SSH access. If it is stopped, this call starts it first and can take as long as `start_computer`; after an explicit Stop it returns 409 until you call `start_computer`. Use `get_status` to see whether the computer is ready.
 
 `POST /api/v0/computer/{asset_id}/ssh-access`
 
@@ -765,6 +820,24 @@ Return the SSH gateway host, port, username, and ready-made command for connecti
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 
+#### `athena computer get-status` `[BETA]`
+
+Read an existing computer's live runtime state and whether it is ready, without starting, waking, or repairing it. Works for every computer, including those created before durable initialization (`get_initialization` reports creation-time progress only). Requires membership in the computer's workspace and VIEW access. This read does not count as activity, so polling it does not keep the computer awake.
+
+**Waiting for a computer.** Call `start_computer`, then poll this endpoint every few seconds until `ready` is true; stop polling when `not_ready_reason` is `launcher_outdated`. `start_computer` waits for the computer, but a proxy in front of the API can end a long request (about 60 seconds on Athena's ingress) while the start continues on the server. The server waits up to 210 seconds by default for the computer's runtime to boot before it reports a failure, and Athena alerts its operators when the 90th percentile of starts goes above 3 minutes.
+
+**Auto-stop.** A computer stops after its `auto_stop_minutes` of inactivity (60 minutes unless the computer or the deployment sets another value; 0 means it never stops on its own). Activity is work inside the computer — commands, terminal and SSH sessions, file operations — and requests to its deployed URLs. Status reads are not activity.
+
+**The asset record's `status`.** The computer's `status` in `GET /assets/{asset_id}` records the last lifecycle change Athena recorded (create, Start, Stop); it is not a live read. It can read `running` while the computer is stopped, for example after an idle auto-stop, or `stopped` after something woke it. Use this endpoint for the live state.
+
+Returns 403 when the caller is not a member of the computer's workspace, 409 while the computer is still being created or when its creation failed, 404 when the asset does not exist or its runtime is gone for good (stop polling), and 502 when the runtime could not be read (retry).
+
+`GET /api/v0/computer/{asset_id}/status`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+
 #### `athena computer list-ssh-access-tokens` `[BETA]`
 
 List the unrevoked temporary SSH tokens YOU minted for this computer with `create_ssh_access` — each with its id, the token's last 4 characters, and its creation and expiry times. Tokens that expired in the last 15 minutes are included with `expired: true`, because a session opened before expiry can outlive it briefly. The token itself is never returned again after it is minted, and tokens other users minted are not listed. Requires edit access to the computer. Tokens minted before this listing existed are not listed; they expire on their own.
@@ -799,7 +872,7 @@ Revoke a temporary SSH token you minted for this computer, by the id `list_ssh_a
 
 #### `athena computer start-computer` `[BETA]`
 
-Start a stopped computer's runtime and wait for it to come up — the same operation as the Start button in Athena. Idempotent for a running computer. Returns 409 when the computer's provider does not support lifecycle operations.
+Start a stopped computer's runtime and wait for it to come up — the same operation as the Start button in Athena. Idempotent for a running computer, and it clears an explicit stop. `state` is `started` once the runtime is up; the guest can need a few more seconds, so poll `get_status` until `ready` is true before you rely on commands or SSH. A proxy in front of the API can end this request after about 60 seconds while the start continues on the server; then poll `get_status`. Returns 409 when the computer's provider does not support lifecycle operations.
 
 `POST /api/v0/computer/{asset_id}/start`
 
@@ -859,16 +932,31 @@ Execute a SQL statement against the database. SELECT queries return columns and 
 | `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
+#### `athena databases get-settings` `[BETA]`
+
+Read the database's auto-suspend window, the same setting as auto-suspend in the database's Settings in Athena. Reading never wakes the database.
+
+A database suspends (scales to zero) after `suspend_timeout_seconds` without activity; `GET`/`PATCH /databases/{asset_id}/settings` read and set that window, and 0 keeps it running. Reading the compute status or the settings never wakes a suspended database. Two things do: `POST /databases/{asset_id}/wake`, which answers at once while the compute starts, or any request that runs SQL on it, such as `POST /databases/{asset_id}/sql`, which waits for the compute up to 120 seconds; if the compute is still starting then, the answer is 503 with `Retry-After` and the statement did not run. A cold start usually takes 30 seconds to 2 minutes.
+
+`GET /api/v0/databases/{asset_id}/settings`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+
 #### `athena databases get-status` `[BETA]`
 
 Check if a database is running, suspended, or starting up. Poll this endpoint to determine when a serverless database is ready.
 
 **Status Values:**
 - `running` - Database is active and accepting connections
-- `suspended` - Database is suspended (scale-to-zero), will auto-resume on first query
-- `starting` - Database is waking up
-- `failed` - Database failed to start
-- `unknown` - Status could not be determined
+- `suspended` - Database is suspended (scale-to-zero). It wakes on `POST /databases/{asset_id}/wake` or on the first SQL request. When `reason` is `ComputeUnschedulable`, no node could host its compute size: waking it only restarts the same wait
+- `starting` - Database is waking up, or its compute is being recreated
+- `creating` - Database is being created; it has no compute yet
+- `failed` - Database failed to start, or its creation failed (`message` says which)
+- `unknown` - Status could not be determined (the control plane did not answer); retry
+
+A database suspends (scales to zero) after `suspend_timeout_seconds` without activity; `GET`/`PATCH /databases/{asset_id}/settings` read and set that window, and 0 keeps it running. Reading the compute status or the settings never wakes a suspended database. Two things do: `POST /databases/{asset_id}/wake`, which answers at once while the compute starts, or any request that runs SQL on it, such as `POST /databases/{asset_id}/sql`, which waits for the compute up to 120 seconds; if the compute is still starting then, the answer is 503 with `Retry-After` and the statement did not run. A cold start usually takes 30 seconds to 2 minutes.
 
 `GET /api/v0/databases/{asset_id}/compute-status`
 
@@ -962,6 +1050,31 @@ Update rows matching the filter conditions. Filter conditions are passed as quer
 | `--table-name` | `string` | Yes |  |
 | `--force` | `boolean` | No | Set to true to update all rows (required when no filters provided) |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena databases update-settings` `[BETA]`
+
+Set the database's auto-suspend window: 0 keeps the database running (it never suspends, and keeps using compute capacity), otherwise 60 to 86400 seconds. The same setting, values and edit-access rule as auto-suspend in the database's Settings in Athena; the change applies at once and does not restart or wake the database.
+
+A database suspends (scales to zero) after `suspend_timeout_seconds` without activity; `GET`/`PATCH /databases/{asset_id}/settings` read and set that window, and 0 keeps it running. Reading the compute status or the settings never wakes a suspended database. Two things do: `POST /databases/{asset_id}/wake`, which answers at once while the compute starts, or any request that runs SQL on it, such as `POST /databases/{asset_id}/sql`, which waits for the compute up to 120 seconds; if the compute is still starting then, the answer is 503 with `Retry-After` and the statement did not run. A cold start usually takes 30 seconds to 2 minutes.
+
+`PATCH /api/v0/databases/{asset_id}/settings`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena databases wake` `[BETA]`
+
+Start a suspended database's compute and answer at once, without waiting for it to run. Poll `GET /databases/{asset_id}/compute-status` until it reports `running`. Waking a running database resets its idle clock and answers 200 with `running`, so it is safe to call before every batch of work. The same action as Resume Database in Athena; it needs edit access to the database.
+
+A database suspends (scales to zero) after `suspend_timeout_seconds` without activity; `GET`/`PATCH /databases/{asset_id}/settings` read and set that window, and 0 keeps it running. Reading the compute status or the settings never wakes a suspended database. Two things do: `POST /databases/{asset_id}/wake`, which answers at once while the compute starts, or any request that runs SQL on it, such as `POST /databases/{asset_id}/sql`, which waits for the compute up to 120 seconds; if the compute is still starting then, the answer is 503 with `Retry-After` and the statement did not run. A cold start usually takes 30 seconds to 2 minutes.
+
+`POST /api/v0/databases/{asset_id}/wake`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
 
 ---
 
@@ -1533,7 +1646,7 @@ Save a file as an asset in the target workspace.
 
 #### `athena tools agent-identity check-access` `[BETA]`
 
-Check whether a member of this run's workspace (by email) can view or edit a specific asset, and report the basis for the answer (creator, explicit share, workspace share, drive membership). Read-only — it never changes any permission.
+Check whether a member of this run's workspace (by email) can view or edit a specific asset, and report the basis for the answer (creator, explicit share, workspace share, drive membership). Read-only — it never changes any permission. Over HTTP, POST /api/v0/tools/agent-identity/check-access is for environment admins only, and it answers 404 until the deployment turns on its tools registry API (PUBLIC_TOOLS_REGISTRY_API_ENABLED). With an ordinary API key, use GET /api/v0/assets/{asset_id}/access?user_id=..., which reads a member's access on an asset and the grants behind it.
 
 `POST /api/v0/tools/agent-identity/check-access`
 
@@ -1543,7 +1656,7 @@ Check whether a member of this run's workspace (by email) can view or edit a spe
 
 #### `athena tools agent-identity list-workspace-members` `[BETA]`
 
-List the (non-suspended) members of this run's workspace with their names, emails, and optionally their workspace roles. Available only when the acting user belongs to the workspace.
+List the (non-suspended) members of this run's workspace with their names, emails, and optionally their workspace roles. Available only when the acting user belongs to the workspace. Over HTTP, POST /api/v0/tools/agent-identity/list-workspace-members is for environment admins only, and it answers 404 until the deployment turns on its tools registry API (PUBLIC_TOOLS_REGISTRY_API_ENABLED). With an ordinary API key, use GET /api/v0/workspaces/{workspace_id}/members, a search of the workspace's people by name or email.
 
 `POST /api/v0/tools/agent-identity/list-workspace-members`
 
@@ -1553,13 +1666,47 @@ List the (non-suspended) members of this run's workspace with their names, email
 
 #### `athena tools agent-identity who-am-i` `[BETA]`
 
-Describe the identity of THIS run as a typed JSON document: the principal it acts as (a person, a collab agent, or an automation), the acting user (name, email, user id), the run workspace, and — when running as a collab agent — the agent's own identity: title, owner, workspace, reserved email address, phone number and its calling/texting status, enabled channels (SMS, voice, meetings, meeting voice, comments pane, programmatic), Slack binding, and calendar feed availability; and — when the run was started by an automation — the automation: asset id, name, run id, step id, published version and fingerprint, publisher, active grant count and its Treasury principal row. Answers in any run: a plain chat reports principal.kind == 'user'. Anything it could not resolve is listed under notes; it never fails.
+Describe the identity of THIS run as a typed JSON document: the principal it acts as (a person, a collab agent, or an automation), the acting user (name, email, user id), the run workspace, and — when running as a collab agent — the agent's own identity: title, owner, workspace, reserved email address, phone number and its calling/texting status, enabled channels (SMS, voice, meetings, meeting voice, comments pane, programmatic), Slack binding, and calendar feed availability; and — when the run was started by an automation — the automation: asset id, name, run id, step id, published version and fingerprint, publisher, active grant count and its Treasury principal row. Answers in any run: a plain chat reports principal.kind == 'user'. Anything it could not resolve is listed under notes; it never fails. Over HTTP, POST /api/v0/tools/agent-identity/who-am-i is for environment admins only, and it answers 404 until the deployment turns on its tools registry API (PUBLIC_TOOLS_REGISTRY_API_ENABLED). With an ordinary API key, use GET /api/v0/me.
 
 `POST /api/v0/tools/agent-identity/who-am-i`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+---
+
+### `athena tools asset-graph`
+
+#### `athena tools asset-graph asset-relationships` `[BETA]`
+
+What is related to an asset, and how: where it lives (folder, drive) and what lives in it, the projects and collections that list it, what it was made from and what was made from it (conversions, transcripts, the sources a sheet or deck reads), the sessions, agents, automations and subscriptions that act on it, and who it is shared with. Each line is one of five kinds (lives_in, shared_with, points_to, made_from, acts_on) with when it was made and what made it; busy neighbours are grouped with counts. Use it to answer 'what uses this?', 'where does this come from?' or 'what is this connected to?'. Returns an Open in graph link. Read-only; assets you cannot open are absent.
+
+`POST /api/v0/tools/asset-graph/asset-relationships`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools asset-graph automation-wiring` `[BETA]`
+
+Which automations, schedules and rules are wired to an asset: each automation that watches, reads, writes or runs it (or the asset itself when it is an automation), when each one starts, what its steps do, and where its newest run failed; for an AOP or an agent, the schedules and rules that start it outside Automations. Use it to answer 'what runs on this?' or 'why did this automation fail?'. Returns an Open in graph link. Read-only; nothing runs.
+
+`POST /api/v0/tools/asset-graph/automation-wiring`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools asset-graph explain-asset-access` `[BETA]`
+
+Why a person can or cannot see an asset: the asset gate's verdict (can edit, can view, cannot view, or not a member of its workspace), asked as that person, and each path that admits them (they made it, it was shared with them by name, with the workspace or with a group they are in, they are staff, it is a run of an AOP they can edit), with notes on any fence or untraced rule. Use it when someone asks why a colleague can or cannot open something. Returns an Open in graph link. Read-only; the person is not notified.
+
+`POST /api/v0/tools/asset-graph/explain-asset-access`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
 
@@ -2062,6 +2209,10 @@ When Tool Studio is disabled in the environment, returns HTTP 403 with
 detail.code `ENVIRONMENT_FEATURE_DISABLED` and detail.key `task_studio_toolkit`
 before creating or running a job. This restriction also applies to administrators.
 
+A task the workspace Tool Registry holds for approval returns HTTP 403 with
+detail.code `tool_requires_approval` before running: an API call carries no
+approval. Run it from a chat session or behind an automation's approval gate.
+
 `POST /api/v0/tools/tasks/run`
 
 | Flag | Type | Required | Description |
@@ -2149,6 +2300,45 @@ Retrieve the persisted per-workspace Tool Registry policy. The response contains
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--workspace-id` | `string` | Yes |  |
+
+#### `athena workspaces get-usage` `[BETA]`
+
+Aggregate LLM token usage (and cost) for one workspace over the last `days` days: workspace totals plus per-member, per-day and per-Computer breakdowns. Token counters are summed from each session's usage ledger; dry-run (test) sessions are reported separately and excluded from the totals. Requires workspace owner or manager (or Athena admin) permissions — the same gate as the in-app Usage page.
+
+`GET /api/v0/workspaces/{workspace_id}/usage`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes |  |
+| `--days` | `integer` | No | Reporting window in days, ending now (1-365) |
+
+#### `athena workspaces list-memberships` `[BETA]`
+
+The full membership roster of one workspace with each member's user id, name, email, role and join date — built for usage reporting and licence reconciliation, unlike the share-picker search at `GET /workspaces/{workspace_id}/members`. Removed members are left out unless `include_archived=true`. Pages are ordered by user id; `next_cursor` is returned while more remain. Requires workspace owner or manager (or Athena admin) permissions.
+
+`GET /api/v0/workspaces/{workspace_id}/memberships`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes | Unique identifier of the workspace |
+| `--include-archived` | `boolean` | No | Also return memberships that were removed from the workspace |
+| `--cursor` | `string` | No | `next_cursor` from the previous page |
+| `--limit` | `integer` | No | Maximum memberships per page |
+
+#### `athena workspaces list-usage-sessions` `[BETA]`
+
+Per-session LLM token usage for one workspace — the same rows as the workspace usage CSV export, as JSON. Each session yields one row per provider/model/status combination with its token breakdown and billed cost; dry-run (test) sessions are excluded. Pick the window with `from`/`to` (UTC dates, inclusive, at most 365 days) or a rolling `days`. Pages are keyset-paginated newest first: `limit` counts sessions, and `next_cursor` is returned while more sessions remain. Requires workspace owner or manager (or Athena admin) permissions.
+
+`GET /api/v0/workspaces/{workspace_id}/usage/sessions`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes | Unique identifier of the workspace |
+| `--from` | `string` | No | First UTC day of the window (YYYY-MM-DD); requires `to` |
+| `--to` | `string` | No | Last UTC day of the window, inclusive (YYYY-MM-DD); requires `from` |
+| `--days` | `integer` | No | Rolling window in days ending now; ignored when `from`/`to` are given |
+| `--cursor` | `string` | No | `next_cursor` from the previous page |
+| `--limit` | `integer` | No | Maximum sessions per page (each may yield several rows) |
 
 #### `athena workspaces resolve-presence` `[BETA]`
 

@@ -8,6 +8,9 @@ pub struct AssetReadResult {
     /// Supported/preferred anchors, returned after an unsupported anchor
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchor_guidance: Option<String>,
+    /// The asset the read resolved to. Set only when the caller passed the asset's permission check: on a successful read, and on a teaching error (bad anchor, unsupported format) returned after that check. Null when the asset was refused or not found.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset: Option<AssetReadIdentityOut>,
     /// The asset identifier this result is for
     #[serde(default)]
     pub asset_id: String,
@@ -50,6 +53,7 @@ impl AssetReadResult {
 #[non_exhaustive]
 pub struct AssetReadResultBuilder {
     anchor_guidance: Option<String>,
+    asset: Option<AssetReadIdentityOut>,
     asset_id: Option<String>,
     asset_type: Option<String>,
     content: Option<String>,
@@ -65,6 +69,11 @@ pub struct AssetReadResultBuilder {
 impl AssetReadResultBuilder {
     pub fn anchor_guidance(mut self, value: impl Into<String>) -> Self {
         self.anchor_guidance = Some(value.into());
+        self
+    }
+
+    pub fn asset(mut self, value: AssetReadIdentityOut) -> Self {
+        self.asset = Some(value);
         self
     }
 
@@ -126,6 +135,7 @@ impl AssetReadResultBuilder {
     pub fn build(self) -> Result<AssetReadResult, BuildError> {
         Ok(AssetReadResult {
             anchor_guidance: self.anchor_guidance,
+            asset: self.asset,
             asset_id: self.asset_id.ok_or_else(|| BuildError::missing_field("asset_id"))?,
             asset_type: self.asset_type,
             content: self.content.ok_or_else(|| BuildError::missing_field("content"))?,

@@ -12,6 +12,9 @@ pub enum CreatableAssetType {
     Database,
     Computer,
     GenericDoc,
+    UserInterface,
+    Skill,
+    CollabAgent,
     /// This variant is used for forward compatibility.
     /// If the server sends a value not recognized by the current SDK version,
     /// it will be captured here with the raw string value.
@@ -26,6 +29,9 @@ impl Serialize for CreatableAssetType {
             Self::Database => serializer.serialize_str("database"),
             Self::Computer => serializer.serialize_str("computer"),
             Self::GenericDoc => serializer.serialize_str("generic_doc"),
+            Self::UserInterface => serializer.serialize_str("user_interface"),
+            Self::Skill => serializer.serialize_str("skill"),
+            Self::CollabAgent => serializer.serialize_str("collab_agent"),
             Self::__Unknown(val) => serializer.serialize_str(val),
         }
     }
@@ -41,6 +47,9 @@ impl<'de> Deserialize<'de> for CreatableAssetType {
             "database" => Ok(Self::Database),
             "computer" => Ok(Self::Computer),
             "generic_doc" => Ok(Self::GenericDoc),
+            "user_interface" => Ok(Self::UserInterface),
+            "skill" => Ok(Self::Skill),
+            "collab_agent" => Ok(Self::CollabAgent),
             _ => Ok(Self::__Unknown(value)),
         }
     }
@@ -55,6 +64,9 @@ impl fmt::Display for CreatableAssetType {
             Self::Database => write!(f, "database"),
             Self::Computer => write!(f, "computer"),
             Self::GenericDoc => write!(f, "generic_doc"),
+            Self::UserInterface => write!(f, "user_interface"),
+            Self::Skill => write!(f, "skill"),
+            Self::CollabAgent => write!(f, "collab_agent"),
             Self::__Unknown(val) => write!(f, "{}", val),
         }
     }
