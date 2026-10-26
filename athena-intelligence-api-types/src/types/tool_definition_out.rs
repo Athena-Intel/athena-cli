@@ -29,7 +29,7 @@ pub struct ToolDefinitionOut {
     /// Why the tool cannot be invoked over HTTP, when invocable is false
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refusal_reason: Option<String>,
-    /// Whether the tool requires human approval before it runs.
+    /// Whether the tool requires human approval before it runs, by its own definition or by the workspace Tool Registry's approval mode.
     #[serde(default)]
     pub requires_approval: bool,
     /// How the tool's side effects are undone on session rollback.

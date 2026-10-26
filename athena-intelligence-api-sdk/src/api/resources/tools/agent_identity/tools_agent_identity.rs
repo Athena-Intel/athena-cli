@@ -13,7 +13,7 @@ impl AgentIdentityClient {
         })
     }
 
-    /// Check whether a member of this run's workspace (by email) can view or edit a specific asset, and report the basis for the answer (creator, explicit share, workspace share, drive membership). Read-only — it never changes any permission.
+    /// Check whether a member of this run's workspace (by email) can view or edit a specific asset, and report the basis for the answer (creator, explicit share, workspace share, drive membership). Read-only — it never changes any permission. Over HTTP, POST /api/v0/tools/agent-identity/check-access is for environment admins only, and it answers 404 until the deployment turns on its tools registry API (PUBLIC_TOOLS_REGISTRY_API_ENABLED). With an ordinary API key, use GET /api/v0/assets/{asset_id}/access?user_id=..., which reads a member's access on an asset and the grants behind it.
     ///
     /// # Arguments
     ///
@@ -38,7 +38,7 @@ impl AgentIdentityClient {
             .await
     }
 
-    /// List the (non-suspended) members of this run's workspace with their names, emails, and optionally their workspace roles. Available only when the acting user belongs to the workspace.
+    /// List the (non-suspended) members of this run's workspace with their names, emails, and optionally their workspace roles. Available only when the acting user belongs to the workspace. Over HTTP, POST /api/v0/tools/agent-identity/list-workspace-members is for environment admins only, and it answers 404 until the deployment turns on its tools registry API (PUBLIC_TOOLS_REGISTRY_API_ENABLED). With an ordinary API key, use GET /api/v0/workspaces/{workspace_id}/members, a search of the workspace's people by name or email.
     ///
     /// # Arguments
     ///
@@ -63,7 +63,7 @@ impl AgentIdentityClient {
             .await
     }
 
-    /// Describe the identity of THIS run as a typed JSON document: the principal it acts as (a person, a collab agent, or an automation), the acting user (name, email, user id), the run workspace, and — when running as a collab agent — the agent's own identity: title, owner, workspace, reserved email address, phone number and its calling/texting status, enabled channels (SMS, voice, meetings, meeting voice, comments pane, programmatic), Slack binding, and calendar feed availability; and — when the run was started by an automation — the automation: asset id, name, run id, step id, published version and fingerprint, publisher, active grant count and its Treasury principal row. Answers in any run: a plain chat reports principal.kind == 'user'. Anything it could not resolve is listed under notes; it never fails.
+    /// Describe the identity of THIS run as a typed JSON document: the principal it acts as (a person, a collab agent, or an automation), the acting user (name, email, user id), the run workspace, and — when running as a collab agent — the agent's own identity: title, owner, workspace, reserved email address, phone number and its calling/texting status, enabled channels (SMS, voice, meetings, meeting voice, comments pane, programmatic), Slack binding, and calendar feed availability; and — when the run was started by an automation — the automation: asset id, name, run id, step id, published version and fingerprint, publisher, active grant count and its Treasury principal row. Answers in any run: a plain chat reports principal.kind == 'user'. Anything it could not resolve is listed under notes; it never fails. Over HTTP, POST /api/v0/tools/agent-identity/who-am-i is for environment admins only, and it answers 404 until the deployment turns on its tools registry API (PUBLIC_TOOLS_REGISTRY_API_ENABLED). With an ordinary API key, use GET /api/v0/me.
     ///
     /// # Arguments
     ///

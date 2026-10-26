@@ -13,8 +13,8 @@ pub use resources::{
     AgentsClient, AopClient, ApiClient, ApprovalsClient, AssetsClient, AutomationsClient,
     CapabilitiesClient, CollabAgentsClient, ComputerClient, DatabasesClient, EventsClient,
     MeetingsClient, PresentationClient, QueryClient, ScriptsClient, SemanticModelClient,
-    SessionsClient, SystemClient, ThreadsClient, ToolkitsClient, ToolsClient, UsersClient,
-    WorkspacesClient,
+    SessionsClient, SubscriptionsClient, SystemClient, ThreadsClient, ToolkitsClient, ToolsClient,
+    UsersClient, WorkspacesClient,
 };
 
 pub use athena_intelligence_api_types::*;

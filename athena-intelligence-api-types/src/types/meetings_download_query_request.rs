@@ -5,7 +5,7 @@ use super::*;
 /// Query parameters for download
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
 pub struct MeetingsDownloadQueryRequest {
-    /// Which artifact to download: 'zip' (full export), 'recording', 'transcript', 'formatted_transcript', or 'chat'
+    /// Which artifact to download: 'zip' (full export), 'recording', 'transcript', 'formatted_transcript', or 'chat'. A voice memo supports only 'recording' (its audio).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifact: Option<DownloadMeetingsRequestArtifact>,
 }

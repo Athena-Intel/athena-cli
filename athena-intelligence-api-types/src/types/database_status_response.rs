@@ -17,6 +17,9 @@ pub struct DatabaseStatusResponse {
     /// Database provider ('kronos')
     #[serde(default)]
     pub provider: String,
+    /// Why the compute is in this state, when the control plane says: `ComputeUnschedulable` on a `suspended` database means no node could host its compute size, so a wake only restarts the same wait; choose a smaller compute size in the database's Settings in Athena first. Absent on older control planes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
     /// Standardized database status
     pub status: DatabaseStatusResponseStatus,
 }
@@ -33,6 +36,7 @@ pub struct DatabaseStatusResponseBuilder {
     asset_id: Option<String>,
     message: Option<String>,
     provider: Option<String>,
+    reason: Option<String>,
     status: Option<DatabaseStatusResponseStatus>,
 }
 
@@ -52,6 +56,11 @@ impl DatabaseStatusResponseBuilder {
         self
     }
 
+    pub fn reason(mut self, value: impl Into<String>) -> Self {
+        self.reason = Some(value.into());
+        self
+    }
+
     pub fn status(mut self, value: DatabaseStatusResponseStatus) -> Self {
         self.status = Some(value);
         self
@@ -67,6 +76,7 @@ impl DatabaseStatusResponseBuilder {
             asset_id: self.asset_id.ok_or_else(|| BuildError::missing_field("asset_id"))?,
             message: self.message,
             provider: self.provider.ok_or_else(|| BuildError::missing_field("provider"))?,
+            reason: self.reason,
             status: self.status.ok_or_else(|| BuildError::missing_field("status"))?,
         })
     }

@@ -2,7 +2,7 @@ pub use crate::prelude::*;
 #[allow(unused_imports)]
 use super::*;
 
-/// Which artifact to download: 'zip' (full export), 'recording', 'transcript', 'formatted_transcript', or 'chat'
+/// Which artifact to download: 'zip' (full export), 'recording', 'transcript', 'formatted_transcript', or 'chat'. A voice memo supports only 'recording' (its audio).
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DownloadMeetingsRequestArtifact {

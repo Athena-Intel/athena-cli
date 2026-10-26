@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AutomationCreateRequestIn {
-    /// Optional draft definition document (schema_version 1; agora/services/automations/schema/automation-definition.v1.schema.json) to seed the Keryx draft with. Shape-validated here; tools, cron and expressions are checked at publish
+    /// Optional draft definition document (schema_version 2; agora/services/automations/schema/automation-definition.v2.schema.json; a schema_version 1 document is read through the v1→v2 upgrader) to seed the Keryx draft with. Shape-validated here; tools, cron and expressions are checked at publish
     #[serde(skip_serializing_if = "Option::is_none")]
     pub definition: Option<HashMap<String, serde_json::Value>>,
     /// Folder to create the automation in (workspace root if omitted)
