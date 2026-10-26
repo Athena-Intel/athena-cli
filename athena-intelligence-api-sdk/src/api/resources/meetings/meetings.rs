@@ -1,5 +1,5 @@
 use crate::api::*;
-use crate::{ApiError, ClientConfig, HttpClient, QueryBuilder, RequestOptions};
+use crate::{ApiError, ByteStream, ClientConfig, HttpClient, QueryBuilder, RequestOptions};
 use reqwest::Method;
 
 pub struct MeetingsClient {
@@ -87,25 +87,59 @@ impl MeetingsClient {
             .await
     }
 
-    /// Download a meeting artifact. By default streams a ZIP archive containing metadata.json plus every available artifact (video recording, raw transcript, formatted transcript, chat). Pass the artifact parameter to download a single artifact instead. Works for every meeting, whether its artifacts are stored on the meeting itself (meetings captured since September 2026, whose artifact asset IDs are null) or as separate child assets.
+    /// Cut the range [start, end) seconds out of a meeting's video recording, a voice memo, or a video/audio asset and stream it back: H.264/AAC MP4 for video, AAC audio (audio/mp4) for audio. The clip is not saved as an asset. Ranges are limited to 10 minutes.
     ///
     /// # Arguments
     ///
-    /// * `asset_id` - Unique identifier of the meeting asset to download
-    /// * `artifact` - Which artifact to download: 'zip' (full export), 'recording', 'transcript', 'formatted_transcript', or 'chat'
+    /// * `asset_id` - Meeting, voice memo, or video/audio asset to clip
+    /// * `start` - Clip start, in seconds
+    /// * `end` - Clip end, in seconds
+    /// * `media` - 'video' (MP4) or 'audio' (M4A); defaults to video for meetings and video assets, audio for voice memos and audio assets
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
     ///
-    /// JSON response from the API
+    /// Streaming file download (use .into_bytes() to collect or stream chunks)
+    pub async fn clip(
+        &self,
+        asset_id: &str,
+        request: &ClipQueryRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<ByteStream, ApiError> {
+        self.http_client
+            .execute_stream_request(
+                Method::GET,
+                &format!("api/v0/meetings/{}/clip", asset_id),
+                None,
+                QueryBuilder::new()
+                    .float("start", request.start.clone())
+                    .float("end", request.end.clone())
+                    .serialize("media", request.media.clone())
+                    .build(),
+                options,
+            )
+            .await
+    }
+
+    /// Download a meeting artifact. By default streams a ZIP archive containing metadata.json plus every available artifact (video recording, raw transcript, formatted transcript, chat). Pass the artifact parameter to download a single artifact instead. Works for every meeting, whether its artifacts are stored on the meeting itself (meetings captured since September 2026, whose artifact asset IDs are null) or as separate child assets. Also accepts a voice memo asset ID with artifact=recording, which streams the memo's recorded audio (for example audio/webm).
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - Unique identifier of the meeting asset to download
+    /// * `artifact` - Which artifact to download: 'zip' (full export), 'recording', 'transcript', 'formatted_transcript', or 'chat'. A voice memo supports only 'recording' (its audio).
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// Streaming file download (use .into_bytes() to collect or stream chunks)
     pub async fn download(
         &self,
         asset_id: &str,
         request: &MeetingsDownloadQueryRequest,
         options: Option<RequestOptions>,
-    ) -> Result<serde_json::Value, ApiError> {
+    ) -> Result<ByteStream, ApiError> {
         self.http_client
-            .execute_request(
+            .execute_stream_request(
                 Method::GET,
                 &format!("api/v0/meetings/{}/download", asset_id),
                 None,

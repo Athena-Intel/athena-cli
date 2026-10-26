@@ -96,6 +96,40 @@ impl WorkspacesClient {
             .await
     }
 
+    /// The full membership roster of one workspace with each member's user id, name, email, role and join date — built for usage reporting and licence reconciliation, unlike the share-picker search at `GET /workspaces/{workspace_id}/members`. Removed members are left out unless `include_archived=true`. Pages are ordered by user id; `next_cursor` is returned while more remain. Requires workspace owner or manager (or Athena admin) permissions.
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_id` - Unique identifier of the workspace
+    /// * `include_archived` - Also return memberships that were removed from the workspace
+    /// * `cursor` - `next_cursor` from the previous page
+    /// * `limit` - Maximum memberships per page
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn list_memberships(
+        &self,
+        workspace_id: &str,
+        request: &ListMembershipsQueryRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<WorkspaceMembershipListResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                &format!("api/v0/workspaces/{}/memberships", workspace_id),
+                None,
+                QueryBuilder::new()
+                    .bool("include_archived", request.include_archived.clone())
+                    .serialize("cursor", request.cursor.clone())
+                    .int("limit", request.limit.clone())
+                    .build(),
+                options,
+            )
+            .await
+    }
+
     /// Admin only. Mint a short-lived, read-only Keryx token for a workspace's live presence feed (the awareness room the People page renders). The token is bound to the calling user, so Keryx narrows every frame to the documents that user may open; it can never publish presence or write document content. Requires the presence roster to be enabled for the deployment and opted in for the workspace. Computer-asset sandbox credentials are refused: call with the viewing user's own token.
     ///
     /// # Arguments
@@ -195,6 +229,73 @@ impl WorkspacesClient {
                 &format!("api/v0/workspaces/{}/tool-registry", workspace_id),
                 Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
                 None,
+                options,
+            )
+            .await
+    }
+
+    /// Aggregate LLM token usage (and cost) for one workspace over the last `days` days: workspace totals plus per-member, per-day and per-Computer breakdowns. Token counters are summed from each session's usage ledger; dry-run (test) sessions are reported separately and excluded from the totals. Requires workspace owner or manager (or Athena admin) permissions — the same gate as the in-app Usage page.
+    ///
+    /// # Arguments
+    ///
+    /// * `days` - Reporting window in days, ending now (1-365)
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn get_usage(
+        &self,
+        workspace_id: &str,
+        request: &GetUsageQueryRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<WorkspaceUsageResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                &format!("api/v0/workspaces/{}/usage", workspace_id),
+                None,
+                QueryBuilder::new()
+                    .int("days", request.days.clone())
+                    .build(),
+                options,
+            )
+            .await
+    }
+
+    /// Per-session LLM token usage for one workspace — the same rows as the workspace usage CSV export, as JSON. Each session yields one row per provider/model/status combination with its token breakdown and billed cost; dry-run (test) sessions are excluded. Pick the window with `from`/`to` (UTC dates, inclusive, at most 365 days) or a rolling `days`. Pages are keyset-paginated newest first: `limit` counts sessions, and `next_cursor` is returned while more sessions remain. Requires workspace owner or manager (or Athena admin) permissions.
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_id` - Unique identifier of the workspace
+    /// * `from` - First UTC day of the window (YYYY-MM-DD); requires `to`
+    /// * `to` - Last UTC day of the window, inclusive (YYYY-MM-DD); requires `from`
+    /// * `days` - Rolling window in days ending now; ignored when `from`/`to` are given
+    /// * `cursor` - `next_cursor` from the previous page
+    /// * `limit` - Maximum sessions per page (each may yield several rows)
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn list_usage_sessions(
+        &self,
+        workspace_id: &str,
+        request: &ListUsageSessionsQueryRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<WorkspaceUsageSessionsResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                &format!("api/v0/workspaces/{}/usage/sessions", workspace_id),
+                None,
+                QueryBuilder::new()
+                    .serialize("from", request.from.clone())
+                    .serialize("to", request.to.clone())
+                    .int("days", request.days.clone())
+                    .serialize("cursor", request.cursor.clone())
+                    .int("limit", request.limit.clone())
+                    .build(),
                 options,
             )
             .await

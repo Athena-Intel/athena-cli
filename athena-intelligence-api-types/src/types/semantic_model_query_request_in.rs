@@ -16,9 +16,9 @@ pub struct SemanticModelQueryRequestIn {
     /// List of measure identifiers, e.g. ["orders.total_revenue"]
     #[serde(default)]
     pub measures: Vec<String>,
-    /// Optional ordering as [member, direction] pairs applied before "limit", e.g. [["orders.count", "desc"]] for a server-side top-N. Direction must be "asc" or "desc".
+    /// Optional ordering as [member, direction] pairs applied before "limit", e.g. [["orders.count", "desc"]] for a server-side top-N. Direction must be "asc" or "desc". Entries may also be given as {"member": "orders.count", "direction": "desc"} objects.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub order: Option<Vec<Vec<String>>>,
+    pub order: Option<Vec<SemanticModelQueryRequestInOrderItem>>,
     /// Optional Cube time dimension configs, e.g. [{"dimension": "orders.created_at", "granularity": "month", "dateRange": ["2026-01-01", "2026-06-30"]}]. The camelCase spelling "timeDimensions" (Cube's own, and the one the rest of Athena uses) is accepted as well.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_dimensions: Option<Vec<HashMap<String, serde_json::Value>>>,
@@ -37,7 +37,7 @@ pub struct SemanticModelQueryRequestInBuilder {
     filters: Option<Vec<HashMap<String, serde_json::Value>>>,
     limit: Option<i64>,
     measures: Option<Vec<String>>,
-    order: Option<Vec<Vec<String>>>,
+    order: Option<Vec<SemanticModelQueryRequestInOrderItem>>,
     time_dimensions: Option<Vec<HashMap<String, serde_json::Value>>>,
 }
 
@@ -62,7 +62,7 @@ impl SemanticModelQueryRequestInBuilder {
         self
     }
 
-    pub fn order(mut self, value: Vec<Vec<String>>) -> Self {
+    pub fn order(mut self, value: Vec<SemanticModelQueryRequestInOrderItem>) -> Self {
         self.order = Some(value);
         self
     }

@@ -22,6 +22,7 @@
 //! - **Toolkits**
 //! - **Tools**
 //! - **Presentation**
+//! - **Subscriptions**
 //! - **Workspaces**
 //! - **Agents**
 
@@ -43,6 +44,7 @@ pub mod query;
 pub mod scripts;
 pub mod semantic_model;
 pub mod sessions;
+pub mod subscriptions;
 pub mod system;
 pub mod threads;
 pub mod toolkits;
@@ -71,6 +73,7 @@ pub struct ApiClient {
     pub toolkits: ToolkitsClient,
     pub tools: ToolsClient,
     pub presentation: PresentationClient,
+    pub subscriptions: SubscriptionsClient,
     pub workspaces: WorkspacesClient,
     pub agents: AgentsClient,
 }
@@ -99,6 +102,7 @@ impl ApiClient {
             toolkits: ToolkitsClient::new(config.clone())?,
             tools: ToolsClient::new(config.clone())?,
             presentation: PresentationClient::new(config.clone())?,
+            subscriptions: SubscriptionsClient::new(config.clone())?,
             workspaces: WorkspacesClient::new(config.clone())?,
             agents: AgentsClient::new(config.clone())?,
         })
@@ -121,6 +125,7 @@ pub use query::QueryClient;
 pub use scripts::ScriptsClient;
 pub use semantic_model::SemanticModelClient;
 pub use sessions::SessionsClient;
+pub use subscriptions::SubscriptionsClient;
 pub use system::SystemClient;
 pub use threads::ThreadsClient;
 pub use toolkits::ToolkitsClient;
