@@ -13,7 +13,7 @@ impl ToolkitsClient {
         })
     }
 
-    /// List the toolkits available in this workspace. A toolkit is a named group of related tools.
+    /// List the toolkits available in this workspace. A toolkit is a named group of related tools. Open to every workspace member; each caller sees only the toolkits and tools visible to them.
     ///
     /// # Arguments
     ///
@@ -31,7 +31,7 @@ impl ToolkitsClient {
             .await
     }
 
-    /// Get a single toolkit by identifier or alias.
+    /// Get a single toolkit by identifier or alias. A toolkit the caller cannot see answers 404.
     ///
     /// # Arguments
     ///

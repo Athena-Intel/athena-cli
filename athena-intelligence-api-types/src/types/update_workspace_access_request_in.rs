@@ -2,10 +2,11 @@ pub use crate::prelude::*;
 #[allow(unused_imports)]
 use super::*;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
 pub struct UpdateWorkspaceAccessRequestIn {
-    /// Permission level to grant to the entire workspace. Set to 'view' or 'edit'.
-    pub workspace_access: WorkspaceShareAccess,
+    /// Permission level to grant to the entire workspace: 'view' or 'edit'. Set 'none' (or null) to remove the workspace-wide share; people the asset is shared with directly keep their access.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_access: Option<WorkspaceShareAccess>,
 }
 
 impl UpdateWorkspaceAccessRequestIn {
@@ -27,11 +28,9 @@ impl UpdateWorkspaceAccessRequestInBuilder {
     }
 
     /// Consumes the builder and constructs a [`UpdateWorkspaceAccessRequestIn`].
-    /// This method will fail if any of the following fields are not set:
-    /// - [`workspace_access`](UpdateWorkspaceAccessRequestInBuilder::workspace_access)
     pub fn build(self) -> Result<UpdateWorkspaceAccessRequestIn, BuildError> {
         Ok(UpdateWorkspaceAccessRequestIn {
-            workspace_access: self.workspace_access.ok_or_else(|| BuildError::missing_field("workspace_access"))?,
+            workspace_access: self.workspace_access,
         })
     }
 }

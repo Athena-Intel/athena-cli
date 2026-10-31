@@ -11,7 +11,7 @@ pub struct AssetsListQueryRequest {
     /// Number of assets to skip for pagination
     #[serde(skip_serializing_if = "Option::is_none")]
     pub offset: Option<i64>,
-    /// JSON string of filter criteria. Supports: created_by_id, created_by_email, tags, created_after/before, updated_after/before, title_substring, is_archived, is_hidden, athena_metadata, media_type, athena_converted_type, athena_original_type, summary_ready, summary_status, workspace_id
+    /// JSON string of filter criteria. Supports: created_by_id, created_by_email, tags, created_after/before, updated_after/before, title_substring, is_archived, is_hidden, athena_metadata, media_type, athena_converted_type, athena_original_type, summary_ready, summary_status, workspace_id, parent_folder_id (a folder id lists its direct children; null lists assets in no folder)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filters: Option<String>,
     /// JSON string of sort criteria: [{"field": "updated_at", "direction": "desc"}]. Supported fields: created_by_id, created_by_email, created_at, updated_at, is_archived, is_hidden, summary_ready, summary_status
@@ -20,6 +20,9 @@ pub struct AssetsListQueryRequest {
     /// Workspace to list assets from. Caller must be a member.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<String>,
+    /// Only list the direct children of this folder (not its whole subtree). Only assets you can access are returned. To list assets in no folder, pass filters.parent_folder_id = null instead.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_folder_id: Option<String>,
 }
 
 impl AssetsListQueryRequest {
@@ -36,6 +39,7 @@ pub struct AssetsListQueryRequestBuilder {
     filters: Option<String>,
     sort: Option<String>,
     workspace_id: Option<String>,
+    parent_folder_id: Option<String>,
 }
 
 impl AssetsListQueryRequestBuilder {
@@ -64,6 +68,11 @@ impl AssetsListQueryRequestBuilder {
         self
     }
 
+    pub fn parent_folder_id(mut self, value: impl Into<String>) -> Self {
+        self.parent_folder_id = Some(value.into());
+        self
+    }
+
     /// Consumes the builder and constructs a [`AssetsListQueryRequest`].
     pub fn build(self) -> Result<AssetsListQueryRequest, BuildError> {
         Ok(AssetsListQueryRequest {
@@ -72,6 +81,7 @@ impl AssetsListQueryRequestBuilder {
             filters: self.filters,
             sort: self.sort,
             workspace_id: self.workspace_id,
+            parent_folder_id: self.parent_folder_id,
         })
     }
 }

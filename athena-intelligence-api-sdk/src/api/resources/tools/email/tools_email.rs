@@ -43,6 +43,40 @@ impl EmailClient {
             .await
     }
 
+    /// Read one message from the caller's connected Gmail or Outlook mailbox.
+    ///
+    /// Returns its headers and its body as plain text, so an agent can keep the
+    /// whole email (in a CRM timeline, for example) rather than the search
+    /// snippet. Read-only; attachments are not returned.
+    ///
+    /// # Arguments
+    ///
+    /// * `message_id` - Provider message id, as `GET /tools/email/search` returns it in `results[].id`.
+    /// * `catalog_id` - Connected email account to use, as the catalog asset id returned by the Athena UI or the assets API. Defaults to the caller's default email account. An id that is not one of the caller's own connected accounts in the current workspace is a 404.
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn get_message(
+        &self,
+        message_id: &str,
+        request: &GetMessageQueryRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<EmailMessageResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                &format!("api/v0/tools/email/messages/{}", message_id),
+                None,
+                QueryBuilder::new()
+                    .serialize("catalog_id", request.catalog_id.clone())
+                    .build(),
+                options,
+            )
+            .await
+    }
+
     /// Search the caller's connected Gmail or Outlook mailbox.
     ///
     /// Results come from the connected account the caller can access in their

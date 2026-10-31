@@ -5,13 +5,13 @@ use super::*;
 /// One entry in an asset's activity log.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ActivityItemOut {
-    /// Who made the edit: 'user', 'agent', 'canvas-ai', 'rollback', or 'version-restore'. Matches the in-app Activity pane.
+    /// Who made the edit: 'user', 'agent', 'canvas-ai', 'rollback', 'version-restore', or 'system' (an automatic update, such as a query refreshed on open, which is nobody's edit). An edit naming an agent or an agent session is 'agent' whoever signed it. Matches the in-app Activity pane.
     #[serde(default)]
     pub actor_type: String,
     /// Attribution metadata carried by the edit. Common keys: user_id, agent_id, session_id, user_message_tracking_id, ai_message_tracking_id, source. Join session_id against your trace store to link an edit to the run that produced it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attributions: Option<HashMap<String, String>>,
-    /// Raw Keryx author id. 'backend-service' for agent writes; a user id for direct edits. Prefer actor_type for classification.
+    /// Raw Keryx author id: 'backend-service' for Athena's own writes (most agent writes), otherwise the user id that signed the write, which can be an agent run applied from that user's browser. Prefer actor_type for classification.
     #[serde(default)]
     pub by: String,
     /// Keryx clock at the start of the edit, in epoch milliseconds. Use with to_clock to request this item's delta.

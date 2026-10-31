@@ -8,7 +8,7 @@ pub struct MeetingOut {
     /// AI-generated summary of the meeting
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai_summary: Option<String>,
-    /// Downloadable artifacts (recording, transcripts, chat)
+    /// Deprecated: legacy artifact asset IDs, always null. Download artifacts through the meeting download endpoint
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifacts: Option<MeetingArtifactsOut>,
     /// Timestamp when the meeting asset was created (ISO 8601)
