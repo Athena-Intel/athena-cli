@@ -49,7 +49,7 @@ impl ToolsClient {
         })
     }
 
-    /// List tools with their argument schemas. Filter by toolkit, or to only those the caller can invoke over HTTP.
+    /// List tools with their argument schemas. Filter by toolkit, or to only those the caller can invoke over HTTP. Open to every workspace member; invoking most tools over HTTP is restricted to environment administrators, and invocable and refusal_reason say which ones this caller can invoke.
     ///
     /// # Arguments
     ///
@@ -342,7 +342,7 @@ impl ToolsClient {
             .await
     }
 
-    /// Get one tool's definition and argument schema.
+    /// Get one tool's definition and argument schema. Open to every workspace member; a tool the caller cannot see answers 404.
     ///
     /// # Arguments
     ///
@@ -367,7 +367,7 @@ impl ToolsClient {
             .await
     }
 
-    /// Invoke a tool synchronously and return its result. Policy refusals (unknown tool, not permitted, needs approval, wrong surface) are HTTP errors; a tool that runs and fails returns 200 with success=false.
+    /// Invoke a tool synchronously and return its result. Restricted to environment administrators, except for the tools the listing reports as invocable for the caller. Policy refusals (unknown tool, not permitted, needs approval, wrong surface) are HTTP errors; a tool that runs and fails returns 200 with success=false.
     ///
     /// # Arguments
     ///

@@ -7,7 +7,7 @@ pub struct CreateAssetRequestIn {
     /// collab_agent only. Initial agent configuration. Created as a draft; publish it with POST /api/v0/assets/{asset_id}/publish.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_config: Option<PublicCollabAgentConfigIn>,
-    /// Type of asset to create. Supported types: 'spreadsheet' (or 'sheet'), 'document' (or 'doc'), 'folder', 'database' (or 'db'), 'computer', 'generic_doc', 'user_interface' (or 'ui'), 'skill', 'collab_agent' (or 'agent')
+    /// Type of asset to create. Supported types: 'spreadsheet' (or 'sheet'), 'document' (or 'doc'), 'folder', 'database' (or 'db'), 'computer', 'generic_doc', 'user_interface' (or 'ui'), 'skill', 'collab_agent' (or 'agent'), 'figure', 'word_document' (or 'word'), 'presentation' (or 'deck'). 'document' is Athena's rich-text document; a Word document is 'word_document'.
     pub asset_type: CreatableAssetType,
     /// Computer only. vCPU count. Defaults to the template's default. Must be a size the environment's computer resource policy offers; sizes other than the template default require an admin.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -18,6 +18,9 @@ pub struct CreateAssetRequestIn {
     /// Computer only. Environment variables to set on the computer. Must include every key the template or environment requires. Also accepted as 'envVars'.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env_vars: Option<HashMap<String, Option<String>>>,
+    /// figure only. The figure's FigureSpec: kind, rendered and provenance, plus spec (plotly, vega-lite) or chart (chart, mixed) and the optional fields.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub figure_config: Option<PublicFigureConfigIn>,
     /// user_interface only. HTML used as the interface's initial index.html; without it the interface starts from Athena's starter page.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html_content: Option<String>,
@@ -42,7 +45,7 @@ pub struct CreateAssetRequestIn {
     /// Title for the new asset
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
-    /// ID of the workspace to create the asset in. If not provided, the asset is created in the user's current workspace. The user must be a member of the specified workspace.
+    /// ID of the workspace to create the asset in. If not provided, the asset is created in the workspace of parent_folder_id when one is given, otherwise in the user's current workspace. The user must be a member of that workspace.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<String>,
 }
@@ -61,6 +64,7 @@ pub struct CreateAssetRequestInBuilder {
     cpu: Option<i64>,
     disk: Option<i64>,
     env_vars: Option<HashMap<String, Option<String>>>,
+    figure_config: Option<PublicFigureConfigIn>,
     html_content: Option<String>,
     memory: Option<i64>,
     parent_folder_id: Option<String>,
@@ -95,6 +99,11 @@ impl CreateAssetRequestInBuilder {
 
     pub fn env_vars(mut self, value: HashMap<String, Option<String>>) -> Self {
         self.env_vars = Some(value);
+        self
+    }
+
+    pub fn figure_config(mut self, value: PublicFigureConfigIn) -> Self {
+        self.figure_config = Some(value);
         self
     }
 
@@ -153,6 +162,7 @@ impl CreateAssetRequestInBuilder {
             cpu: self.cpu,
             disk: self.disk,
             env_vars: self.env_vars,
+            figure_config: self.figure_config,
             html_content: self.html_content,
             memory: self.memory,
             parent_folder_id: self.parent_folder_id,

@@ -91,7 +91,7 @@ impl AutomationsClient {
             .await
     }
 
-    /// Read one run and every step attempt recorded for it, in execution order: status, timings, cost, the session a step opened, the approval it waits on, and its error.
+    /// Read one run and every step attempt recorded for it, in execution order: status, timings, cost, the session a step opened, the approval it waits on, and its error. The run's inputs and events and each step's input, output, session, approval and error message are returned only to the run's subject (who started it, or the owner of the trigger that did) and its participants (its approvers); for everyone else they are null, and a step's error keeps its code.
     ///
     /// # Arguments
     ///
@@ -170,7 +170,7 @@ impl AutomationsClient {
             .await
     }
 
-    /// Read the whole output of one step attempt. A step whose output fit the ledger answers with that object; a step whose row carries `output_ref` (its `output` is a truncated preview) streams the stored object back through the storage abstraction, so a multi-megabyte result never has to fit a GraphQL response. The step row id is the `step_id`-independent `astep_…` id the run detail lists. Until the attempt has recorded an output the route answers 404, so a 200 body is always one JSON object.
+    /// Read the whole output of one step attempt. A step whose output fit the ledger answers with that object; a step whose row carries `output_ref` (its `output` is a truncated preview) streams the stored object back through the storage abstraction, so a multi-megabyte result never has to fit a GraphQL response. The step row id is the `step_id`-independent `astep_…` id the run detail lists. Until the attempt has recorded an output the route answers 404, so a 200 body is always one JSON object. Only the run's subject (who started it, or the owner of the trigger that did) and its participants (its approvers) read a step's output; anyone else gets 403.
     ///
     /// # Arguments
     ///
@@ -334,7 +334,7 @@ impl AutomationsClient {
             .await
     }
 
-    /// List the automation's runs, newest first, with offset pagination and an optional run_status filter. Use next_offset for the next page.
+    /// List the automation's runs, newest first, with offset pagination and an optional run_status filter. Use next_offset for the next page. A run's inputs and starting events are returned only to its subject (who started it, or the owner of the trigger that did) and its participants (its approvers); for everyone else they are null and empty, and the run's status, timing and cost are still returned.
     ///
     /// # Arguments
     ///

@@ -10,7 +10,7 @@ pub struct WatchInput {
     /// kind event only: 'tell me if nothing happens by then'. When the deadline passes with nothing delivered since it was set, one subscription.deadline.passed event wakes the conversation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deadline: Option<SubscriptionDeadlineInput>,
-    /// Wait this long for more events before waking, 0 to 3600 seconds (each event type has its default).
+    /// Usually leave unset. Seconds a wake waits after the first matching event, gathering the events that follow into one turn, 0 to 3600; each event type has its own default (none for spreadsheet edits). Content changes already arrive one per editing pause (about half a second after a spreadsheet edit, two seconds after typing stops in a document), and every second set here delays every wake by that much, so set it only when the person asked to hear about changes in batches.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub debounce_seconds: Option<i64>,
     /// Event types to hear; each must be one the subject's capability card offers (read the card first), e.g. asset.content.changed, or github.pr.review.submitted and github.check_run.completed on a pull request. Prefer one watch with several events over several watches.

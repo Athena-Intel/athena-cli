@@ -256,7 +256,7 @@ Turn an uploaded HTML file into a user interface (an app) under its own id — t
 
 #### `athena assets create` `[BETA]`
 
-Create a new asset such as a spreadsheet, document, folder, database, computer, user interface, skill, collab agent, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied. Databases accept suspend_timeout_seconds, the auto-suspend window from the database's Settings in Athena: 0 keeps the database running (it never suspends, and keeps using capacity), otherwise 60 to 86400 seconds. A database is provisioned in the background: poll GET /api/v0/databases/{asset_id}/compute-status until it reports running or suspended.
+Create a new asset such as a spreadsheet, document, folder, database, computer, user interface, skill, collab agent, figure, Word document, presentation, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied. Databases accept suspend_timeout_seconds, the auto-suspend window from the database's Settings in Athena: 0 keeps the database running (it never suspends, and keeps using capacity), otherwise 60 to 86400 seconds. A database is provisioned in the background: poll GET /api/v0/databases/{asset_id}/compute-status until it reports running or suspended. Figures take figure_config, a FigureSpec (kind, rendered and provenance, plus spec or chart), validated as the Athena UI's figures are. A word_document is a Word document holding Athena's default template, and a presentation is a blank widescreen PPTX Studio deck (the workspace's default template is not applied): Athena creates each with its own studio credential, as your write, and answers once the studio has seeded it (502, keeping nothing, when PPTX Studio could not seed a deck). Edit them through DOCX Studio or PPTX Studio with a token from POST /api/v0/assets/{asset_id}/studio-token. From an agent run (a verified X-Athena-Session-Credential), their first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy. Without workspace_id the asset is created in the workspace of parent_folder_id when one is given, otherwise in your current workspace; you must be a member of that workspace.
 
 `POST /api/v0/assets/create`
 
@@ -275,6 +275,20 @@ Admin only. Mint a short-lived Keryx capability token for a Generic Doc asset, e
 | `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
+#### `athena assets create-from-file` `[BETA]`
+
+Create a Word document from a .docx file, or a presentation from a .pptx or .potx file, holding that file's content: the asset Athena makes when you create one from a file in the app. Athena imports the file through DOCX Studio or PPTX Studio with its own studio credential, as your write, and answers once the asset is ready (a large deck can take a few minutes). Nothing is left behind when the import fails. The file's name decides the type; the title defaults to the name without its extension. Gates are those of POST /api/v0/assets/create: membership in the workspace (workspace_id, else parent_folder_id's, else your current one) and EDIT on parent_folder_id. With source_asset_id (an asset you can read, for example the document the file was exported from) and no parent_folder_id, the new asset goes into the source's folder when you may create there, otherwise at your root. Unlike POST /api/v0/tools/file/save, which stores the file itself and turns an Office upload into its editable type in the background, this makes the editable asset in the request and keeps no file asset. A Word file may be up to 18.75 MiB, a PowerPoint file up to 100 MiB. From an agent run (a verified X-Athena-Session-Credential), a Word document's first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy.
+
+`POST /api/v0/assets/create-from-file`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--title` | `string` | No | Title for the new asset; defaults to the file's name |
+| `--parent-folder-id` | `string` | No | ID of the folder to create the asset in |
+| `--workspace-id` | `string` | No | ID of the workspace to create the asset in; defaults to the workspace of parent_folder_id, else your current workspace |
+| `--source-asset-id` | `string` | No | An asset you can read that the file came from; without parent_folder_id the new asset goes next to it when you may create there |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
 #### `athena assets create-project` `[BETA]`
 
 Create a new project with custom metadata. Projects can be typed (e.g., 'candidate', 'user', 'company') and include flexible custom metadata for storing additional information.
@@ -284,6 +298,17 @@ Create a new project with custom metadata. Projects can be typed (e.g., 'candida
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena assets create-studio-token` `[BETA]`
+
+Mint a short-lived asset token for the service that edits an asset: a spreadsheet's, a Word document's or a deck's, named in ``audience``. The token names the caller, this asset and one access level, lasts 15 minutes and is good only on that service's routes for this asset, so code (an SDK in a computer, for example) never sends the service a long-lived credential. The caller must be able to view the asset and be a member of its workspace; the token is read-write only when the caller can edit the asset and asked for edit. A computer's or session's credential mints tokens for assets of its own workspace only. With audience 'pptx-studio-source' it mints the read-only token the deck editing service reads a spreadsheet, figure or semantic model with for a linked table, OLE object or chart; a recording's token is always that one. Any other asset (another type, a live provider file, or one outside every workspace) is refused with 422.
+
+`POST /api/v0/assets/{asset_id}/studio-token`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | The spreadsheet, Word document or deck to mint a token for |
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
 
 #### `athena assets download` `[BETA]`
 
@@ -351,9 +376,19 @@ Admin only. Batch form of the activity-delta endpoint: diff several clock ranges
 | `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
+#### `athena assets get-workbook` `[BETA]`
+
+Read a spreadsheet file's contents as rows, every tab: an uploaded .xlsx, .xlsm, .xls, .csv, .tsv or Parquet file, or a linked file in SharePoint, Google Drive, OneDrive or iManage. Excel and Parquet cells keep their types; a CSV or TSV field that reads as a number becomes one. A sheet is read whole up to a safety ceiling, and a file over 40 MB is refused (413). A native Athena spreadsheet answers 409: its contents are the collaborative sheet, which the spreadsheet SDK opens directly. Nothing is written.
+
+`GET /api/v0/assets/{asset_id}/workbook`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | The spreadsheet file asset to read |
+
 #### `athena assets list` `[BETA]`
 
-Retrieve a paginated list of assets with optional filtering and sorting. Assets include documents, presentations, spreadsheets, images, videos, and other file types managed by Athena Intelligence.
+Retrieve a paginated list of assets with optional filtering and sorting. Assets include documents, presentations, spreadsheets, images, videos, and other file types managed by Athena Intelligence. Pass parent_folder_id to list one folder's direct children (not its whole subtree), or filters.parent_folder_id = null to list assets in no folder.
 
 `GET /api/v0/assets`
 
@@ -361,9 +396,10 @@ Retrieve a paginated list of assets with optional filtering and sorting. Assets 
 |------|------|----------|-------------|
 | `--limit` | `integer` | No | Maximum number of assets to return per page (1-500) |
 | `--offset` | `integer` | No | Number of assets to skip for pagination |
-| `--filters` | `string` | No | JSON string of filter criteria. Supports: created_by_id, created_by_email, tags, created_after/before, updated_after/before, title_substring, is_archived, is_hidden, athena_metadata, media_type, athena_converted_type, athena_original_type, summary_ready, summary_status, workspace_id |
+| `--filters` | `string` | No | JSON string of filter criteria. Supports: created_by_id, created_by_email, tags, created_after/before, updated_after/before, title_substring, is_archived, is_hidden, athena_metadata, media_type, athena_converted_type, athena_original_type, summary_ready, summary_status, workspace_id, parent_folder_id (a folder id lists its direct children; null lists assets in no folder) |
 | `--sort` | `string` | No | JSON string of sort criteria: [{"field": "updated_at", "direction": "desc"}]. Supported fields: created_by_id, created_by_email, created_at, updated_at, is_archived, is_hidden, summary_ready, summary_status |
 | `--workspace-id` | `string` | No | Workspace to list assets from. Caller must be a member. |
+| `--parent-folder-id` | `string` | No | Only list the direct children of this folder (not its whole subtree). Only assets you can access are returned. To list assets in no folder, pass filters.parent_folder_id = null instead. |
 
 #### `athena assets list-activity` `[BETA]`
 
@@ -399,9 +435,19 @@ Publish a skill or collab agent so it is live for everyone who uses it. Omit ver
 | `--asset-id` | `string` | Yes | ID of the skill or collab agent to publish |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
+#### `athena assets remove-workspace-access` `[BETA]`
+
+Remove the workspace-wide share from an asset, so members of the workspace no longer get access through it. Needs edit access to the asset. Removing a folder's share also removes it from the assets inside the folder. People and groups the asset is shared with directly keep their access. Calling it on an asset with no workspace share, or on one in the trash, succeeds with the same answer.
+
+`DELETE /api/v0/assets/{asset_id}/workspace-access`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the asset |
+
 #### `athena assets rename` `[BETA]`
 
-Update an asset's display title. This supports folders and all other asset types the caller can edit, and applies the same rename side effects as the Athena application.
+Update an asset's display title. This supports folders and all other asset types the caller can edit, and applies the same rename side effects as the Athena application. Only the title changes: to change a skill's or collab agent's content, use PUT /api/v0/assets/{asset_id}/skill-config or /api/v0/assets/{asset_id}/agent-config.
 
 `PATCH /api/v0/assets/{asset_id}`
 
@@ -421,9 +467,31 @@ Share an asset with specific users by email. Only users who have edit access to 
 | `--asset-id` | `string` | Yes | Unique identifier of the asset to share |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
+#### `athena assets update-agent-config` `[BETA]`
+
+Write a collab agent's configuration (system prompt, model, tools, sources, behavior and channel settings) to its draft. Only the fields you send change; an omitted field keeps its current value, and a list or text field you send replaces the old one whole. The write goes to the live draft, the same draft the Athena editor shows, under the asset's existing id. Once the asset has been published, runs keep using the published version until you publish the draft with POST /api/v0/assets/{asset_id}/publish; one never published runs from its draft. Requires edit access to the asset; an archived asset is refused with 409. Unknown fields are refused with 422. A model must be available in the agent's workspace (422 otherwise). Tool or toolkit IDs the registry does not know are written and reported under warnings. A source (collab_source:<asset_id>) or Tool Asset (tool:<asset_id>) the agent does not already hold must be one the caller can open: one they cannot open, or an archived one, is refused with 403 naming it, and nothing is written. A new name also becomes the asset title. The agent's email address and its outbound approval recipients are not set here.
+
+`PUT /api/v0/assets/{asset_id}/agent-config`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | ID of the collab agent to update |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena assets update-skill-config` `[BETA]`
+
+Write a skill's SKILL.md content (name, description, markdown body and the optional frontmatter) to its draft. Only the fields you send change; an omitted field keeps its current value, and a list or text field you send replaces the old one whole. The write goes to the live draft, the same draft the Athena editor shows, under the asset's existing id. Once the asset has been published, runs keep using the published version until you publish the draft with POST /api/v0/assets/{asset_id}/publish; one never published runs from its draft. Requires edit access to the asset; an archived asset is refused with 409. Unknown fields are refused with 422. The frontmatter is validated as it will read after the write; a skill that would not be spec-compliant is refused with 422 and nothing is written. A new name also becomes the asset title.
+
+`PUT /api/v0/assets/{asset_id}/skill-config`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | ID of the skill to update |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
 #### `athena assets update-workspace-access` `[BETA]`
 
-Update the workspace-level access on an asset. Only users who have edit access to the asset and permission to share with the workspace can use this endpoint. Set 'view' or 'edit' to grant workspace-wide access.
+Update the workspace-level access on an asset. Needs edit access to the asset. Set 'view' or 'edit' to grant workspace-wide access, which also needs permission to share with the workspace. Set 'none' (or null) to remove the workspace-wide share, as DELETE does; removing a folder's share also removes it from the assets inside the folder. People and groups the asset is shared with directly keep their access.
 
 `PUT /api/v0/assets/{asset_id}/workspace-access`
 
@@ -501,7 +569,7 @@ Read an automation whole: asset facts, the indexed mirror (enabled, current vers
 
 #### `athena automations get-run` `[BETA]`
 
-Read one run and every step attempt recorded for it, in execution order: status, timings, cost, the session a step opened, the approval it waits on, and its error.
+Read one run and every step attempt recorded for it, in execution order: status, timings, cost, the session a step opened, the approval it waits on, and its error. The run's inputs and events and each step's input, output, session, approval and error message are returned only to the run's subject (who started it, or the owner of the trigger that did) and its participants (its approvers); for everyone else they are null, and a step's error keeps its code.
 
 `GET /api/v0/automations/runs/{run_id}`
 
@@ -511,7 +579,7 @@ Read one run and every step attempt recorded for it, in execution order: status,
 
 #### `athena automations get-step-output` `[BETA]`
 
-Read the whole output of one step attempt. A step whose output fit the ledger answers with that object; a step whose row carries `output_ref` (its `output` is a truncated preview) streams the stored object back through the storage abstraction, so a multi-megabyte result never has to fit a GraphQL response. The step row id is the `step_id`-independent `astep_…` id the run detail lists. Until the attempt has recorded an output the route answers 404, so a 200 body is always one JSON object.
+Read the whole output of one step attempt. A step whose output fit the ledger answers with that object; a step whose row carries `output_ref` (its `output` is a truncated preview) streams the stored object back through the storage abstraction, so a multi-megabyte result never has to fit a GraphQL response. The step row id is the `step_id`-independent `astep_…` id the run detail lists. Until the attempt has recorded an output the route answers 404, so a 200 body is always one JSON object. Only the run's subject (who started it, or the owner of the trigger that did) and its participants (its approvers) read a step's output; anyone else gets 403.
 
 `GET /api/v0/automations/runs/{run_id}/steps/{step_row_id}/output`
 
@@ -533,7 +601,7 @@ Read a published `webhook` trigger's inbound endpoint and its live secret. POST 
 
 #### `athena automations list-runs` `[BETA]`
 
-List the automation's runs, newest first, with offset pagination and an optional run_status filter. Use next_offset for the next page.
+List the automation's runs, newest first, with offset pagination and an optional run_status filter. Use next_offset for the next page. A run's inputs and starting events are returned only to its subject (who started it, or the owner of the trigger that did) and its participants (its approvers); for everyone else they are null and empty, and the run's status, timing and cost are still returned.
 
 `GET /api/v0/automations/{asset_id}/runs`
 
@@ -1532,7 +1600,7 @@ Stop a running thread execution. This will stop the thread if it is currently ru
 
 #### `athena toolkits get` `[BETA]`
 
-Get a single toolkit by identifier or alias.
+Get a single toolkit by identifier or alias. A toolkit the caller cannot see answers 404.
 
 `GET /api/v0/toolkits/{toolkit_key}`
 
@@ -1542,7 +1610,7 @@ Get a single toolkit by identifier or alias.
 
 #### `athena toolkits list` `[BETA]`
 
-List the toolkits available in this workspace. A toolkit is a named group of related tools.
+List the toolkits available in this workspace. A toolkit is a named group of related tools. Open to every workspace member; each caller sees only the toolkits and tools visible to them.
 
 `GET /api/v0/toolkits`
 
@@ -1614,7 +1682,7 @@ Get a screenshot of a specific page from an asset.
 
 #### `athena tools get-definition` `[BETA]`
 
-Get one tool's definition and argument schema.
+Get one tool's definition and argument schema. Open to every workspace member; a tool the caller cannot see answers 404.
 
 `GET /api/v0/tools/{tool_id}`
 
@@ -1624,7 +1692,7 @@ Get one tool's definition and argument schema.
 
 #### `athena tools invoke` `[BETA]`
 
-Invoke a tool synchronously and return its result. Policy refusals (unknown tool, not permitted, needs approval, wrong surface) are HTTP errors; a tool that runs and fails returns 200 with success=false.
+Invoke a tool synchronously and return its result. Restricted to environment administrators, except for the tools the listing reports as invocable for the caller. Policy refusals (unknown tool, not permitted, needs approval, wrong surface) are HTTP errors; a tool that runs and fails returns 200 with success=false.
 
 `POST /api/v0/tools/{tool_id}/invoke`
 
@@ -1647,7 +1715,7 @@ List contents of an asset (Folder, Collection, Project) or entire workspace in a
 
 #### `athena tools list-definitions` `[BETA]`
 
-List tools with their argument schemas. Filter by toolkit, or to only those the caller can invoke over HTTP.
+List tools with their argument schemas. Filter by toolkit, or to only those the caller can invoke over HTTP. Open to every workspace member; invoking most tools over HTTP is restricted to environment administrators, and invocable and refusal_reason say which ones this caller can invoke.
 
 `GET /api/v0/tools`
 
@@ -1800,6 +1868,21 @@ to thread the draft as a reply.
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools email get-message` `[BETA]`
+
+Read one message from the caller's connected Gmail or Outlook mailbox.
+
+Returns its headers and its body as plain text, so an agent can keep the
+whole email (in a CRM timeline, for example) rather than the search
+snippet. Read-only; attachments are not returned.
+
+`GET /api/v0/tools/email/messages/{message_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--message-id` | `string` | Yes | Provider message id, as `GET /tools/email/search` returns it in `results[].id`. |
+| `--catalog-id` | `string` | No | Connected email account to use, as the catalog asset id returned by the Athena UI or the assets API. Defaults to the caller's default email account. An id that is not one of the caller's own connected accounts in the current workspace is a 404. |
 
 #### `athena tools email search` `[BETA]`
 
