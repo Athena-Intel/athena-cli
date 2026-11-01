@@ -21,6 +21,7 @@
 //! - **Threads**
 //! - **Toolkits**
 //! - **Tools**
+//! - **History**
 //! - **Presentation**
 //! - **Subscriptions**
 //! - **Workspaces**
@@ -38,6 +39,7 @@ pub mod collab_agents;
 pub mod computer;
 pub mod databases;
 pub mod events;
+pub mod history;
 pub mod meetings;
 pub mod presentation;
 pub mod query;
@@ -72,6 +74,7 @@ pub struct ApiClient {
     pub threads: ThreadsClient,
     pub toolkits: ToolkitsClient,
     pub tools: ToolsClient,
+    pub history: HistoryClient,
     pub presentation: PresentationClient,
     pub subscriptions: SubscriptionsClient,
     pub workspaces: WorkspacesClient,
@@ -101,6 +104,7 @@ impl ApiClient {
             threads: ThreadsClient::new(config.clone())?,
             toolkits: ToolkitsClient::new(config.clone())?,
             tools: ToolsClient::new(config.clone())?,
+            history: HistoryClient::new(config.clone())?,
             presentation: PresentationClient::new(config.clone())?,
             subscriptions: SubscriptionsClient::new(config.clone())?,
             workspaces: WorkspacesClient::new(config.clone())?,
@@ -119,6 +123,7 @@ pub use collab_agents::CollabAgentsClient;
 pub use computer::ComputerClient;
 pub use databases::DatabasesClient;
 pub use events::EventsClient;
+pub use history::HistoryClient;
 pub use meetings::MeetingsClient;
 pub use presentation::PresentationClient;
 pub use query::QueryClient;

@@ -8,7 +8,7 @@ pub struct WorkspaceAccessResponseOut {
     /// ID of the asset
     #[serde(default)]
     pub asset_id: String,
-    /// Workspace access level that was set ('view' or 'edit')
+    /// Workspace access level now on the asset: 'view', 'edit', or 'none' when the workspace-wide share was removed
     #[serde(default)]
     pub workspace_access: String,
 }
