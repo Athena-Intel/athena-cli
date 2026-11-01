@@ -101,7 +101,7 @@ impl ApprovalsClient {
             .await
     }
 
-    /// Record the caller's decision on an active approval; the waiting run resumes once the mode's aggregation settles it. The caller must be one of the approval's listed approvers and still satisfy the selector that named them, and may not decide what they published or started unless the step allows self-approval. An edited_payload is accepted only against the approval's editable_schema; a standing request only when the approval's gate allows standing grants, on an approving option (otherwise 400 with detail.reason standing_not_allowed). Every refusal carries detail.reason with the decision service's code.
+    /// Record the caller's decision on an active approval; the waiting run resumes once the mode's aggregation settles it. The caller must be one of the approval's listed approvers and still satisfy the selector that named them, and may not decide what they published or started unless the step allows self-approval. An edited_payload is accepted only against the approval's editable_schema; a standing request only when the approval's gate allows standing grants, on an approving option (otherwise 400 with detail.reason standing_not_allowed). Every refusal carries detail.reason with the decision service's code. Where the installation enforces passkey checks, an approve needs a check covering this decision in the X-Athena-Decision-Check header (otherwise 403 with detail.reason decision_check_required), and the person's device key may then decide with one.
     ///
     /// # Arguments
     ///

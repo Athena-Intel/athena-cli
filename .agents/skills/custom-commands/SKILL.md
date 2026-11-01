@@ -93,6 +93,7 @@ with the following sub-clients:
 | `client.structured_data_extractor` | `athena_intelligence_api_sdk::api::StructuredDataExtractorClient` | structured_data_extractor operations |
 | `client.system_operations` | `athena_intelligence_api_sdk::api::SystemOperationsClient` | system_operations operations |
 | `client.tasks` | `athena_intelligence_api_sdk::api::TasksClient` | tasks operations |
+| `client.history` | `athena_intelligence_api_sdk::api::HistoryClient` | history operations |
 | `client.presentation` | `athena_intelligence_api_sdk::api::PresentationClient` | presentation operations |
 | `client.subscriptions` | `athena_intelligence_api_sdk::api::SubscriptionsClient` | subscriptions operations |
 | `client.workspaces` | `athena_intelligence_api_sdk::api::WorkspacesClient` | workspaces operations |

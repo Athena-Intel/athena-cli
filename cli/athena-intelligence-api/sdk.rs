@@ -85,6 +85,7 @@ pub fn client(ctx: &AppContext) -> athena_intelligence_api_sdk::api::ApiClient {
             system_operations: athena_intelligence_api_sdk::api::resources::tools::SystemOperationsClient { http_client: http_client.clone() },
             tasks: athena_intelligence_api_sdk::api::resources::tools::TasksClient { http_client: http_client.clone() },
         },
+        history: athena_intelligence_api_sdk::api::HistoryClient { http_client: http_client.clone() },
         presentation: athena_intelligence_api_sdk::api::PresentationClient { http_client: http_client.clone() },
         subscriptions: athena_intelligence_api_sdk::api::SubscriptionsClient { http_client: http_client.clone() },
         workspaces: athena_intelligence_api_sdk::api::WorkspacesClient { http_client: http_client.clone() },

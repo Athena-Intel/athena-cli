@@ -4,6 +4,12 @@ use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
 pub struct SearchAssetsInput {
+    /// Only sessions run by this collab agent. Pass the agent's asset id (asset_...); 'collab_agent:<asset_id>' also works. Use with types=['session'].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    /// Only sessions that started on this surface (the session's start_channel), e.g. 'voice' (phone call), 'sms', 'email', 'slack', 'teams', 'web', 'mobile_app'. A session with no recorded start_channel counts as 'web'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
     /// Filter assets created after this ISO date string (e.g., YYYY-MM-DDTHH:MM:SS).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at_after: Option<String>,
@@ -25,7 +31,7 @@ pub struct SearchAssetsInput {
     /// Sort direction, either 'asc' or 'desc'.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_direction: Option<String>,
-    /// Field to sort by. Accepts: 'title', 'createdAt'
+    /// Field to sort by. Accepts: 'title', 'createdAt', 'updatedAt' (last activity). Applied only together with sort_direction.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_field: Option<String>,
     /// List of tags to filter assets by. Returns assets that have any of the specified tags. Provide as an array like ['GTM Opportunity', 'Priority'].
@@ -37,6 +43,12 @@ pub struct SearchAssetsInput {
     /// List of asset types to include in the results. eg: meeting, document, spreadsheet. Accepts lists without escape characters. Do not use backslashes like \.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub types: Option<Vec<String>>,
+    /// Filter assets last active (updated) after this ISO date string (e.g., YYYY-MM-DDTHH:MM:SS; UTC unless it carries an offset). For a session this is its latest activity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_after: Option<String>,
+    /// Filter assets last active (updated) before this ISO date string (e.g., YYYY-MM-DDTHH:MM:SS; UTC unless it carries an offset). For a session this is its latest activity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_before: Option<String>,
 }
 
 impl SearchAssetsInput {
@@ -48,6 +60,8 @@ impl SearchAssetsInput {
 #[derive(Clone, PartialEq, Default, Debug)]
 #[non_exhaustive]
 pub struct SearchAssetsInputBuilder {
+    agent: Option<String>,
+    channel: Option<String>,
     created_at_after: Option<String>,
     created_at_before: Option<String>,
     created_by: Option<String>,
@@ -59,9 +73,21 @@ pub struct SearchAssetsInputBuilder {
     tags: Option<Vec<String>>,
     title_contains_keyword: Option<String>,
     types: Option<Vec<String>>,
+    updated_after: Option<String>,
+    updated_before: Option<String>,
 }
 
 impl SearchAssetsInputBuilder {
+    pub fn agent(mut self, value: impl Into<String>) -> Self {
+        self.agent = Some(value.into());
+        self
+    }
+
+    pub fn channel(mut self, value: impl Into<String>) -> Self {
+        self.channel = Some(value.into());
+        self
+    }
+
     pub fn created_at_after(mut self, value: impl Into<String>) -> Self {
         self.created_at_after = Some(value.into());
         self
@@ -117,9 +143,21 @@ impl SearchAssetsInputBuilder {
         self
     }
 
+    pub fn updated_after(mut self, value: impl Into<String>) -> Self {
+        self.updated_after = Some(value.into());
+        self
+    }
+
+    pub fn updated_before(mut self, value: impl Into<String>) -> Self {
+        self.updated_before = Some(value.into());
+        self
+    }
+
     /// Consumes the builder and constructs a [`SearchAssetsInput`].
     pub fn build(self) -> Result<SearchAssetsInput, BuildError> {
         Ok(SearchAssetsInput {
+            agent: self.agent,
+            channel: self.channel,
             created_at_after: self.created_at_after,
             created_at_before: self.created_at_before,
             created_by: self.created_by,
@@ -131,6 +169,8 @@ impl SearchAssetsInputBuilder {
             tags: self.tags,
             title_contains_keyword: self.title_contains_keyword,
             types: self.types,
+            updated_after: self.updated_after,
+            updated_before: self.updated_before,
         })
     }
 }

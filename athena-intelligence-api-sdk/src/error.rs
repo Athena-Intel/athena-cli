@@ -45,24 +45,22 @@ pub enum ApiError {
     ServiceUnavailableError { message: String },
     #[error("GoneError: {message}")]
     GoneError { message: String },
+    #[error("BadGatewayError: {message}")]
+    BadGatewayError { message: String },
+    #[error("ContentTooLargeError: {message}")]
+    ContentTooLargeError { message: String },
     #[error("TooManyRequestsError: Rate limit exceeded - {message}")]
     TooManyRequestsError {
         message: String,
         retry_after_seconds: Option<u64>,
         limit_type: Option<String>,
     },
-    #[error("BadGatewayError: {message}")]
-    BadGatewayError { message: String },
+    #[error("UnsupportedMediaTypeError: {message}")]
+    UnsupportedMediaTypeError { message: String },
     #[error("NotImplementedError: {message}")]
     NotImplementedError { message: String },
-    #[error("UnsupportedMediaTypeError: {message}")]
-    UnsupportedMediaTypeError {
-        message: String,
-        asset_id: Option<String>,
-        media_type: Option<String>,
-    },
-    #[error("ContentTooLargeError: {message}")]
-    ContentTooLargeError { message: String },
+    #[error("GatewayTimeoutError: {message}")]
+    GatewayTimeoutError { message: String },
     #[error("HTTP error {status}: {message}")]
     Http { status: u16, message: String },
     #[error("Network error: {0}")]
@@ -285,6 +283,40 @@ impl ApiError {
                     message: body.unwrap_or("Unknown error").to_string(),
                 };
             }
+            502 => {
+                // Parse error body for BadGatewayError;
+                if let Some(body_str) = body {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body_str) {
+                        return Self::BadGatewayError {
+                            message: parsed
+                                .get("message")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown error")
+                                .to_string(),
+                        };
+                    }
+                }
+                return Self::BadGatewayError {
+                    message: body.unwrap_or("Unknown error").to_string(),
+                };
+            }
+            413 => {
+                // Parse error body for ContentTooLargeError;
+                if let Some(body_str) = body {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body_str) {
+                        return Self::ContentTooLargeError {
+                            message: parsed
+                                .get("message")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown error")
+                                .to_string(),
+                        };
+                    }
+                }
+                return Self::ContentTooLargeError {
+                    message: body.unwrap_or("Unknown error").to_string(),
+                };
+            }
             429 => {
                 // Parse error body for TooManyRequestsError;
                 if let Some(body_str) = body {
@@ -310,11 +342,11 @@ impl ApiError {
                     limit_type: None,
                 };
             }
-            502 => {
-                // Parse error body for BadGatewayError;
+            415 => {
+                // Parse error body for UnsupportedMediaTypeError;
                 if let Some(body_str) = body {
                     if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body_str) {
-                        return Self::BadGatewayError {
+                        return Self::UnsupportedMediaTypeError {
                             message: parsed
                                 .get("message")
                                 .and_then(|v| v.as_str())
@@ -323,7 +355,7 @@ impl ApiError {
                         };
                     }
                 }
-                return Self::BadGatewayError {
+                return Self::UnsupportedMediaTypeError {
                     message: body.unwrap_or("Unknown error").to_string(),
                 };
             }
@@ -344,36 +376,11 @@ impl ApiError {
                     message: body.unwrap_or("Unknown error").to_string(),
                 };
             }
-            415 => {
-                // Parse error body for UnsupportedMediaTypeError;
+            504 => {
+                // Parse error body for GatewayTimeoutError;
                 if let Some(body_str) = body {
                     if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body_str) {
-                        return Self::UnsupportedMediaTypeError {
-                            message: parsed
-                                .get("message")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("Unknown error")
-                                .to_string(),
-                            asset_id: parsed
-                                .get("asset_id")
-                                .and_then(|v| v.as_str().map(|s| s.to_string())),
-                            media_type: parsed
-                                .get("media_type")
-                                .and_then(|v| v.as_str().map(|s| s.to_string())),
-                        };
-                    }
-                }
-                return Self::UnsupportedMediaTypeError {
-                    message: body.unwrap_or("Unknown error").to_string(),
-                    asset_id: None,
-                    media_type: None,
-                };
-            }
-            413 => {
-                // Parse error body for ContentTooLargeError;
-                if let Some(body_str) = body {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body_str) {
-                        return Self::ContentTooLargeError {
+                        return Self::GatewayTimeoutError {
                             message: parsed
                                 .get("message")
                                 .and_then(|v| v.as_str())
@@ -382,7 +389,7 @@ impl ApiError {
                         };
                     }
                 }
-                return Self::ContentTooLargeError {
+                return Self::GatewayTimeoutError {
                     message: body.unwrap_or("Unknown error").to_string(),
                 };
             }

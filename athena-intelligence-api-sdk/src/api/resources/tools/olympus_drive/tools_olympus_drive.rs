@@ -263,7 +263,7 @@ impl OlympusDriveClient {
             .await
     }
 
-    /// Search for assets in the workspace by name or content. Accepts a search query as input.
+    /// Search for assets in the workspace by name or content. Accepts a search query as input, and lists past sessions by the collab agent that ran them, the surface they started on and their last activity.
     ///
     /// # Arguments
     ///
