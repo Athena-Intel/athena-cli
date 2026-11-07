@@ -173,7 +173,7 @@ impl AopClient {
             .await
     }
 
-    /// Overwrite the configuration of an existing AOP asset. Replaces the entire AOP configuration (prompt, agent config, structured output, etc.) with the provided values. Fields not included in the request body will be reset to their defaults, except user_notification_configs, which is preserved from the existing configuration when omitted; send an explicit null to clear it. The update is rejected with 400 when the configuration would enable more tools at run time than the per-run limit, counting every tool of each toolkit @mentioned in the prompt; the detail names toolkits to remove and the existing configuration is left untouched.
+    /// Overwrite the configuration of an existing AOP asset. Replaces the entire AOP configuration (prompt, agent config, structured output, etc.) with the provided values. Fields not included in the request body will be reset to their defaults, except user_notification_configs, which is preserved from the existing configuration when omitted; send an explicit null to clear it. The update is rejected with 400 when the configuration would enable more tools at run time than the per-run limit, counting every tool of each toolkit @mentioned in the prompt; the detail names toolkits to remove and the existing configuration is left untouched. The update publishes at once, so an update that would give runs tools the published version does not (resolved as runs resolve them, the assigned agent's tools included) is rejected with 409 and nothing is changed unless confirm_sensitive is true; the detail names the added tools.
     ///
     /// # Arguments
     ///

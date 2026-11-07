@@ -23,7 +23,7 @@ pub struct SessionsListQueryRequest {
     /// Include branched sub-sessions (excluded by default)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_sessions: Option<bool>,
-    /// Include AOP/workflow task runs (excluded by default)
+    /// Include AOP/workflow task runs and Automation runs (excluded by default)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_task_sessions: Option<bool>,
     /// Only include task sessions originating from this AOP asset identifier

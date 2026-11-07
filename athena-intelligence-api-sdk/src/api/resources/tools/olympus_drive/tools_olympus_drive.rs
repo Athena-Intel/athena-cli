@@ -113,6 +113,31 @@ impl OlympusDriveClient {
             .await
     }
 
+    /// Runs the Asset Explorer's set as the caller: a page of rows and the set's counts come from the same read gate as the explorer and simpleSearch, so an asset the caller cannot open is never listed, counted or named, and a folder the caller cannot open is counted but never named. Explicit ids (asset_ids, related_to_asset_id) pass the asset permission check first. Counts stop after 5 seconds; the answer then says counts_available=false.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn explore_assets(
+        &self,
+        request: &ExploreAssetsInput,
+        options: Option<RequestOptions>,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                "api/v0/tools/olympus-drive/explore-assets",
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
     /// Performs comprehensive analysis across multiple assets, extracting insights and patterns to address complex queries. Capable of comparing content within the asset, identifying relationships, and synthesizing information. Accepts a list of asset IDs and a detailed query as input. Do NOT use this tool unless the user explicitly asks for an in-depth analysis, or read_asset does not work for the given asset(s). Prefer read_asset first.
     ///
     /// # Arguments
