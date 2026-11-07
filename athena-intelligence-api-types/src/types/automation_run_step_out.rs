@@ -9,6 +9,7 @@ pub struct AutomationRunStepOut {
     pub approval_id: Option<String>,
     #[serde(default)]
     pub attempt: i64,
+    /// Model spend in USD. Null unless the caller is Athena staff or an owner or manager of the automation's workspace.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers::option")]
@@ -40,6 +41,7 @@ pub struct AutomationRunStepOut {
     pub status: String,
     #[serde(default)]
     pub step_id: String,
+    /// Tokens used. Null unless the caller is Athena staff or an owner or manager of the automation's workspace.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tokens: Option<i64>,
 }

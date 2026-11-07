@@ -136,7 +136,7 @@ Retrieve the full configuration of an AOP asset by its ID. Returns prompt, agent
 
 #### `athena aop update-config` `[BETA]`
 
-Overwrite the configuration of an existing AOP asset. Replaces the entire AOP configuration (prompt, agent config, structured output, etc.) with the provided values. Fields not included in the request body will be reset to their defaults, except user_notification_configs, which is preserved from the existing configuration when omitted; send an explicit null to clear it. The update is rejected with 400 when the configuration would enable more tools at run time than the per-run limit, counting every tool of each toolkit @mentioned in the prompt; the detail names toolkits to remove and the existing configuration is left untouched.
+Overwrite the configuration of an existing AOP asset. Replaces the entire AOP configuration (prompt, agent config, structured output, etc.) with the provided values. Fields not included in the request body will be reset to their defaults, except user_notification_configs, which is preserved from the existing configuration when omitted; send an explicit null to clear it. The update is rejected with 400 when the configuration would enable more tools at run time than the per-run limit, counting every tool of each toolkit @mentioned in the prompt; the detail names toolkits to remove and the existing configuration is left untouched. The update publishes at once, so an update that would give runs tools the published version does not (resolved as runs resolve them, the assigned agent's tools included) is rejected with 409 and nothing is changed unless confirm_sensitive is true; the detail names the added tools.
 
 `PUT /api/v0/aop/{asset_id}/config`
 
@@ -165,6 +165,9 @@ Retry a failed AOP execution.
 
 Looks up the failed session, extracts the original AOP asset and trigger
 type, then sends a new Inngest execution event. Auth: session owner or admin.
+The retry runs the version of the AOP the failed run ran, unless
+`use_published_version` asks for the version published now. A retry of a
+test run is a test run.
 
 `POST /api/v0/aop/retry`
 
@@ -257,12 +260,13 @@ Turn an uploaded HTML file into a user interface (an app) under its own id — t
 
 #### `athena assets create` `[BETA]`
 
-Create a new asset such as a spreadsheet, document, folder, database, computer, user interface, skill, collab agent, figure, Word document, presentation, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied. Databases accept suspend_timeout_seconds, the auto-suspend window from the database's Settings in Athena: 0 keeps the database running (it never suspends, and keeps using capacity), otherwise 60 to 86400 seconds. A database is provisioned in the background: poll GET /api/v0/databases/{asset_id}/compute-status until it reports running or suspended. Figures take figure_config, a FigureSpec (kind, rendered and provenance, plus spec or chart), validated as the Athena UI's figures are. A word_document is a Word document holding Athena's default template, and a presentation is a blank widescreen PPTX Studio deck (the workspace's default template is not applied): Athena creates each with its own studio credential, as your write, and answers once the studio has seeded it (502, keeping nothing, when PPTX Studio could not seed a deck). Edit them through DOCX Studio or PPTX Studio with a token from POST /api/v0/assets/{asset_id}/studio-token. From an agent run (a verified X-Athena-Session-Credential), their first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy. Without workspace_id the asset is created in the workspace of parent_folder_id when one is given, otherwise in your current workspace; you must be a member of that workspace.
+Create a new asset such as a spreadsheet, document, folder, database, computer, user interface, skill, collab agent, figure, Word document, presentation, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied. Databases accept suspend_timeout_seconds, the auto-suspend window from the database's Settings in Athena: 0 keeps the database running (it never suspends, and keeps using capacity), otherwise 60 to 86400 seconds. A database is provisioned in the background: poll GET /api/v0/databases/{asset_id}/compute-status until it reports running or suspended. Figures take figure_config, a FigureSpec (kind, rendered and provenance, plus spec or chart), validated as the Athena UI's figures are. A word_document is a Word document holding Athena's default template, and a presentation is a blank widescreen PPTX Studio deck (the workspace's default template is not applied): Athena creates each with its own studio credential, as your write, and answers once the studio has seeded it (502, keeping nothing, when PPTX Studio could not seed a deck). Edit them through DOCX Studio or PPTX Studio with a token from POST /api/v0/assets/{asset_id}/studio-token. From an agent run (a verified X-Athena-Session-Credential), their first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy. Without workspace_id the asset is created in the workspace of parent_folder_id when one is given, otherwise in your current workspace; you must be a member of that workspace. Send an `Idempotency-Key` header to make the create safe to retry: if the response is lost, repeating the identical request with the same key answers with the asset the first request created (with an `Idempotency-Replayed: true` header and its original status) instead of creating another. A key is private to you, the workspace the asset is created in and the asset type: another user, another workspace or another type with the same key creates its own asset. A retry that arrives while the first request is still creating gets 409 (`idempotency_key_in_progress`, with Retry-After); reusing a key with different parameters is rejected with 422; a key whose asset you can no longer open, or that is archived, gets 409 (`idempotency_key_reused`). Keys are kept for 24 hours. GET /api/v0/assets/create/capabilities names `create-idempotency-keys` once every server of this Athena honours them.
 
 `POST /api/v0/assets/create`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
+| `--idempotency-key` | `string` | No | Optional caller-chosen key that makes this create safe to retry. Repeating the identical request with the same key, as the same user in the same workspace, answers with the asset the first request created instead of creating another. |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 #### `athena assets create-collab-token` `[BETA]`
@@ -278,7 +282,7 @@ Admin only. Mint a short-lived Keryx capability token for a Generic Doc asset, e
 
 #### `athena assets create-from-file` `[BETA]`
 
-Create a Word document from a .docx file, or a presentation from a .pptx or .potx file, holding that file's content: the asset Athena makes when you create one from a file in the app. Athena imports the file through DOCX Studio or PPTX Studio with its own studio credential, as your write, and answers once the asset is ready (a large deck can take a few minutes). Nothing is left behind when the import fails. The file's name decides the type; the title defaults to the name without its extension. Gates are those of POST /api/v0/assets/create: membership in the workspace (workspace_id, else parent_folder_id's, else your current one) and EDIT on parent_folder_id. With source_asset_id (an asset you can read, for example the document the file was exported from) and no parent_folder_id, the new asset goes into the source's folder when you may create there, otherwise at your root. Unlike POST /api/v0/tools/file/save, which stores the file itself and turns an Office upload into its editable type in the background, this makes the editable asset in the request and keeps no file asset. A Word file may be up to 18.75 MiB, a PowerPoint file up to 100 MiB. From an agent run (a verified X-Athena-Session-Credential), a Word document's first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy.
+Create a Word document from a .docx file, or a presentation from a .pptx or .potx file, holding that file's content: the asset Athena makes when you create one from a file in the app. Athena imports the file through DOCX Studio or PPTX Studio with its own studio credential, as your write, and answers once the asset is ready (a large deck can take a few minutes). Nothing is left behind when the import fails. The file's name decides the type; the title defaults to the name without its extension. Gates are those of POST /api/v0/assets/create: membership in the workspace (workspace_id, else parent_folder_id's, else your current one) and EDIT on parent_folder_id. With source_asset_id (an asset you can read, for example the document the file was exported from) and no parent_folder_id, the new asset goes into the source's folder when you may create there, otherwise at your root. Unlike POST /api/v0/tools/file/save, which stores the file itself and turns an Office upload into its editable type in the background, this makes the editable asset in the request and keeps no file asset. A Word file may be up to 100 MB, Word for the web's limit, a PowerPoint file up to 100 MiB. A Word file gets the app's upload checks before anything is created, and one it refuses answers 422 with detail {code, message}: code is password_protected, rights_managed, damaged (unreadable content, which File > Import in the app can recover), format_mismatch (a template or macro-enabled file named .docx), not_ooxml, too_large or uncompressed_too_large, and message says why in Word's words. From an agent run (a verified X-Athena-Session-Credential), a Word document's first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy.
 
 `POST /api/v0/assets/create-from-file`
 
@@ -313,14 +317,15 @@ Mint a short-lived asset token for the service that edits an asset: a spreadshee
 
 #### `athena assets download` `[BETA]`
 
-Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type. With `live_sync=true`, a spreadsheet's .xlsx, a PPTX Studio presentation's .pptx or a Word document's .docx also carries the Athena for Microsoft 365 add-in's link record, so opening it in Excel, PowerPoint or Word with the add-in installed starts syncing it with the asset; other asset types ignore the flag.
+Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type. With `live_sync=true`, a spreadsheet's .xlsx, a PPTX Studio presentation's .pptx or a Word document's .docx also carries the Athena for Office add-in's link record, so opening it in Excel, PowerPoint or Word with the add-in installed starts syncing it with the asset; other asset types ignore the flag. A Word document's live-sync copy requires EDIT. With `read_only=true`, a Word document downloads as a plain .docx that Word offers to open read-only (Read-only recommended) and that carries no live-sync link; it requires VIEW, like every download, and cannot be combined with `live_sync`.
 
 `GET /api/v0/assets/{asset_id}/download`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes | Unique identifier of the asset to download |
-| `--live-sync` | `boolean` | No | Office live sync: when true and the asset is an Athena spreadsheet, a PPTX Studio presentation or a Word document, the downloaded .xlsx / .pptx / .docx carries the Athena for Microsoft 365 add-in's link record and opens already syncing with this asset. Ignored for every other asset type. |
+| `--live-sync` | `boolean` | No | Office live sync: when true and the asset is an Athena spreadsheet, a PPTX Studio presentation or a Word document, the downloaded .xlsx / .pptx / .docx carries the Athena for Office add-in's link record and opens already syncing with this asset; a Word document's requires EDIT access. Ignored for every other asset type. |
+| `--read-only` | `boolean` | No | Read-only copy: when true and the asset is a Word document, the downloaded .docx carries no live-sync link and Word's Read-only recommended setting, so Word offers to open it read-only. Cannot be combined with `live_sync`. Ignored for every other asset type. |
 | `--addin-id` | `string` | No | GUID of the installed add-in manifest the live-sync record should reference (defaults to this deployment's Athena add-in). Only read together with `live_sync`; use it to target a preview-channel sideload. |
 
 #### `athena assets duplicate` `[BETA]`
@@ -376,6 +381,12 @@ Admin only. Batch form of the activity-delta endpoint: diff several clock ranges
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena assets get-create-capabilities` `[BETA]`
+
+What POST /api/v0/assets/create takes beyond its documented body, by capability name. `create-idempotency-keys`: every server of this Athena honours the create's Idempotency-Key, so a create whose answer was lost (a timeout, a dropped connection, a gateway's 502, 503 or 504) may be sent again with the same key and is answered with the asset the first request made. A server names nothing for 30 minutes after it starts, longer than a rollout takes, so a client never sends a create again while a server that would create a second asset can still receive it. The answer says what this Athena's code does, never anything about you or your data, and is never cached.
+
+`GET /api/v0/assets/create/capabilities`
 
 #### `athena assets get-workbook` `[BETA]`
 
@@ -1182,7 +1193,7 @@ Values need edit access; export long windows in pieces.
 
 #### `athena history compare` `[BETA]`
 
-Comparing against the asset as it was at a time needs edit access; saved versions and two current assets compare with view access.
+Comparing against a saved version or the asset as it was at a time needs edit access; the published version and two current assets compare with view access.
 
 `POST /api/v0/tools/history/compare`
 
@@ -1222,9 +1233,19 @@ View access shows who, what kind and where; edit access adds the values. A filte
 
 #### `athena history open` `[BETA]`
 
-A moment in time needs edit access; saved versions open with view access.
+A saved version or a moment in time needs edit access; the published version opens with view access.
 
 `POST /api/v0/tools/history/open`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena history read-asset-author` `[BETA]`
+
+Any viewer gets who wrote a document's text and a deck's shapes. A sheet's cells, and a deck's text split by who wrote each character, are read off past values and need edit access, as in the Attribution tab. Read the values themselves with read_asset and the same request.
+
+`POST /api/v0/tools/history/read-asset-author`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
@@ -1516,7 +1537,7 @@ Retrieve a single session by its asset ID, including state, originating channel,
 
 #### `athena sessions list` `[BETA]`
 
-Retrieve a paginated list of agent sessions (conversations) with optional title search, state filtering, source channel filtering, date range filtering, and sorting. By default, AOP/workflow runs and branched sub-sessions are excluded, and only sessions in the caller's current workspace are visible — pass `workspace_id` to list sessions in another workspace the caller belongs to.
+Retrieve a paginated list of agent sessions (conversations) with optional title search, state filtering, source channel filtering, date range filtering, and sorting. By default, AOP/workflow runs, Automation runs and branched sub-sessions are excluded, and only sessions in the caller's current workspace are visible — pass `workspace_id` to list sessions in another workspace the caller belongs to.
 
 `GET /api/v0/sessions`
 
@@ -1528,7 +1549,7 @@ Retrieve a paginated list of agent sessions (conversations) with optional title 
 | `--session-type` | `string` | No | Session kind(s) to include: 'session', 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list. |
 | `--app-id` | `string` | No | Only include sessions belonging to this application identifier |
 | `--include-sub-sessions` | `boolean` | No | Include branched sub-sessions (excluded by default) |
-| `--include-task-sessions` | `boolean` | No | Include AOP/workflow task runs (excluded by default) |
+| `--include-task-sessions` | `boolean` | No | Include AOP/workflow task runs and Automation runs (excluded by default) |
 | `--aop-asset-id` | `string` | No | Only include task sessions originating from this AOP asset identifier |
 | `--workspace-id` | `string` | No | Workspace to list sessions from. Defaults to the caller's current workspace; any other workspace the caller is a member of can be requested explicitly. |
 | `--trigger-type` | `string` | No | Trigger type(s) to filter by (e.g. 'schedule', 'api', 'email'). Repeat the parameter or pass a comma-separated list. |
@@ -2068,6 +2089,16 @@ Creates a copy of an existing asset. Accepts an asset ID and optional new title 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools olympus-drive explore-assets` `[BETA]`
+
+Runs the Asset Explorer's set as the caller: a page of rows and the set's counts come from the same read gate as the explorer and simpleSearch, so an asset the caller cannot open is never listed, counted or named, and a folder the caller cannot open is counted but never named. Explicit ids (asset_ids, related_to_asset_id) pass the asset permission check first. Counts stop after 5 seconds; the answer then says counts_available=false.
+
+`POST /api/v0/tools/olympus-drive/explore-assets`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
 
 #### `athena tools olympus-drive in-depth-analysis` `[BETA]`
 
