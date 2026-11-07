@@ -21,6 +21,11 @@
 //! through the CLI's executor, so they inherit the same
 //! auth/retries/TLS/`--base-url` behavior.
 //!
+//! `sessions wait` polls `GET /api/v0/sessions/{asset_id}` until
+//! `run_status_v2` settles and exits non-zero unless the run completed. It
+//! accepts the session asset id, the thread id, or the bare uuid, and
+//! replaces the shell poll loops scripts wrapped around `sessions get`.
+//!
 //! `assets download` streams `GET /api/v0/assets/{asset_id}/download` — the
 //! asset's authoritative file (Athena documents as .docx, spreadsheets as
 //! .xlsx, presentations as .pptx, uploads as original bytes) — to a local
@@ -76,6 +81,7 @@ use dialoguer::{theme::ColorfulTheme, Input, Select};
 use fern_cli_sdk::app::CliApp;
 use fern_cli_sdk::auth::active_store;
 use fern_cli_sdk::error::CliError;
+use fern_cli_sdk::formatter::OutputPipeline;
 use fern_cli_sdk::openapi::discovery::GlobalHeader;
 use fern_cli_sdk::openapi::AppContext;
 use fern_cli_sdk::sdk_executor::SdkRequestExecutor;
@@ -753,6 +759,19 @@ pub fn register(app: CliApp) -> CliApp {
             browse_sessions(matches, ctx)
         }),
     )
+    .command_under(
+        &["sessions"],
+        build_sessions_wait_command(),
+        Box::new(|matches, ctx| {
+            let ctx = ctx
+                .downcast_ref::<AppContext>()
+                .ok_or_else(|| CliError::Validation("internal: bad context type".into()))?;
+            wait_for_session(matches, ctx)
+        }),
+    )
+    // Agents reached for `tools list` before finding `list_definitions`.
+    // A rename of the generated command fails `tools_list_alias_resolves`.
+    .alias(&["tools", "list_definitions"], "list")
     .command(
         build_login_command(),
         Box::new(|matches, ctx| {
@@ -780,6 +799,133 @@ pub fn register(app: CliApp) -> CliApp {
             handle_ssh(matches, ctx)
         }),
     )
+}
+
+// ---------------------------------------------------------------------------
+// sessions wait — poll a session until its run settles
+// ---------------------------------------------------------------------------
+
+/// `run_status_v2` values after which polling stops. `needs_input` is not
+/// final, but nothing changes until someone answers, so waiting longer only
+/// burns the timeout.
+const SESSION_SETTLED: &[&str] = &["completed", "failed", "canceled", "needs_input"];
+
+fn build_sessions_wait_command() -> clap::Command {
+    clap::Command::new("wait")
+        .about("Wait for a session's run to finish, then print the session")
+        .long_about(
+            "Poll GET /api/v0/sessions/{asset_id} until run_status_v2 is completed, \
+             failed, canceled, or needs_input, then print the session as JSON.\n\n\
+             SESSION_ID may be the session asset id (asset_thread_<uuid>), the \
+             thread id (thread_<uuid>), or the bare uuid.\n\n\
+             Exit status: 0 when the run completed; 1 otherwise. The error's \
+             reason says which: session_failed, session_canceled, \
+             session_needs_input (the session is printed first for all three), \
+             or session_wait_timeout. Progress goes to stderr.",
+        )
+        .arg(
+            clap::Arg::new("session_id")
+                .required(true)
+                .help("Session asset id, thread id, or bare uuid"),
+        )
+        .arg(
+            clap::Arg::new("timeout")
+                .long("timeout")
+                .value_parser(clap::value_parser!(u64))
+                .default_value("900")
+                .help("Seconds to wait before giving up"),
+        )
+        .arg(
+            clap::Arg::new("interval")
+                .long("interval")
+                .value_parser(clap::value_parser!(u64).range(1..))
+                .default_value("5")
+                .help("Seconds between polls"),
+        )
+}
+
+/// The session asset id for any of the forms people pass around.
+///
+/// `sessions get` accepts only `asset_thread_<uuid>`; `thread_<uuid>` (what
+/// the threads API and agent replies show) and the bare uuid both 404.
+fn session_asset_id(raw: &str) -> String {
+    let raw = raw.trim();
+    if raw.starts_with("asset_thread_") {
+        raw.to_string()
+    } else if raw.starts_with("thread_") {
+        format!("asset_{raw}")
+    } else if raw.len() == 36 && raw.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+        format!("asset_thread_{raw}")
+    } else {
+        raw.to_string()
+    }
+}
+
+fn wait_for_session(matches: &clap::ArgMatches, ctx: &AppContext) -> Result<(), CliError> {
+    let raw = matches
+        .get_one::<String>("session_id")
+        .expect("session_id is a required arg");
+    let asset_id = session_asset_id(raw);
+    let timeout = Duration::from_secs(*matches.get_one::<u64>("timeout").expect("has default"));
+    let interval = Duration::from_secs(*matches.get_one::<u64>("interval").expect("has default"));
+    let path = format!("api/v0/sessions/{asset_id}");
+
+    if dry_run_requested(matches) {
+        let root = ctx.spec().root_url.trim_end_matches('/').to_string();
+        print_json(&dry_run_preview(
+            Method::GET,
+            request_url(&root, ctx.base_url_override(), &path),
+            redacted_global_headers(matches, &ctx.spec().global_headers),
+            None,
+        ));
+        return Ok(());
+    }
+
+    // Built before the first request so a bad --format or --query fails fast.
+    let output = OutputPipeline::from_matches(matches, "athena")
+        .map_err(|e| CliError::Validation(e.to_string()))?;
+    let started = Instant::now();
+    let mut last_status = String::new();
+    loop {
+        let session: serde_json::Value = api_json(ctx, Method::GET, &path, &[], None)?;
+        let status = session["run_status_v2"]
+            .as_str()
+            .unwrap_or("unknown")
+            .to_string();
+        if status != last_status {
+            eprintln!("{asset_id}: {status} ({}s)", started.elapsed().as_secs());
+            last_status = status.clone();
+        }
+        if SESSION_SETTLED.contains(&status.as_str()) {
+            output
+                .emit(&mut std::io::stdout().lock(), &session, false, true)
+                .map_err(|e| CliError::Validation(e.to_string()))?;
+            if status == "completed" {
+                return Ok(());
+            }
+            let reason = session["failure_reason_v2"]
+                .as_str()
+                .map(|r| format!(": {r}"))
+                .unwrap_or_default();
+            return Err(CliError::Api {
+                code: 200,
+                message: format!("session {asset_id} ended {status}{reason}"),
+                reason: format!("session_{status}"),
+            });
+        }
+        if started.elapsed() + interval > timeout {
+            return Err(CliError::Api {
+                code: 408,
+                message: format!(
+                    "session {asset_id} still {status} after {}s; rerun \
+                     `athena sessions wait {asset_id}` to keep waiting",
+                    started.elapsed().as_secs()
+                ),
+                reason: "session_wait_timeout".into(),
+            });
+        }
+        std::thread::sleep(interval);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -5119,5 +5265,160 @@ mod tests {
         let dump = format!("{token:?}");
         assert!(!dump.contains("ak_live_test"), "{dump}");
         assert!(dump.contains("dev@example.com"), "{dump}");
+    }
+
+    // ── sessions wait ─────────────────────────────────────────────────────
+
+    #[test]
+    fn session_asset_id_accepts_every_form() {
+        let uuid = "ff4d2808-d96b-4f5f-8b6e-ef8035e5478f";
+        let want = format!("asset_thread_{uuid}");
+        assert_eq!(session_asset_id(&want), want);
+        assert_eq!(session_asset_id(&format!("thread_{uuid}")), want);
+        assert_eq!(session_asset_id(uuid), want);
+        assert_eq!(session_asset_id(&format!(" {uuid}\n")), want);
+        assert_eq!(session_asset_id("asset_abc"), "asset_abc");
+    }
+
+    /// A local server that answers every GET with the next `run_status_v2`
+    /// from `statuses`, repeating the last one, and records request lines.
+    fn session_server(statuses: &'static [&'static str]) -> (String, Seen) {
+        use std::io::{BufRead, BufReader};
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let base = format!("http://{}", listener.local_addr().expect("addr"));
+        let seen: Seen = Default::default();
+        let recorder = std::sync::Arc::clone(&seen);
+        std::thread::spawn(move || {
+            for (n, stream) in listener.incoming().enumerate() {
+                let Ok(mut stream) = stream else { return };
+                let Ok(clone) = stream.try_clone() else {
+                    return;
+                };
+                let mut reader = BufReader::new(clone);
+                let mut request_line = String::new();
+                if reader.read_line(&mut request_line).unwrap_or(0) == 0 {
+                    continue;
+                }
+                loop {
+                    let mut line = String::new();
+                    if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+                        break;
+                    }
+                }
+                recorder
+                    .lock()
+                    .expect("recorder")
+                    .push(request_line.trim().to_string());
+                let status = statuses[n.min(statuses.len() - 1)];
+                let payload = format!(
+                    r#"{{"id":"asset_thread_x","run_status_v2":"{status}","failure_reason_v2":null}}"#
+                );
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\
+                     Content-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                    payload.len()
+                );
+            }
+        });
+        (base, seen)
+    }
+
+    #[test]
+    fn sessions_wait_polls_until_completed() {
+        let (base, seen) = session_server(&["running", "completed"]);
+        let code = run(&[
+            "athena",
+            "sessions",
+            "wait",
+            "thread_abc",
+            "--interval",
+            "1",
+            "--base-url",
+            &base,
+            "--api-key",
+            "test-key",
+        ]);
+        assert_eq!(code, 0);
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 2, "{seen:?}");
+        assert!(
+            seen[0].starts_with("GET /api/v0/sessions/asset_thread_abc "),
+            "{seen:?}"
+        );
+    }
+
+    #[test]
+    fn sessions_wait_fails_when_the_run_fails() {
+        let (base, _seen) = session_server(&["failed"]);
+        let code = run(&[
+            "athena",
+            "sessions",
+            "wait",
+            "asset_thread_abc",
+            "--base-url",
+            &base,
+            "--api-key",
+            "test-key",
+        ]);
+        assert_eq!(code, CliError::EXIT_CODE_API);
+    }
+
+    #[test]
+    fn sessions_wait_times_out() {
+        let (base, _seen) = session_server(&["running"]);
+        let code = run(&[
+            "athena",
+            "sessions",
+            "wait",
+            "asset_thread_abc",
+            "--timeout",
+            "1",
+            "--interval",
+            "1",
+            "--base-url",
+            &base,
+            "--api-key",
+            "test-key",
+        ]);
+        assert_eq!(code, CliError::EXIT_CODE_API);
+    }
+
+    #[test]
+    fn sessions_wait_dry_run_sends_nothing() {
+        let (base, seen) = recording_server();
+        let code = run(&[
+            "athena",
+            "sessions",
+            "wait",
+            "thread_abc",
+            "--dry-run",
+            "--base-url",
+            &base,
+            "--api-key",
+            "test-key",
+        ]);
+        assert_eq!(code, 0);
+        assert!(seen.lock().unwrap().is_empty());
+    }
+
+    /// `.alias` panics at startup when its path is gone, which would take
+    /// down every command; a regeneration that renames the target fails here.
+    #[test]
+    fn tools_list_alias_resolves() {
+        let (base, seen) = recording_server();
+        let code = run(&[
+            "athena",
+            "tools",
+            "list",
+            "--dry-run",
+            "--base-url",
+            &base,
+            "--api-key",
+            "test-key",
+        ]);
+        assert_eq!(code, 0);
+        assert!(seen.lock().unwrap().is_empty());
     }
 }
