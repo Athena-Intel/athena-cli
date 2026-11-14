@@ -60,7 +60,7 @@ pub struct WorkspaceUsageSessionRowOut {
     /// Model that actually served the calls
     #[serde(default)]
     pub resolved_model: String,
-    /// Billed cost of this row in USD; safe to sum across rows
+    /// Billed cost of this row in USD; safe to sum across rows. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers")]
     pub row_total_cost_usd: f64,
@@ -74,7 +74,7 @@ pub struct WorkspaceUsageSessionRowOut {
     /// Session (conversation) asset id
     #[serde(default)]
     pub session_id: String,
-    /// Billed cost of the whole session in USD, carried by the session's first row only and null on its other rows, so summing the column never double-counts (same convention as the CSV export)
+    /// Billed cost of the whole session in USD, carried by the session's first row only and null on its other rows, so summing the column never double-counts (same convention as the CSV export). Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. Sessions priced before the in-house token ledger carry their legacy figure, without it. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers::option")]

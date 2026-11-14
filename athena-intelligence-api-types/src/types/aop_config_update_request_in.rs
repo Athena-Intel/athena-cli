@@ -11,6 +11,9 @@ pub struct AopConfigUpdateRequestIn {
     /// Full agent configuration override for this AOP
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_config: Option<HashMap<String, serde_json::Value>>,
+    /// Confirms that the new configuration may give runs tools the published version does not (as runs resolve them, the assigned agent's tools included). Without it, such an update is refused with 409 and nothing is changed; the response names the added tools
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirm_sensitive: Option<bool>,
     /// Human-readable description of what the AOP does
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -42,6 +45,7 @@ impl AopConfigUpdateRequestIn {
 pub struct AopConfigUpdateRequestInBuilder {
     agent_id: Option<String>,
     agent_config: Option<HashMap<String, serde_json::Value>>,
+    confirm_sensitive: Option<bool>,
     description: Option<String>,
     icon: Option<String>,
     prompt: Option<String>,
@@ -58,6 +62,11 @@ impl AopConfigUpdateRequestInBuilder {
 
     pub fn agent_config(mut self, value: HashMap<String, serde_json::Value>) -> Self {
         self.agent_config = Some(value);
+        self
+    }
+
+    pub fn confirm_sensitive(mut self, value: bool) -> Self {
+        self.confirm_sensitive = Some(value);
         self
     }
 
@@ -96,6 +105,7 @@ impl AopConfigUpdateRequestInBuilder {
         Ok(AopConfigUpdateRequestIn {
             agent_id: self.agent_id,
             agent_config: self.agent_config,
+            confirm_sensitive: self.confirm_sensitive,
             description: self.description,
             icon: self.icon,
             prompt: self.prompt,

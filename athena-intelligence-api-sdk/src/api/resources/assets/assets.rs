@@ -76,7 +76,7 @@ impl AssetsClient {
             .await
     }
 
-    /// Create a new asset such as a spreadsheet, document, folder, database, computer, user interface, skill, collab agent, figure, Word document, presentation, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied. Databases accept suspend_timeout_seconds, the auto-suspend window from the database's Settings in Athena: 0 keeps the database running (it never suspends, and keeps using capacity), otherwise 60 to 86400 seconds. A database is provisioned in the background: poll GET /api/v0/databases/{asset_id}/compute-status until it reports running or suspended. Figures take figure_config, a FigureSpec (kind, rendered and provenance, plus spec or chart), validated as the Athena UI's figures are. A word_document is a Word document holding Athena's default template, and a presentation is a blank widescreen PPTX Studio deck (the workspace's default template is not applied): Athena creates each with its own studio credential, as your write, and answers once the studio has seeded it (502, keeping nothing, when PPTX Studio could not seed a deck). Edit them through DOCX Studio or PPTX Studio with a token from POST /api/v0/assets/{asset_id}/studio-token. From an agent run (a verified X-Athena-Session-Credential), their first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy. Without workspace_id the asset is created in the workspace of parent_folder_id when one is given, otherwise in your current workspace; you must be a member of that workspace.
+    /// Create a new asset such as a spreadsheet, document, folder, database, computer, user interface, skill, collab agent, figure, Word document, presentation, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied. Databases accept suspend_timeout_seconds, the auto-suspend window from the database's Settings in Athena: 0 keeps the database running (it never suspends, and keeps using capacity), otherwise 60 to 86400 seconds. A database is provisioned in the background: poll GET /api/v0/databases/{asset_id}/compute-status until it reports running or suspended. Figures take figure_config, a FigureSpec (kind, rendered and provenance, plus spec or chart), validated as the Athena UI's figures are. A word_document is a Word document holding Athena's default template, and a presentation is a blank widescreen PPTX Studio deck (the workspace's default template is not applied): Athena creates each with its own studio credential, as your write, and answers once the studio has seeded it (502, keeping nothing, when PPTX Studio could not seed a deck). Edit them through DOCX Studio or PPTX Studio with a token from POST /api/v0/assets/{asset_id}/studio-token. From an agent run (a verified X-Athena-Session-Credential), their first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy. Without workspace_id the asset is created in the workspace of parent_folder_id when one is given, otherwise in your current workspace; you must be a member of that workspace. Send an `Idempotency-Key` header to make the create safe to retry: if the response is lost, repeating the identical request with the same key answers with the asset the first request created (with an `Idempotency-Replayed: true` header and its original status) instead of creating another. A key is private to you, the workspace the asset is created in and the asset type: another user, another workspace or another type with the same key creates its own asset. A retry that arrives while the first request is still creating gets 409 (`idempotency_key_in_progress`, with Retry-After); reusing a key with different parameters is rejected with 422; a key whose asset you can no longer open, or that is archived, gets 409 (`idempotency_key_reused`). Keys are kept for 24 hours. GET /api/v0/assets/create/capabilities names `create-idempotency-keys` once every server of this Athena honours them.
     ///
     /// # Arguments
     ///
@@ -101,7 +101,7 @@ impl AssetsClient {
             .await
     }
 
-    /// Create a Word document from a .docx file, or a presentation from a .pptx or .potx file, holding that file's content: the asset Athena makes when you create one from a file in the app. Athena imports the file through DOCX Studio or PPTX Studio with its own studio credential, as your write, and answers once the asset is ready (a large deck can take a few minutes). Nothing is left behind when the import fails. The file's name decides the type; the title defaults to the name without its extension. Gates are those of POST /api/v0/assets/create: membership in the workspace (workspace_id, else parent_folder_id's, else your current one) and EDIT on parent_folder_id. With source_asset_id (an asset you can read, for example the document the file was exported from) and no parent_folder_id, the new asset goes into the source's folder when you may create there, otherwise at your root. Unlike POST /api/v0/tools/file/save, which stores the file itself and turns an Office upload into its editable type in the background, this makes the editable asset in the request and keeps no file asset. A Word file may be up to 18.75 MiB, a PowerPoint file up to 100 MiB. From an agent run (a verified X-Athena-Session-Credential), a Word document's first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy.
+    /// Create a Word document from a .docx file, or a presentation from a PowerPoint presentation, show or template (.pptx, .pptm, .ppsx, .ppsm, .potx, .potm), holding that file's content: the asset Athena makes when you create one from a file in the app. Athena imports the file through DOCX Studio or PPTX Studio with its own studio credential, as your write, and answers once the asset is ready (a large deck can take a few minutes). A PowerPoint 97-2003 presentation or show (.ppt, .pps) makes a presentation too: PPTX Studio converts it to .pptx first, as PowerPoint for the web does to edit one, and the presentation's import report says so. A macro-enabled file keeps its macros, never run, and the presentation downloads in the file's own format. A Markdown (.md, .markdown) or plain-text (.txt, .text) file becomes an Athena document, its Markdown rendered (headings, lists, tables, links) and plain text one paragraph per line, and an HTML (.html, .htm) file becomes a user interface: Athena stores the file and converts it in place in the request, as the app's Convert to does, so the original upload stays downloadable from the new asset's Versions pane. A Markdown or text file may be up to 2 MiB and an HTML file up to 5 MiB. Nothing is left behind when the import or conversion fails. The file's name decides the type; the title defaults to the name without its extension. Gates are those of POST /api/v0/assets/create: membership in the workspace (workspace_id, else parent_folder_id's, else your current one) and EDIT on parent_folder_id. With source_asset_id (an asset you can read, for example the document the file was exported from) and no parent_folder_id, the new asset goes into the source's folder when you may create there, otherwise at your root. Unlike POST /api/v0/tools/file/save, which stores the file itself and turns an Office upload into its editable type in the background, this makes the editable asset in the request and keeps no file asset. A Word file may be up to 100 MB, Word for the web's limit, a PowerPoint file up to 100 MiB. A Word file gets the app's upload checks before anything is created, and one it refuses answers 422 with detail {code, message}: code is password_protected, rights_managed, damaged (unreadable content, which File > Import in the app can recover), format_mismatch (a template or macro-enabled file named .docx), not_ooxml, too_large or uncompressed_too_large, and message says why in Word's words. From an agent run (a verified X-Athena-Session-Credential), a Word document's first write also records the run, a presentation takes the create_presentation_pptx_studio tool policy and a user interface the create_new_user_interface tool policy.
     ///
     /// # Arguments
     ///
@@ -130,6 +130,30 @@ impl AssetsClient {
                     .serialize("workspace_id", request.workspace_id.clone())
                     .serialize("source_asset_id", request.source_asset_id.clone())
                     .build(),
+                options,
+            )
+            .await
+    }
+
+    /// What POST /api/v0/assets/create takes beyond its documented body, by capability name. `create-idempotency-keys`: every server of this Athena honours the create's Idempotency-Key, so a create whose answer was lost (a timeout, a dropped connection, a gateway's 502, 503 or 504) may be sent again with the same key and is answered with the asset the first request made. A server names nothing for 30 minutes after it starts, longer than a rollout takes, so a client never sends a create again while a server that would create a second asset can still receive it. The answer says what this Athena's code does, never anything about you or your data, and is never cached.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn get_create_capabilities(
+        &self,
+        options: Option<RequestOptions>,
+    ) -> Result<CreateCapabilitiesResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                "api/v0/assets/create/capabilities",
+                None,
+                None,
                 options,
             )
             .await
@@ -179,6 +203,58 @@ impl AssetsClient {
                 Method::POST,
                 "api/v0/assets/duplicate",
                 Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Mint a one-time link that takes one file without an API key, for a caller that can run a shell command but holds no key, such as an agent connected through an Athena MCP server. The file's name decides what it becomes, as with POST /api/v0/assets/create-from-file: a .md, .markdown, .txt or .text file an Athena document, a .html or .htm file a user interface, a .docx file a Word document and a .pptx, .pptm, .ppsx, .ppsm, .potx, .potm, .ppt or .pps file a presentation. The gates of create-from-file run now (membership in the workspace, EDIT on parent_folder_id, the deployment's offering, an agent run's tool policy) and again when the file arrives. Send the file's bytes as the body of one PUT to upload_url with the X-Athena-Upload-Token header (the curl field is that command); its answer is the new asset. A link works once, for 15 minutes.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn create_upload_link(
+        &self,
+        request: &CreateUploadLinkRequestIn,
+        options: Option<RequestOptions>,
+    ) -> Result<UploadLinkResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                "api/v0/assets/upload-links",
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Send one file through a link from POST /api/v0/assets/upload-links: the body is the file's bytes and X-Athena-Upload-Token the link's credential; no API key is needed. Athena runs POST /api/v0/assets/create-from-file as the person who asked for the link, with every gate again (an agent run's tool policy included), and answers with the new asset. A link works once: the first upload spends it, whatever its answer.
+    ///
+    /// # Arguments
+    ///
+    /// * `link_id` - The link's id, the last segment of its upload_url
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn upload_through_link(
+        &self,
+        link_id: &str,
+        request: &Vec<u8>,
+        options: Option<RequestOptions>,
+    ) -> Result<CreateAssetResponseOut, ApiError> {
+        self.http_client
+            .execute_bytes_request(
+                Method::PUT,
+                &format!("api/v0/assets/upload-links/{}", link_id),
+                Some(request.to_vec()),
                 None,
                 options,
             )
@@ -461,12 +537,13 @@ impl AssetsClient {
             .await
     }
 
-    /// Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type. With `live_sync=true`, a spreadsheet's .xlsx, a PPTX Studio presentation's .pptx or a Word document's .docx also carries the Athena for Microsoft 365 add-in's link record, so opening it in Excel, PowerPoint or Word with the add-in installed starts syncing it with the asset; other asset types ignore the flag.
+    /// Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type. With `live_sync=true`, a spreadsheet's .xlsx, a PPTX Studio presentation's .pptx or a Word document's .docx also carries the Athena for Office add-in's link record, so opening it in Excel, PowerPoint or Word with the add-in installed starts syncing it with the asset; other asset types ignore the flag. A Word document's live-sync copy requires EDIT. With `read_only=true`, a Word document downloads as a plain .docx that Word offers to open read-only (Read-only recommended) and that carries no live-sync link; it requires VIEW, like every download, and cannot be combined with `live_sync`.
     ///
     /// # Arguments
     ///
     /// * `asset_id` - Unique identifier of the asset to download
-    /// * `live_sync` - Office live sync: when true and the asset is an Athena spreadsheet, a PPTX Studio presentation or a Word document, the downloaded .xlsx / .pptx / .docx carries the Athena for Microsoft 365 add-in's link record and opens already syncing with this asset. Ignored for every other asset type.
+    /// * `live_sync` - Office live sync: when true and the asset is an Athena spreadsheet, a PPTX Studio presentation or a Word document, the downloaded .xlsx / .pptx / .docx carries the Athena for Office add-in's link record and opens already syncing with this asset; a Word document's requires EDIT access. Ignored for every other asset type.
+    /// * `read_only` - Read-only copy: when true and the asset is a Word document, the downloaded .docx carries no live-sync link and Word's Read-only recommended setting, so Word offers to open it read-only. Cannot be combined with `live_sync`. Ignored for every other asset type.
     /// * `addin_id` - GUID of the installed add-in manifest the live-sync record should reference (defaults to this deployment's Athena add-in). Only read together with `live_sync`; use it to target a preview-channel sideload.
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
@@ -486,6 +563,7 @@ impl AssetsClient {
                 None,
                 QueryBuilder::new()
                     .bool("live_sync", request.live_sync.clone())
+                    .bool("read_only", request.read_only.clone())
                     .serialize("addin_id", request.addin_id.clone())
                     .build(),
                 options,
@@ -520,7 +598,7 @@ impl AssetsClient {
             .await
     }
 
-    /// Publish a skill or collab agent so it is live for everyone who uses it. Omit version_id to snapshot and publish the current draft, or pass an existing version to promote it. Requires edit access to the asset.
+    /// Publish a skill or collab agent so it is live for everyone who uses it. Omit version_id to snapshot and publish the current draft, or pass an existing version to promote it. For a collab agent, pass expected_version_id, the version you saw published, to publish only over it: if another publish landed since, the request is refused with 409 PUBLICATION_MOVED and nothing is published. Requires edit access to the asset.
     ///
     /// # Arguments
     ///

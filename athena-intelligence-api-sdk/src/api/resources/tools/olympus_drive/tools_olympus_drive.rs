@@ -88,6 +88,31 @@ impl OlympusDriveClient {
             .await
     }
 
+    /// Archives files or images the current user uploaded themselves, such as a chat screenshot that exposes a credential or other sensitive data. Accepts a list of asset IDs. Only assets the current user uploaded can be removed; the user must confirm before anything is archived. Archived assets leave the conversation and the workspace and can be restored by the user.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn delete_uploaded_attachments(
+        &self,
+        request: &DeleteUploadedAttachmentsInput,
+        options: Option<RequestOptions>,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                "api/v0/tools/olympus-drive/delete-uploaded-attachments",
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
     /// Creates a copy of an existing asset. Accepts an asset ID and optional new title as input. Supports documents, spreadsheets, PDFs, images, collections, and AOPs.
     ///
     /// # Arguments
@@ -106,6 +131,31 @@ impl OlympusDriveClient {
             .execute_request(
                 Method::POST,
                 "api/v0/tools/olympus-drive/duplicate-asset",
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Runs the Asset Explorer's set as the caller: a page of rows and the set's counts come from the same read gate as the explorer and simpleSearch, so an asset the caller cannot open is never listed, counted or named, and a folder the caller cannot open is counted but never named. Explicit ids (asset_ids, related_to_asset_id) pass the asset permission check first. Counts stop after 5 seconds; the answer then says counts_available=false.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn explore_assets(
+        &self,
+        request: &ExploreAssetsInput,
+        options: Option<RequestOptions>,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                "api/v0/tools/olympus-drive/explore-assets",
                 Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
                 None,
                 options,

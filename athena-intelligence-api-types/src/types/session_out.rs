@@ -75,7 +75,7 @@ pub struct SessionOut {
     /// Display title of the session
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
-    /// Total LLM cost of the session in USD, when tracked
+    /// Total LLM cost of the session in USD, when tracked. Null unless the caller is Athena staff or an owner or manager of the session's workspace. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. Sessions priced before the in-house token ledger carry their legacy figure, without it. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_cost_usd: Option<f64>,
     /// Trigger that started an AOP/workflow run, such as schedule or api

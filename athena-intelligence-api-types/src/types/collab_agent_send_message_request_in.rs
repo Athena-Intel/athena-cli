@@ -14,10 +14,6 @@ pub struct CollabAgentSendMessageRequestIn {
     /// The message text to submit to the agent. Delivered verbatim as the user turn of the agent session.
     #[serde(default)]
     pub message: String,
-    /// Reserved for Athena voice surfaces (the OpenAI Live Console). An opaque callback handle for a live voice conversation that delegated this submission: the run gains a send_voice_update tool that streams interim updates back to that conversation. Requires wait=true. Leave unset for ordinary submissions.
-    #[serde(rename = "voiceUpdateHandle")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub voice_update_handle: Option<String>,
     /// When false (default), the submission is queued and the endpoint returns 202 immediately. When true, the request long-polls: the connection is held open while the agent runs (typically seconds to a few minutes) and the final reply is returned in the response.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wait: Option<bool>,
@@ -35,7 +31,6 @@ pub struct CollabAgentSendMessageRequestInBuilder {
     channel: Option<String>,
     client_thread_key: Option<String>,
     message: Option<String>,
-    voice_update_handle: Option<String>,
     wait: Option<bool>,
 }
 
@@ -55,11 +50,6 @@ impl CollabAgentSendMessageRequestInBuilder {
         self
     }
 
-    pub fn voice_update_handle(mut self, value: impl Into<String>) -> Self {
-        self.voice_update_handle = Some(value.into());
-        self
-    }
-
     pub fn wait(mut self, value: bool) -> Self {
         self.wait = Some(value);
         self
@@ -73,7 +63,6 @@ impl CollabAgentSendMessageRequestInBuilder {
             channel: self.channel,
             client_thread_key: self.client_thread_key,
             message: self.message.ok_or_else(|| BuildError::missing_field("message"))?,
-            voice_update_handle: self.voice_update_handle,
             wait: self.wait,
         })
     }

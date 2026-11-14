@@ -11,7 +11,7 @@ pub struct CapabilitySubscriptionOut {
     pub asset_type: String,
     #[serde(default)]
     pub coalesce_s: i64,
-    /// What the turns it started cost (USD); null while the token ledger cannot attribute runs to a subscription.
+    /// What the turns it started cost (USD); null while the token ledger cannot attribute runs to a subscription. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_usd: Option<f64>,
     #[serde(default)]
