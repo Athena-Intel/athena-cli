@@ -44,12 +44,18 @@ pub struct SubscriptionFiltersInput {
     /// Comment events only: just the comments that mention you.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mentions_me: Option<bool>,
+    /// Mail events only: just mail where one of these is on the From, To or Cc line, 1 to 20 exact addresses or domains (helloworld.com: anyone at it or its subdomains). Other recipients are matched, never stored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub participants: Option<Vec<String>>,
     /// Only with asset.presence.joined (subscribed on its own): hear only these people opening the asset, as user ids (user_...).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub principal_refs: Option<Vec<String>>,
     /// ServiceNow events only: just records at this priority, as shown ('1 - Critical') or its number alone ('1').
     #[serde(skip_serializing_if = "Option::is_none")]
     pub priority: Option<String>,
+    /// Mail events only: just mail from one of these, 1 to 20 exact addresses (jeff@athenaintel.com) or domains (helloworld.com: anyone at it or its subdomains), case-insensitive.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub senders: Option<Vec<String>>,
     /// ServiceNow events only: just records left in this state, as ServiceNow shows it (e.g. 'In Progress'), case-insensitive.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state: Option<String>,
@@ -86,8 +92,10 @@ pub struct SubscriptionFiltersInputBuilder {
     has_attachments: Option<bool>,
     label: Option<String>,
     mentions_me: Option<bool>,
+    participants: Option<Vec<String>>,
     principal_refs: Option<Vec<String>>,
     priority: Option<String>,
+    senders: Option<Vec<String>>,
     state: Option<String>,
     subject_contains: Option<String>,
     table: Option<SubscriptionTableInput>,
@@ -160,6 +168,11 @@ impl SubscriptionFiltersInputBuilder {
         self
     }
 
+    pub fn participants(mut self, value: Vec<String>) -> Self {
+        self.participants = Some(value);
+        self
+    }
+
     pub fn principal_refs(mut self, value: Vec<String>) -> Self {
         self.principal_refs = Some(value);
         self
@@ -167,6 +180,11 @@ impl SubscriptionFiltersInputBuilder {
 
     pub fn priority(mut self, value: impl Into<String>) -> Self {
         self.priority = Some(value.into());
+        self
+    }
+
+    pub fn senders(mut self, value: Vec<String>) -> Self {
+        self.senders = Some(value);
         self
     }
 
@@ -206,8 +224,10 @@ impl SubscriptionFiltersInputBuilder {
             has_attachments: self.has_attachments,
             label: self.label,
             mentions_me: self.mentions_me,
+            participants: self.participants,
             principal_refs: self.principal_refs,
             priority: self.priority,
+            senders: self.senders,
             state: self.state,
             subject_contains: self.subject_contains,
             table: self.table,

@@ -7,6 +7,7 @@ use super::*;
 pub struct AutomationRunOut {
     #[serde(default)]
     pub automation_asset_id: String,
+    /// Model spend in USD. Null unless the caller is Athena staff or an owner or manager of the automation's workspace. Which side of the workspace's LLM cost multiplier depends on the step: a step that runs a conversation counts that conversation's cost, multiplier included; a step that calls a model itself (a judge) counts those calls at the provider's rate. A run's total adds its steps, so it can mix the two. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers::option")]
@@ -53,6 +54,7 @@ pub struct AutomationRunOut {
     /// The canonical status_v2 projection of the run
     #[serde(default)]
     pub status_v2: HashMap<String, serde_json::Value>,
+    /// Tokens used. Null unless the caller is Athena staff or an owner or manager of the automation's workspace.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tokens: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]

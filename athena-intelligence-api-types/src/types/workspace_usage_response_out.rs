@@ -8,7 +8,7 @@ pub struct WorkspaceUsageResponseOut {
     /// Users with at least one session
     #[serde(default)]
     pub active_users: i64,
-    /// Portion of total_cost_usd produced by Computers
+    /// Portion of total_cost_usd produced by Computers. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. Sessions priced before the in-house token ledger carry their legacy figure, without it. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers")]
     pub computer_cost_usd: f64,
@@ -24,7 +24,7 @@ pub struct WorkspaceUsageResponseOut {
     /// Length of the reporting window in days
     #[serde(default)]
     pub days: i64,
-    /// Cost of dry-run (test) sessions
+    /// Cost in USD of dry-run (test) sessions. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. Sessions priced before the in-house token ledger carry their legacy figure, without it. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers")]
     pub dry_run_cost_usd: f64,
@@ -43,7 +43,7 @@ pub struct WorkspaceUsageResponseOut {
     /// Token counters across the workspace's sessions in the window, excluding dry-run (test) sessions
     #[serde(default)]
     pub tokens: WorkspaceUsageTokensOut,
-    /// Total LLM cost in USD
+    /// Total LLM cost in USD. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. Sessions priced before the in-house token ledger carry their legacy figure, without it. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers")]
     pub total_cost_usd: f64,

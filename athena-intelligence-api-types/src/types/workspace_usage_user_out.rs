@@ -23,7 +23,7 @@ pub struct WorkspaceUsageUserOut {
     /// Token counters across the user's sessions
     #[serde(default)]
     pub tokens: WorkspaceUsageTokensOut,
-    /// Total LLM cost in USD
+    /// Total LLM cost in USD. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. Sessions priced before the in-house token ledger carry their legacy figure, without it. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers")]
     pub total_cost_usd: f64,

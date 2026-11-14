@@ -38,7 +38,7 @@ impl HistoryClient {
             .await
     }
 
-    /// Comparing against the asset as it was at a time needs edit access; saved versions and two current assets compare with view access.
+    /// Comparing against a saved version or the asset as it was at a time needs edit access; the published version and two current assets compare with view access.
     ///
     /// # Arguments
     ///
@@ -138,7 +138,7 @@ impl HistoryClient {
             .await
     }
 
-    /// A moment in time needs edit access; saved versions open with view access.
+    /// A saved version or a moment in time needs edit access; the published version opens with view access.
     ///
     /// # Arguments
     ///
@@ -156,6 +156,31 @@ impl HistoryClient {
             .execute_request(
                 Method::POST,
                 "api/v0/tools/history/open",
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Any viewer gets who wrote a document's text and a deck's shapes. A sheet's cells, and a deck's text split by who wrote each character, are read off past values and need edit access, as in the Attribution tab. Read the values themselves with read_asset and the same request.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn read_asset_author(
+        &self,
+        request: &ReadAssetAuthorInput,
+        options: Option<RequestOptions>,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                "api/v0/tools/history/read-asset-author",
                 Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
                 None,
                 options,

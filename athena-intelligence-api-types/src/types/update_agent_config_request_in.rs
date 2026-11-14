@@ -106,6 +106,9 @@ pub struct UpdateAgentConfigRequestIn {
     /// Sampling temperature override
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f64>,
+    /// Status lines Slack rotates while the agent works
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_verbs: Option<Vec<String>>,
     /// Toolkit IDs the agent can use; replaces the list
     #[serde(skip_serializing_if = "Option::is_none")]
     pub toolkits: Option<Vec<String>>,
@@ -166,6 +169,7 @@ pub struct UpdateAgentConfigRequestInBuilder {
     suggestions: Option<Vec<HashMap<String, serde_json::Value>>>,
     system_prompt: Option<String>,
     temperature: Option<f64>,
+    thinking_verbs: Option<Vec<String>>,
     toolkits: Option<Vec<String>>,
     tools: Option<Vec<String>>,
     voice_enabled: Option<bool>,
@@ -344,6 +348,11 @@ impl UpdateAgentConfigRequestInBuilder {
         self
     }
 
+    pub fn thinking_verbs(mut self, value: Vec<String>) -> Self {
+        self.thinking_verbs = Some(value);
+        self
+    }
+
     pub fn toolkits(mut self, value: Vec<String>) -> Self {
         self.toolkits = Some(value);
         self
@@ -406,6 +415,7 @@ impl UpdateAgentConfigRequestInBuilder {
             suggestions: self.suggestions,
             system_prompt: self.system_prompt,
             temperature: self.temperature,
+            thinking_verbs: self.thinking_verbs,
             toolkits: self.toolkits,
             tools: self.tools,
             voice_enabled: self.voice_enabled,
