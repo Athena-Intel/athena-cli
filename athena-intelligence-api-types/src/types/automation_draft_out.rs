@@ -11,7 +11,7 @@ pub struct AutomationDraftOut {
     /// Why the draft could not be read, when it could not
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
-    /// 'snapshot:latest' when read from the @latest snapshot, 'live' when read from the live Keryx document, null when unreadable
+    /// 'snapshot:latest' when read from the draft's last saved snapshot, 'live' when read from the live document, null when unreadable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<AutomationDraftOutSource>,
 }

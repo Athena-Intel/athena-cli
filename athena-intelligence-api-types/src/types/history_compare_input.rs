@@ -10,10 +10,10 @@ pub struct HistoryCompareInput {
     /// Also return a text redline in Word's markup view: all (insertions {+…+} and deletions {-…-} inline), simple (changed lines marked), none (the revised text), original (the original text).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub markup: Option<HistoryCompareInputMarkup>,
-    /// The original state to compare from: current, published, a saved version id or name, a time (2026-10-28T14:00Z), or another asset id (asset_…, optionally @<version>).
+    /// The original state to compare from: current, published, a saved version id or name, a time (2026-10-28T14:00Z), or another asset id (asset_…, optionally @<version>). Or `previous`: what changed in the revised version since the one before it (for a published version, the one published before it), and who changed it.
     #[serde(default)]
     pub original: String,
-    /// The revised state to compare to (default current): current, published, a saved version id or name, a time (2026-10-28T14:00Z), or another asset id (asset_…, optionally @<version>).
+    /// The revised state to compare to (default current): current, published, a saved version id or name, a time (2026-10-28T14:00Z), or another asset id (asset_…, optionally @<version>). With --original previous: a saved version id, `published` or `latest` (the default).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revised: Option<String>,
     /// Where: a cell or range (Sheet1!B6, 'Q3 Plan'!B2:F40), a sheet (sheet:Sheet1), a slide (slide 7), or text to look for.

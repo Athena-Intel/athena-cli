@@ -8,7 +8,7 @@ pub struct WorkspaceUsageResponseOut {
     /// Users with at least one session
     #[serde(default)]
     pub active_users: i64,
-    /// Portion of total_cost_usd produced by Computers
+    /// Portion of total_cost_usd produced by Computers. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. Sessions priced before the in-house token ledger carry their legacy figure, without it. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers")]
     pub computer_cost_usd: f64,
@@ -24,7 +24,7 @@ pub struct WorkspaceUsageResponseOut {
     /// Length of the reporting window in days
     #[serde(default)]
     pub days: i64,
-    /// Cost of dry-run (test) sessions
+    /// Cost in USD of dry-run (test) sessions. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. Sessions priced before the in-house token ledger carry their legacy figure, without it. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers")]
     pub dry_run_cost_usd: f64,
@@ -34,6 +34,9 @@ pub struct WorkspaceUsageResponseOut {
     /// Token counters from dry-run (test) sessions, excluded from tokens
     #[serde(default)]
     pub dry_run_tokens: WorkspaceUsageTokensOut,
+    /// Present only when the request set `gateway_attribution=true`: how much of the attributed Computer LLM gateway usage `per_user` shows under the members whose sessions it was attributed to
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gateway_attribution: Option<WorkspaceUsageGatewayAttributionOut>,
     /// Per-Computer breakdown, highest cost first
     #[serde(default)]
     pub per_computer: Vec<WorkspaceUsageComputerOut>,
@@ -43,7 +46,7 @@ pub struct WorkspaceUsageResponseOut {
     /// Token counters across the workspace's sessions in the window, excluding dry-run (test) sessions
     #[serde(default)]
     pub tokens: WorkspaceUsageTokensOut,
-    /// Total LLM cost in USD
+    /// Total LLM cost in USD. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. Sessions priced before the in-house token ledger carry their legacy figure, without it. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers")]
     pub total_cost_usd: f64,
@@ -73,6 +76,7 @@ pub struct WorkspaceUsageResponseOutBuilder {
     dry_run_cost_usd: Option<f64>,
     dry_run_sessions: Option<i64>,
     dry_run_tokens: Option<WorkspaceUsageTokensOut>,
+    gateway_attribution: Option<WorkspaceUsageGatewayAttributionOut>,
     per_computer: Option<Vec<WorkspaceUsageComputerOut>>,
     per_user: Option<Vec<WorkspaceUsageUserOut>>,
     tokens: Option<WorkspaceUsageTokensOut>,
@@ -124,6 +128,11 @@ impl WorkspaceUsageResponseOutBuilder {
 
     pub fn dry_run_tokens(mut self, value: WorkspaceUsageTokensOut) -> Self {
         self.dry_run_tokens = Some(value);
+        self
+    }
+
+    pub fn gateway_attribution(mut self, value: WorkspaceUsageGatewayAttributionOut) -> Self {
+        self.gateway_attribution = Some(value);
         self
     }
 
@@ -185,6 +194,7 @@ impl WorkspaceUsageResponseOutBuilder {
             dry_run_cost_usd: self.dry_run_cost_usd.ok_or_else(|| BuildError::missing_field("dry_run_cost_usd"))?,
             dry_run_sessions: self.dry_run_sessions.ok_or_else(|| BuildError::missing_field("dry_run_sessions"))?,
             dry_run_tokens: self.dry_run_tokens.ok_or_else(|| BuildError::missing_field("dry_run_tokens"))?,
+            gateway_attribution: self.gateway_attribution,
             per_computer: self.per_computer.ok_or_else(|| BuildError::missing_field("per_computer"))?,
             per_user: self.per_user.ok_or_else(|| BuildError::missing_field("per_user"))?,
             tokens: self.tokens.ok_or_else(|| BuildError::missing_field("tokens"))?,

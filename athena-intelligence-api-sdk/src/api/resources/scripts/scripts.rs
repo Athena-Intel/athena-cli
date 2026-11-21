@@ -13,7 +13,7 @@ impl ScriptsClient {
         })
     }
 
-    /// Create a script asset — code that runs with no model — in the caller's workspace (or the given one), optionally inside a folder and seeded with its source. The contract (language, entrypoint, args schema, timeout) starts at the language's defaults. Scripts are admin-only and workspace-enrolled while Automations are internal: a denial is a 403 whose detail.reason is not_provisioned, not_permitted or workspace_not_enrolled.
+    /// Create a script asset — code that runs with no model — in the caller's workspace (or the given one), optionally inside a folder and seeded with its source. The contract (language, entrypoint, args schema, timeout) starts at the language's defaults. Scripts are open to the live members of a workspace enrolled in Automations where they are provisioned: a denial is a 403 whose detail.reason is not_provisioned, not_permitted or workspace_not_enrolled.
     ///
     /// # Arguments
     ///

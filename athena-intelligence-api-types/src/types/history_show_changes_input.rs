@@ -10,7 +10,7 @@ pub struct HistoryShowChangesInput {
     /// A conversation's thread id, or `current` for the one this runs in.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conversation: Option<String>,
-    /// Most changes to return.
+    /// Most changes to return (1 to 200; any other number is brought into that range).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<i64>,
     /// When: today, yesterday, this week, last 7 days, since 2026-10-28, 2026-10-28 (that day) or 2026-10-28..2026-10-30. Times are UTC.
