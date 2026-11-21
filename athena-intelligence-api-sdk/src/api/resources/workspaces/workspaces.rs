@@ -234,11 +234,12 @@ impl WorkspacesClient {
             .await
     }
 
-    /// Aggregate LLM token usage (and cost) for one workspace over the last `days` days: workspace totals plus per-member, per-day and per-Computer breakdowns. Token counters are summed from each session's usage ledger; dry-run (test) sessions are reported separately and excluded from the totals. Requires workspace owner or manager (or Athena admin) permissions — the same gate as the in-app Usage page.
+    /// Aggregate LLM token usage (and cost) for one workspace over the last `days` days: workspace totals plus per-member, per-day and per-Computer breakdowns. Token counters are summed from each session's usage ledger; dry-run (test) sessions are reported separately and excluded from the totals. A Computer's LLM gateway usage counts under the Computer's owner. With `gateway_attribution=true`, the calls a Computer's app attributed to a session count in `per_user` under the member who started that session instead (a member with no session of their own in the window has `session_count` 0), `active_users` counts the `per_user` rows returned, and `gateway_attribution` says whether that covers the whole window. Costs and tokens, in total and in the per-day and per-Computer breakdowns, are the same either way; the option reads the calls of up to 100 Computer usage sessions and takes longer. Requires workspace owner or manager (or Athena admin) permissions — the same gate as the in-app Usage page.
     ///
     /// # Arguments
     ///
     /// * `days` - Reporting window in days, ending now (1-365)
+    /// * `gateway_attribution` - Count a Computer's LLM gateway calls that its app attributed to a session under that session's member in `per_user`
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -257,13 +258,14 @@ impl WorkspacesClient {
                 None,
                 QueryBuilder::new()
                     .int("days", request.days.clone())
+                    .bool("gateway_attribution", request.gateway_attribution.clone())
                     .build(),
                 options,
             )
             .await
     }
 
-    /// Per-session LLM token usage for one workspace — the same rows as the workspace usage CSV export, as JSON. Each session yields one row per provider/model/status combination with its token breakdown and billed cost; dry-run (test) sessions are excluded. Pick the window with `from`/`to` (UTC dates, inclusive, at most 365 days) or a rolling `days`. Pages are keyset-paginated newest first: `limit` counts sessions, and `next_cursor` is returned while more sessions remain. Requires workspace owner or manager (or Athena admin) permissions.
+    /// Per-session LLM token usage for one workspace — the same rows as the workspace usage CSV export, as JSON. Each session yields one row per provider/model/status combination with its token breakdown and billed cost; dry-run (test) sessions are excluded. A Computer's LLM gateway usage is listed under the Computer's usage session for the day of the call. With `gateway_attribution=true`, the calls a Computer's app attributed to a session are listed under that session instead: those rows carry its id, creation time, member and origin, are marked `gateway_attributed`, and name the Computer usage session in `ledger_session_id`. They stay on the page of that usage session, so with the option on a session's rows can sit on several pages, a provider/model/status combination can repeat for a session, `session_created_at` can be earlier than the window, and the rows of Computer usage sessions no longer add up to the usage report's `computer_cost_usd` (group by `ledger_session_id` to get the default rows back). Every summed column is the same either way. Pick the window with `from`/`to` (UTC dates, inclusive, at most 365 days) or a rolling `days`. Pages are keyset-paginated newest first: `limit` counts sessions, and `next_cursor` is returned while more sessions remain. Requires workspace owner or manager (or Athena admin) permissions.
     ///
     /// # Arguments
     ///
@@ -273,6 +275,7 @@ impl WorkspacesClient {
     /// * `days` - Rolling window in days ending now; ignored when `from`/`to` are given
     /// * `cursor` - `next_cursor` from the previous page
     /// * `limit` - Maximum sessions per page (each may yield several rows)
+    /// * `gateway_attribution` - List a Computer's LLM gateway calls that its app attributed to a session under that session, and mark every row with `ledger_session_id` and `gateway_attributed`
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -295,6 +298,7 @@ impl WorkspacesClient {
                     .int("days", request.days.clone())
                     .serialize("cursor", request.cursor.clone())
                     .int("limit", request.limit.clone())
+                    .bool("gateway_attribution", request.gateway_attribution.clone())
                     .build(),
                 options,
             )

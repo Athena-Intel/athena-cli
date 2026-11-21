@@ -8,7 +8,7 @@ pub struct ShareRecipient {
     /// Email address of the user to share with
     #[serde(default)]
     pub email: String,
-    /// Permission level to grant: 'view' or 'edit'
+    /// Permission level to grant: 'view' or 'edit'. On an asset type that publishes (documents, presentations, Word documents, spreadsheets, interfaces, agents, skills, object types and AOPs), also 'view_drafts' (reads the published asset's draft, nothing more) or 'publish' (reads the draft and publishes it, never edits it); any other type refuses those two with 422.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permission: Option<SharePermissionType>,
 }

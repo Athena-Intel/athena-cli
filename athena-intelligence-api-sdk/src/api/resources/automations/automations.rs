@@ -14,7 +14,41 @@ impl AutomationsClient {
         })
     }
 
-    /// Create an automation asset in the caller's workspace (or the given one), optionally inside a folder and optionally seeded with a draft definition. Nothing runs until the automation is published. Automations are admin-only and workspace-enrolled in Phase 1: a denial is a 403 whose detail.reason is not_provisioned, not_permitted or workspace_not_enrolled.
+    /// List the automations the caller may view in a workspace, most recently updated first, with offset pagination. `blueprint=true` lists only blueprints (published automations whose current version sets `blueprint`, the templates POST /automations/blueprints/{blueprint_asset_id}/instantiate copies); `blueprint=false` lists only the others. An automation the caller may not view is neither listed nor counted. `workspace_id` names the workspace to list; the caller must be a member of it.
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_id` - Workspace to list; the caller must be a member of it
+    /// * `blueprint` - true: only blueprints; false: only automations that are not blueprints; omit for both
+    /// * `limit` - Maximum number of automations per page (1-200)
+    /// * `offset` - Number of automations to skip for pagination
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn list(
+        &self,
+        request: &AutomationsListQueryRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<PaginatedAutomationsOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                "api/v0/automations",
+                None,
+                QueryBuilder::new()
+                    .string("workspace_id", request.workspace_id.clone())
+                    .serialize("blueprint", request.blueprint.clone())
+                    .int("limit", request.limit.clone())
+                    .int("offset", request.offset.clone())
+                    .build(),
+                options,
+            )
+            .await
+    }
+
+    /// Create an automation asset in the caller's workspace (or the given one), optionally inside a folder and optionally seeded with a draft definition. Nothing runs until the automation is published. A caller who may not use Automations in the workspace gets a 403 whose detail.reason is not_provisioned, not_permitted or workspace_not_enrolled.
     ///
     /// # Arguments
     ///
@@ -66,6 +100,36 @@ impl AutomationsClient {
             .await
     }
 
+    /// Create a new, unpublished automation whose draft is a copy of a blueprint's current version: `blueprint` is dropped, the copy is named `title`, and each `inputs` value becomes the default of the input of that name, checked against the blueprint's `inputs` schema. Nothing runs until the new automation is published. The automation is created in the blueprint's own workspace, and the caller must be able to view the blueprint. A refused value is 400 with `detail.code = INVALID_RUN_INPUTS` and `detail.issues[]` naming each problem's `path` and `message`; an automation that is not a published blueprint, or an archived one, is 400 with `detail.code = BLUEPRINT_REFUSED` and `detail.reason`.
+    ///
+    /// # Arguments
+    ///
+    /// * `blueprint_asset_id` - Unique identifier of the blueprint (an automation asset)
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn instantiate_blueprint(
+        &self,
+        blueprint_asset_id: &str,
+        request: &Option<AutomationFromBlueprintRequestIn>,
+        options: Option<RequestOptions>,
+    ) -> Result<AutomationCreateResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!(
+                    "api/v0/automations/blueprints/{}/instantiate",
+                    blueprint_asset_id
+                ),
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
     /// Follow up on a session later, as its owner: creates and publishes a `kind: follow_up` automation that fires once — at an instant (`when.at`), after a delay (`when.after`) or on an event's first occurrence (`when.event_type`, optional CEL `when.match`) — and then continues the session with the note (`then: resume`) or only tells the caller (`then: notify`). The caller must be able to open the session; its home is `project_asset_id`, else the project the session sits in. Refusals are 400 with `detail.code` (`follow_up_when`, `follow_up_in_the_past`, `follow_up_home_required`, `follow_up_home_invalid`, `follow_up_definition_invalid` with `detail.issues`) and 404 for a session the caller cannot open (`follow_up_thread_not_visible`); nothing is written on a refusal.
     ///
     /// # Arguments
@@ -110,6 +174,32 @@ impl AutomationsClient {
             .execute_request(
                 Method::GET,
                 &format!("api/v0/automations/runs/{}", run_id),
+                None,
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// List the assets a run created that the caller may view, oldest first: the documents, spreadsheets, presentations and other assets made in the sessions the run's `aop_run` and `agent_run` steps opened, each with the steps whose session made it. Read while a run is going, it lists what exists so far. An asset the caller may not view is left out. An asset a `tool` step created directly is not listed here (its id is in that step's output), nor is one a `call_automation` child run created (read the child run's assets by its own run id). Only the run's subject (who started it, or the owner of the trigger that did) and its participants (its approvers) read a run's assets; anyone else gets 403.
+    ///
+    /// # Arguments
+    ///
+    /// * `run_id` - Unique identifier of the run
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn list_run_assets(
+        &self,
+        run_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<AutomationRunAssetsResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::GET,
+                &format!("api/v0/automations/runs/{}/assets", run_id),
                 None,
                 None,
                 options,
@@ -170,7 +260,7 @@ impl AutomationsClient {
             .await
     }
 
-    /// Read the whole output of one step attempt. A step whose output fit the ledger answers with that object; a step whose row carries `output_ref` (its `output` is a truncated preview) streams the stored object back through the storage abstraction, so a multi-megabyte result never has to fit a GraphQL response. The step row id is the `step_id`-independent `astep_…` id the run detail lists. Until the attempt has recorded an output the route answers 404, so a 200 body is always one JSON object. Only the run's subject (who started it, or the owner of the trigger that did) and its participants (its approvers) read a step's output; anyone else gets 403.
+    /// Read the whole output of one step attempt. A step whose output was stored inline answers with that object; a step whose row carries `output_ref` (its `output` is a truncated preview) streams the stored object back, so a multi-megabyte result is never truncated. The step row id is the `step_id`-independent `astep_…` id the run detail lists. Until the attempt has recorded an output the route answers 404, so a 200 body is always one JSON object. Only the run's subject (who started it, or the owner of the trigger that did) and its participants (its approvers) read a step's output; anyone else gets 403.
     ///
     /// # Arguments
     ///
@@ -201,7 +291,7 @@ impl AutomationsClient {
             .await
     }
 
-    /// Read an automation whole: asset facts, the indexed mirror (enabled, current version, fingerprint, principal, next fire), the draft definition (from the @latest snapshot when there is one, else the live Keryx document), the current published version with its definition, the version history, and every trigger-engine row publish materialised, paused rows included with their reason.
+    /// Read an automation whole: asset facts, its state (enabled, current version, fingerprint, principal, next fire), the draft definition (from its last saved snapshot when there is one, else the live document), the current published version with its definition, the version history, and every trigger row publish created, paused rows included with their reason.
     ///
     /// # Arguments
     ///
@@ -227,7 +317,7 @@ impl AutomationsClient {
             .await
     }
 
-    /// Replace the draft definition in the automation's Keryx document — the server-side counterpart of the Definition tab, written through the same Y.Doc path the AOP config API uses, so open editors converge on it live. The document is shape-validated (detail.issues lists every problem); tools, cron and expressions are checked at publish. An existing @latest snapshot is re-pointed at the new draft so publish reads what was written. Nothing runs until the automation is published.
+    /// Replace the automation's draft definition: the server-side counterpart of the Definition tab, written into the same collaborative document, so open editors converge on it live. The document is shape-validated (detail.issues lists every problem); tools, cron and expressions are checked at publish. The draft's last saved snapshot is re-pointed at the new draft so publish reads what was written. Nothing runs until the automation is published.
     ///
     /// # Arguments
     ///
@@ -307,7 +397,7 @@ impl AutomationsClient {
             .await
     }
 
-    /// Start a manual run of the automation's current version and queue it for the interpreter; returns the run id to poll with GET /automations/runs/{run_id}. The inputs are validated against the version's `inputs` schema with declared defaults filled in; a refusal is 400 with `detail.code = INVALID_RUN_INPUTS`, `detail.issues[]` naming each problem's `path` and `message`, and `detail.subject` = `inputs` (fix the request body) or `schema` (the version's pinned schema is invalid; republish the automation). Also refused with 400 when the automation has no published version, is archived, or the interpreter is switched off. POST /automations/{asset_id}/dry-run rehearses the same launch. Send an `Idempotency-Key` header to make the launch safe to retry: repeating the identical request with the same key replays the original response (deduplicated: true) instead of queuing a second run; the same key with different parameters is rejected with 422.
+    /// Start a manual run of the automation's current version and queue it; returns the run id to poll with GET /automations/runs/{run_id}. The inputs are validated against the version's `inputs` schema with declared defaults filled in; a refusal is 400 with `detail.code = INVALID_RUN_INPUTS`, `detail.issues[]` naming each problem's `path` and `message`, and `detail.subject` = `inputs` (fix the request body) or `schema` (the version's pinned schema is invalid; republish the automation). Also refused with 400 when the automation has no published version, is archived, or automation runs are switched off for the deployment. Send an `Idempotency-Key` header to make the launch safe to retry: repeating the identical request with the same key replays the original response (deduplicated: true) instead of queuing a second run; the same key with different parameters is rejected with 422.
     ///
     /// # Arguments
     ///
@@ -363,6 +453,91 @@ impl AutomationsClient {
                     .int("limit", request.limit.clone())
                     .int("offset", request.offset.clone())
                     .build(),
+                options,
+            )
+            .await
+    }
+
+    /// Pause every live trigger of the automation by hand. Each trigger row is disabled with paused_reason `{type: operator, by, at, message}`; the draft, the versions and a row already paused for another reason are left as they are, and runs already started keep going. Resume with POST /automations/{asset_id}/triggers/resume or a publish. Returns the automation as GET /automations/{asset_id} reads it afterwards.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - Unique identifier of the automation asset
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn pause_triggers(
+        &self,
+        asset_id: &str,
+        request: &Option<AutomationTriggersPauseRequestIn>,
+        options: Option<RequestOptions>,
+    ) -> Result<AutomationResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!("api/v0/automations/{}/triggers/pause", asset_id),
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Re-enable the trigger rows paused for the named reasons: `operator` (a pause by hand), `error` (the failure breaker) or `budget_exceeded` (a budget breach). Rows paused for any other reason are left alone, and a schedule whose instant has passed stays paused with its paired rule. Resuming a budget pause leaves every budget as set: a new run is still refused while a daily cap it pays into is spent. Returns the automation as GET /automations/{asset_id} reads it afterwards.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - Unique identifier of the automation asset
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn resume_triggers(
+        &self,
+        asset_id: &str,
+        request: &AutomationTriggersResumeRequestIn,
+        options: Option<RequestOptions>,
+    ) -> Result<AutomationResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!("api/v0/automations/{}/triggers/resume", asset_id),
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Make a published version current again. The version's definition passes every publish check first; one that no longer publishes is refused with 400 and every problem in detail.issues, and the draft is left as it was. Otherwise the current draft is kept as a snapshot, the version's definition is written into the draft and published the ordinary way, so the result is a new version (none when the latest version already is this definition by this publisher). Answers as POST /automations/{asset_id}/publish does, 202 included when the workspace's approval policy parks the publish.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_id` - Unique identifier of the automation asset
+    /// * `version` - The sequential number of the version to republish
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn republish_version(
+        &self,
+        asset_id: &str,
+        version: i64,
+        options: Option<RequestOptions>,
+    ) -> Result<AutomationPublishResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!(
+                    "api/v0/automations/{}/versions/{}/republish",
+                    asset_id, version
+                ),
+                None,
+                None,
                 options,
             )
             .await

@@ -25,6 +25,9 @@ pub struct WorkspaceUsageSessionRowOut {
     #[serde(default)]
     #[serde(with = "crate::core::flexible_datetime::offset::option")]
     pub first_event_at: Option<DateTime<FixedOffset>>,
+    /// Present only with `gateway_attribution=true`: whether the row is a Computer's LLM gateway usage shown under the session its app attributed it to
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gateway_attributed: Option<bool>,
     /// Null for an `untracked` row
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_tokens: Option<i64>,
@@ -33,6 +36,9 @@ pub struct WorkspaceUsageSessionRowOut {
     #[serde(default)]
     #[serde(with = "crate::core::flexible_datetime::offset::option")]
     pub last_event_at: Option<DateTime<FixedOffset>>,
+    /// Present only with `gateway_attribution=true`: the session the row's usage is recorded on. It equals `session_id` except on an attributed row, where it is the Computer usage session the calls were made on
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ledger_session_id: Option<String>,
     /// How the session was started (user_chat, aop_execution, public_api, ...)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin_kind: Option<String>,
@@ -60,7 +66,7 @@ pub struct WorkspaceUsageSessionRowOut {
     /// Model that actually served the calls
     #[serde(default)]
     pub resolved_model: String,
-    /// Billed cost of this row in USD; safe to sum across rows
+    /// Billed cost of this row in USD; safe to sum across rows. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers")]
     pub row_total_cost_usd: f64,
@@ -74,7 +80,7 @@ pub struct WorkspaceUsageSessionRowOut {
     /// Session (conversation) asset id
     #[serde(default)]
     pub session_id: String,
-    /// Billed cost of the whole session in USD, carried by the session's first row only and null on its other rows, so summing the column never double-counts (same convention as the CSV export)
+    /// Billed cost of the whole session in USD, carried by the session's first row only and null on its other rows, so summing the column never double-counts (same convention as the CSV export). With `gateway_attribution=true`, the first row of each group of rows attributed to the session from one Computer usage session carries that group's cost, and the Computer usage session's own first row carries the rest of its total. Already includes the workspace's LLM cost multiplier, applied once to the provider's rate; never apply it again. Sessions priced before the in-house token ledger carry their legacy figure, without it. See docs/SESSION_TOKEN_USAGE_AND_TOKEN_COST_GUIDE.md#which-cost-field-do-i-sum.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     #[serde(with = "crate::core::number_serializers::option")]
@@ -123,8 +129,10 @@ pub struct WorkspaceUsageSessionRowOutBuilder {
     cache_creation_input_tokens: Option<i64>,
     cache_read_input_tokens: Option<i64>,
     first_event_at: Option<DateTime<FixedOffset>>,
+    gateway_attributed: Option<bool>,
     input_tokens: Option<i64>,
     last_event_at: Option<DateTime<FixedOffset>>,
+    ledger_session_id: Option<String>,
     origin_kind: Option<String>,
     origin_kind_label: Option<String>,
     output_tokens: Option<i64>,
@@ -180,6 +188,11 @@ impl WorkspaceUsageSessionRowOutBuilder {
         self
     }
 
+    pub fn gateway_attributed(mut self, value: bool) -> Self {
+        self.gateway_attributed = Some(value);
+        self
+    }
+
     pub fn input_tokens(mut self, value: i64) -> Self {
         self.input_tokens = Some(value);
         self
@@ -187,6 +200,11 @@ impl WorkspaceUsageSessionRowOutBuilder {
 
     pub fn last_event_at(mut self, value: DateTime<FixedOffset>) -> Self {
         self.last_event_at = Some(value);
+        self
+    }
+
+    pub fn ledger_session_id(mut self, value: impl Into<String>) -> Self {
+        self.ledger_session_id = Some(value.into());
         self
     }
 
@@ -318,8 +336,10 @@ impl WorkspaceUsageSessionRowOutBuilder {
             cache_creation_input_tokens: self.cache_creation_input_tokens,
             cache_read_input_tokens: self.cache_read_input_tokens,
             first_event_at: self.first_event_at,
+            gateway_attributed: self.gateway_attributed,
             input_tokens: self.input_tokens,
             last_event_at: self.last_event_at,
+            ledger_session_id: self.ledger_session_id,
             origin_kind: self.origin_kind,
             origin_kind_label: self.origin_kind_label,
             output_tokens: self.output_tokens,

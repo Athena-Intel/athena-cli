@@ -10,7 +10,7 @@ pub struct HistoryVersionsInput {
     /// Include automatic saves.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_autosaves: Option<bool>,
-    /// Most versions to return.
+    /// Most versions to return (1 to 200; any other number is brought into that range).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<i64>,
 }
