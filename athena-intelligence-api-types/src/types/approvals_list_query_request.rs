@@ -20,6 +20,9 @@ pub struct ApprovalsListQueryRequest {
     /// The previous page's next_before_id, sent together with before
     #[serde(skip_serializing_if = "Option::is_none")]
     pub before_id: Option<String>,
+    /// Workspace whose inbox to read; the caller's current workspace when omitted. The caller must be a member
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
 }
 
 impl ApprovalsListQueryRequest {
@@ -36,6 +39,7 @@ pub struct ApprovalsListQueryRequestBuilder {
     limit: Option<i64>,
     before: Option<DateTime<FixedOffset>>,
     before_id: Option<String>,
+    workspace_id: Option<String>,
 }
 
 impl ApprovalsListQueryRequestBuilder {
@@ -64,6 +68,11 @@ impl ApprovalsListQueryRequestBuilder {
         self
     }
 
+    pub fn workspace_id(mut self, value: impl Into<String>) -> Self {
+        self.workspace_id = Some(value.into());
+        self
+    }
+
     /// Consumes the builder and constructs a [`ApprovalsListQueryRequest`].
     pub fn build(self) -> Result<ApprovalsListQueryRequest, BuildError> {
         Ok(ApprovalsListQueryRequest {
@@ -72,6 +81,7 @@ impl ApprovalsListQueryRequestBuilder {
             limit: self.limit,
             before: self.before,
             before_id: self.before_id,
+            workspace_id: self.workspace_id,
         })
     }
 }

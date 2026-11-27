@@ -38,7 +38,7 @@ impl SubscriptionsClient {
             .await
     }
 
-    /// Continue this conversation at a time, then end your turn: once at an instant (at) or after a delay (after, e.g. 15m or 7d), or on a cron, at most 90 days ahead. The wake arrives as a new turn with your note. stop cancels this conversation's pending one-off wakes.
+    /// Continue this conversation at a time, then end your turn: once at an instant (at) or after a delay (after, e.g. 15m or 7d), or on a cron, at most 90 days ahead. The wake arrives as a new turn with your note. When you are waiting on a pull request's checks or reviews, name it in early_on and the wait ends as soon as there is news, instead of at its time. stop cancels this conversation's pending one-off wakes.
     ///
     /// # Arguments
     ///
@@ -63,7 +63,7 @@ impl SubscriptionsClient {
             .await
     }
 
-    /// Continue this conversation when something happens, then end your turn. Watch an asset you can open, an item in a connection's catalog (a Slack thread, a GitHub pull request) or a link to one, for events its capability card offers; each matching event continues this conversation as a new turn, with your note. Filters, conditions and a deadline narrow it; a pull request or issue watch may end with it (limits.until). Bounded by a run budget and an expiry (24h by default, 7 days at most, 90 days with until). Never polls.
+    /// Continue this conversation when something happens, then end your turn. Watch an asset you can open, an item in a connection's catalog (a Slack thread, a GitHub pull request, an email thread in your mailbox) or a link to one, for events its capability card offers; each matching event continues this conversation as a new turn, with your note. Mail can be narrowed to senders or participants by address or domain (filters.senders, filters.participants). Filters, conditions and a deadline narrow it; a pull request or issue watch may end with it (limits.until). Bounded by a run budget and an expiry (24h by default, 7 days at most, 90 days with until). Never polls.
     ///
     /// # Arguments
     ///

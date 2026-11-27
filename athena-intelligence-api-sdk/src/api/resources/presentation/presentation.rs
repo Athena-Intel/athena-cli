@@ -13,7 +13,7 @@ impl PresentationClient {
         })
     }
 
-    /// Create a new PowerPoint deck in PPTX Studio. Returns the asset ID for the new presentation. Use this to start a new presentation before adding content. Pass template_asset_id to seed the deck from any ready PPTX Studio deck or uploaded .pptx/.potx file; if the template cannot be applied, no deck is created and the error says why.
+    /// Create a new PowerPoint deck in PPTX Studio. Returns the asset ID for the new presentation. Use this to start a new presentation before adding content. Pass template_asset_id to seed the deck from any ready PPTX Studio deck or uploaded .pptx/.potx file; if the template cannot be applied, no deck is created and the error says why. A presentation created from a template holds every slide of the template; remove the ones you do not want in execute_presentation_code with ``prs.slides.keep_only([...], allow_bulk_delete=True)`` (or ``delete_slides`` / ``delete`` with the same flag).
     ///
     /// # Arguments
     ///

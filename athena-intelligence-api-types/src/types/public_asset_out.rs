@@ -27,6 +27,9 @@ pub struct PublicAssetOut {
     /// Unique identifier of the asset (e.g., 'asset_abc123-def456-ghi789')
     #[serde(default)]
     pub id: String,
+    /// For a Word document, spreadsheet or presentation imported from an Office file: what the file holds that is not shown, or is shown differently than in Office, and whether downloads keep it. Null when the import lost nothing, when the asset was not imported from a file, or when it was imported before these reports were kept.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import_report: Option<PublicImportReportOut>,
     /// Whether the asset has been archived (hidden from normal views)
     #[serde(default)]
     pub is_archived: bool,
@@ -79,6 +82,7 @@ pub struct PublicAssetOutBuilder {
     created_by_email: Option<String>,
     created_by_id: Option<String>,
     id: Option<String>,
+    import_report: Option<PublicImportReportOut>,
     is_archived: Option<bool>,
     is_hidden: Option<bool>,
     media_type: Option<String>,
@@ -125,6 +129,11 @@ impl PublicAssetOutBuilder {
 
     pub fn id(mut self, value: impl Into<String>) -> Self {
         self.id = Some(value.into());
+        self
+    }
+
+    pub fn import_report(mut self, value: PublicImportReportOut) -> Self {
+        self.import_report = Some(value);
         self
     }
 
@@ -205,6 +214,7 @@ impl PublicAssetOutBuilder {
             created_by_email: self.created_by_email,
             created_by_id: self.created_by_id.ok_or_else(|| BuildError::missing_field("created_by_id"))?,
             id: self.id.ok_or_else(|| BuildError::missing_field("id"))?,
+            import_report: self.import_report,
             is_archived: self.is_archived.ok_or_else(|| BuildError::missing_field("is_archived"))?,
             is_hidden: self.is_hidden.ok_or_else(|| BuildError::missing_field("is_hidden"))?,
             media_type: self.media_type.ok_or_else(|| BuildError::missing_field("media_type"))?,

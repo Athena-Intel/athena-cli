@@ -130,7 +130,7 @@ impl WorkspacesClient {
             .await
     }
 
-    /// Admin only. Mint a short-lived, read-only Keryx token for a workspace's live presence feed (the awareness room the People page renders). The token is bound to the calling user, so Keryx narrows every frame to the documents that user may open; it can never publish presence or write document content. Requires the presence roster to be enabled for the deployment and opted in for the workspace. Computer-asset sandbox credentials are refused: call with the viewing user's own token.
+    /// Retired: this operation mints nothing and always answers 410 Gone. Read the roster with POST /api/v0/workspaces/{workspace_id}/presence/roster instead, which Athena answers itself, with no realtime connection to keep. It used to mint a read-only token for a workspace's live presence feed; Athena no longer serves that feed to anything but itself.
     ///
     /// # Arguments
     ///
@@ -156,7 +156,7 @@ impl WorkspacesClient {
             .await
     }
 
-    /// Admin only. Resolve the guids a presence feed carries into display titles, asset kinds, and project membership, and optionally list the projects and members of the workspace. Every id is checked against the calling user's own read permission as an ordinary member; anything the caller could not open is omitted rather than reported. Same gates as the presence-token mint.
+    /// Admin only. Resolve the guids a presence feed carries into display titles, asset kinds, and project membership, and optionally list the projects and members of the workspace. Every id is checked against the calling user's own read permission as an ordinary member; anything the caller could not open is omitted rather than reported. Computer-asset sandbox credentials are refused: call with the viewing user's own token. Requires the presence roster to be enabled for the deployment and opted in for the workspace.
     ///
     /// # Arguments
     ///
@@ -176,6 +176,33 @@ impl WorkspacesClient {
             .execute_request(
                 Method::POST,
                 &format!("api/v0/workspaces/{}/presence/resolve", workspace_id),
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Admin only, and only for a signed-in person: call with the viewing user's own session token, which an app served from a computer receives for its viewer when that viewer created the computer. An API key, a personal token, a computer-asset sandbox credential and the scoped credential such an app receives for any other viewer are refused. Read one page of who is online in a workspace, active first and then by name, each with the places of theirs the caller may open: a document the caller may not open is absent, or shown only as a project that contains it. Names, emails and avatars come from the member directory; a person who appears offline is absent, and one set Away is listed with no places. The same answer as the People page in Athena. Requires the presence roster to be enabled for the deployment and opted in for the workspace. Poll it; a few seconds apart is enough.
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_id` - The workspace whose presence feed to read.
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn get_presence_roster(
+        &self,
+        workspace_id: &str,
+        request: &Option<PresenceRosterRequestIn>,
+        options: Option<RequestOptions>,
+    ) -> Result<PresenceRosterResponseOut, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                &format!("api/v0/workspaces/{}/presence/roster", workspace_id),
                 Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
                 None,
                 options,
@@ -234,11 +261,12 @@ impl WorkspacesClient {
             .await
     }
 
-    /// Aggregate LLM token usage (and cost) for one workspace over the last `days` days: workspace totals plus per-member, per-day and per-Computer breakdowns. Token counters are summed from each session's usage ledger; dry-run (test) sessions are reported separately and excluded from the totals. Requires workspace owner or manager (or Athena admin) permissions — the same gate as the in-app Usage page.
+    /// Aggregate LLM token usage (and cost) for one workspace over the last `days` days: workspace totals plus per-member, per-day and per-Computer breakdowns. Token counters are summed from each session's usage ledger; dry-run (test) sessions are reported separately and excluded from the totals. A Computer's LLM gateway usage counts under the Computer's owner. With `gateway_attribution=true`, the calls a Computer's app attributed to a session count in `per_user` under the member who started that session instead (a member with no session of their own in the window has `session_count` 0), `active_users` counts the `per_user` rows returned, and `gateway_attribution` says whether that covers the whole window. Costs and tokens, in total and in the per-day and per-Computer breakdowns, are the same either way; the option reads the calls of up to 100 Computer usage sessions and takes longer. Requires workspace owner or manager (or Athena admin) permissions — the same gate as the in-app Usage page.
     ///
     /// # Arguments
     ///
     /// * `days` - Reporting window in days, ending now (1-365)
+    /// * `gateway_attribution` - Count a Computer's LLM gateway calls that its app attributed to a session under that session's member in `per_user`
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -257,13 +285,14 @@ impl WorkspacesClient {
                 None,
                 QueryBuilder::new()
                     .int("days", request.days.clone())
+                    .bool("gateway_attribution", request.gateway_attribution.clone())
                     .build(),
                 options,
             )
             .await
     }
 
-    /// Per-session LLM token usage for one workspace — the same rows as the workspace usage CSV export, as JSON. Each session yields one row per provider/model/status combination with its token breakdown and billed cost; dry-run (test) sessions are excluded. Pick the window with `from`/`to` (UTC dates, inclusive, at most 365 days) or a rolling `days`. Pages are keyset-paginated newest first: `limit` counts sessions, and `next_cursor` is returned while more sessions remain. Requires workspace owner or manager (or Athena admin) permissions.
+    /// Per-session LLM token usage for one workspace — the same rows as the workspace usage CSV export, as JSON. Each session yields one row per provider/model/status combination with its token breakdown and billed cost; dry-run (test) sessions are excluded. A Computer's LLM gateway usage is listed under the Computer's usage session for the day of the call. With `gateway_attribution=true`, the calls a Computer's app attributed to a session are listed under that session instead: those rows carry its id, creation time, member and origin, are marked `gateway_attributed`, and name the Computer usage session in `ledger_session_id`. They stay on the page of that usage session, so with the option on a session's rows can sit on several pages, a provider/model/status combination can repeat for a session, `session_created_at` can be earlier than the window, and the rows of Computer usage sessions no longer add up to the usage report's `computer_cost_usd` (group by `ledger_session_id` to get the default rows back). Every summed column is the same either way. Pick the window with `from`/`to` (UTC dates, inclusive, at most 365 days) or a rolling `days`. Pages are keyset-paginated newest first: `limit` counts sessions, and `next_cursor` is returned while more sessions remain. Requires workspace owner or manager (or Athena admin) permissions.
     ///
     /// # Arguments
     ///
@@ -273,6 +302,7 @@ impl WorkspacesClient {
     /// * `days` - Rolling window in days ending now; ignored when `from`/`to` are given
     /// * `cursor` - `next_cursor` from the previous page
     /// * `limit` - Maximum sessions per page (each may yield several rows)
+    /// * `gateway_attribution` - List a Computer's LLM gateway calls that its app attributed to a session under that session, and mark every row with `ledger_session_id` and `gateway_attributed`
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -295,6 +325,7 @@ impl WorkspacesClient {
                     .int("days", request.days.clone())
                     .serialize("cursor", request.cursor.clone())
                     .int("limit", request.limit.clone())
+                    .bool("gateway_attribution", request.gateway_attribution.clone())
                     .build(),
                 options,
             )

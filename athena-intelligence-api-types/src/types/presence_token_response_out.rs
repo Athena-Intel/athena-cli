@@ -2,7 +2,10 @@ pub use crate::prelude::*;
 #[allow(unused_imports)]
 use super::*;
 
-/// A read-only, room-bound Keryx capability for the workspace awareness room.
+/// What the retired presence-token operation used to return.
+/// 
+/// The operation always answers 410 now; the shape is kept so that clients
+/// generated from this contract still build.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PresenceTokenResponseOut {
     /// Always r: subscribe only. The app never publishes a slot.

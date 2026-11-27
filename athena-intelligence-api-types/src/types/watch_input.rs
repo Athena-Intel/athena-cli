@@ -19,7 +19,7 @@ pub struct WatchInput {
     /// How long it lives: 5m to 7d (24h by default), or up to 90d (30d by default) with until.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires: Option<String>,
-    /// Which events count. A filter judges only the events that take it, so one watch can hold a check conclusion beside reviews.
+    /// Which events count. Each event takes only the filters the subject's capability card lists for it (a database's row events take table alone, not exclude_self). A filter judges only the events that take it, so one watch can hold a check conclusion beside reviews; one that none of its events takes is refused.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filters: Option<SubscriptionFiltersInput>,
     /// Most turns it may start in an hour, 1 to 60 (20 by default).

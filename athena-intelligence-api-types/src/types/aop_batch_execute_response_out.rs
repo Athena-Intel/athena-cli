@@ -8,7 +8,7 @@ pub struct AopBatchExecuteResponseOut {
     /// Batch handle. Poll `GET /aop/batches/{batch_id}` for the whole batch instead of every thread, and pass it back to `POST /aop/execute-batch` to append more runs. Null when a new batch launched no runs: there is nothing to poll or append to, so no handle is issued.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch_id: Option<String>,
-    /// Runs in this request that replayed an earlier launch (same `idempotency_key` / `client_ref` in this batch) instead of starting
+    /// Runs in this request that replayed an earlier launch (same `idempotency_key` / `client_ref` in this batch, or the same position under the request's `Idempotency-Key` header) instead of starting
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deduplicated: Option<i64>,
     /// Runs in this request that could not be launched

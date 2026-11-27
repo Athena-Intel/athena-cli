@@ -12,6 +12,9 @@ pub struct StudioTokenResponseOut {
     pub asset_id: String,
     /// The service the token is for, as the token's audience identifier: the editing service of spreadsheets, of Word documents or of decks, or 'pptx-studio-source', the deck editing service reading this asset for a deck (a recording, or a source asked for with 'audience'). Compare it with the service you call before sending the token.
     pub audience: StudioTokenResponseOutAudience,
+    /// The base address of the service ``audience`` names, on this deployment: where to send the token, and the ``base_url`` that service's SDK takes (its ``ATHENA_XLSX_BASE_URL``, ``ATHENA_DOCX_BASE_URL`` or ``ATHENA_PPTX_BASE_URL``). Null when the deployment publishes no address for that service, and always for a 'pptx-studio-source' token: that one is sent inside a request to the presentation editing service, made with the presentation's own token, whose answer carries the address.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
     /// For a deck, the id the deck's editing service names it by in its routes (an older deck's own deck id, else its asset id); the token is good for that id. Null for any other asset.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deck_id: Option<String>,
@@ -35,6 +38,7 @@ pub struct StudioTokenResponseOutBuilder {
     access_type: Option<StudioTokenResponseOutAccessType>,
     asset_id: Option<String>,
     audience: Option<StudioTokenResponseOutAudience>,
+    base_url: Option<String>,
     deck_id: Option<String>,
     expires_at_ms: Option<i64>,
     token: Option<String>,
@@ -53,6 +57,11 @@ impl StudioTokenResponseOutBuilder {
 
     pub fn audience(mut self, value: StudioTokenResponseOutAudience) -> Self {
         self.audience = Some(value);
+        self
+    }
+
+    pub fn base_url(mut self, value: impl Into<String>) -> Self {
+        self.base_url = Some(value.into());
         self
     }
 
@@ -83,6 +92,7 @@ impl StudioTokenResponseOutBuilder {
             access_type: self.access_type.ok_or_else(|| BuildError::missing_field("access_type"))?,
             asset_id: self.asset_id.ok_or_else(|| BuildError::missing_field("asset_id"))?,
             audience: self.audience.ok_or_else(|| BuildError::missing_field("audience"))?,
+            base_url: self.base_url,
             deck_id: self.deck_id,
             expires_at_ms: self.expires_at_ms.ok_or_else(|| BuildError::missing_field("expires_at_ms"))?,
             token: self.token.ok_or_else(|| BuildError::missing_field("token"))?,

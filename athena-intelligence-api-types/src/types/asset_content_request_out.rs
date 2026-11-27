@@ -5,7 +5,7 @@ use super::*;
 /// Response model with asset content.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AssetContentRequestOut {
-    /// Comment threads on the asset. Only populated when the request sets include_comments=true. An empty list means the asset has no comment threads; null means comments were not requested or the comment data could not be retrieved.
+    /// Comment threads on the asset. Only populated when the request sets include_comments=true. An empty list means the asset has no comment threads; null means comments were not requested, the comment data could not be retrieved, or the asset is published and the caller can view it but not edit it (its comments are on its draft).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub comments: Option<Vec<AssetCommentThread>>,
     /// The content of the asset

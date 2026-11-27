@@ -41,6 +41,12 @@ pub enum ApiError {
         message: String,
         error_id: Option<String>,
     },
+    #[error("TooManyRequestsError: Rate limit exceeded - {message}")]
+    TooManyRequestsError {
+        message: String,
+        retry_after_seconds: Option<u64>,
+        limit_type: Option<String>,
+    },
     #[error("ServiceUnavailableError: {message}")]
     ServiceUnavailableError { message: String },
     #[error("GoneError: {message}")]
@@ -49,12 +55,6 @@ pub enum ApiError {
     BadGatewayError { message: String },
     #[error("ContentTooLargeError: {message}")]
     ContentTooLargeError { message: String },
-    #[error("TooManyRequestsError: Rate limit exceeded - {message}")]
-    TooManyRequestsError {
-        message: String,
-        retry_after_seconds: Option<u64>,
-        limit_type: Option<String>,
-    },
     #[error("UnsupportedMediaTypeError: {message}")]
     UnsupportedMediaTypeError { message: String },
     #[error("NotImplementedError: {message}")]
@@ -249,6 +249,31 @@ impl ApiError {
                     error_id: None,
                 };
             }
+            429 => {
+                // Parse error body for TooManyRequestsError;
+                if let Some(body_str) = body {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body_str) {
+                        return Self::TooManyRequestsError {
+                            message: parsed
+                                .get("message")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown error")
+                                .to_string(),
+                            retry_after_seconds: parsed
+                                .get("retryAfterSeconds")
+                                .and_then(|v| v.as_u64()),
+                            limit_type: parsed
+                                .get("limitType")
+                                .and_then(|v| v.as_str().map(|s| s.to_string())),
+                        };
+                    }
+                }
+                return Self::TooManyRequestsError {
+                    message: body.unwrap_or("Unknown error").to_string(),
+                    retry_after_seconds: None,
+                    limit_type: None,
+                };
+            }
             503 => {
                 // Parse error body for ServiceUnavailableError;
                 if let Some(body_str) = body {
@@ -315,31 +340,6 @@ impl ApiError {
                 }
                 return Self::ContentTooLargeError {
                     message: body.unwrap_or("Unknown error").to_string(),
-                };
-            }
-            429 => {
-                // Parse error body for TooManyRequestsError;
-                if let Some(body_str) = body {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body_str) {
-                        return Self::TooManyRequestsError {
-                            message: parsed
-                                .get("message")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("Unknown error")
-                                .to_string(),
-                            retry_after_seconds: parsed
-                                .get("retryAfterSeconds")
-                                .and_then(|v| v.as_u64()),
-                            limit_type: parsed
-                                .get("limitType")
-                                .and_then(|v| v.as_str().map(|s| s.to_string())),
-                        };
-                    }
-                }
-                return Self::TooManyRequestsError {
-                    message: body.unwrap_or("Unknown error").to_string(),
-                    retry_after_seconds: None,
-                    limit_type: None,
                 };
             }
             415 => {

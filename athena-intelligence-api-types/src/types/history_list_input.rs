@@ -13,7 +13,7 @@ pub struct HistoryListInput {
     /// Also describe what each group changed (slower: diffs each group).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<bool>,
-    /// Most groups of edits to return.
+    /// Most groups of edits to return (1 to 100; any other number is brought into that range).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<i64>,
     /// When: today, yesterday, this week, last 7 days, since 2026-10-28, 2026-10-28 (that day) or 2026-10-28..2026-10-30. Times are UTC.

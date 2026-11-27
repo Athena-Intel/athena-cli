@@ -38,7 +38,7 @@ impl HistoryClient {
             .await
     }
 
-    /// Comparing against the asset as it was at a time needs edit access; saved versions and two current assets compare with view access.
+    /// Comparing against a saved version or the asset as it was at a time needs edit access; the published version and two current assets compare with view access. `--original previous` answers what changed in a version and who changed it: with view access, a published version against the one published before it; a draft version needs edit access or a share that lets you view drafts.
     ///
     /// # Arguments
     ///
@@ -63,7 +63,7 @@ impl HistoryClient {
             .await
     }
 
-    /// Answers, for you: where an edit lands (the asset as it is now, a draft behind a published version, tracked changes), what readers get, how many versions are saved, when history starts and the last change.
+    /// Answers, for you: where an edit lands (the asset as it is now, a draft behind a published version, tracked changes), what readers get, how many versions are saved, when history starts and the last change. With view access on a published asset it answers for its published versions, and `commands` lists what you can run on them.
     ///
     /// # Arguments
     ///
@@ -113,7 +113,7 @@ impl HistoryClient {
             .await
     }
 
-    /// View access shows who, what kind and where; edit access adds the values. A filtered list says how far back it looked.
+    /// View access shows who, what kind and where; edit access adds the values. A filtered list says how far back it looked. A reader of a published asset gets its published versions; `history compare --original previous` then shows what changed in one and who changed it.
     ///
     /// # Arguments
     ///
@@ -138,7 +138,7 @@ impl HistoryClient {
             .await
     }
 
-    /// A moment in time needs edit access; saved versions open with view access.
+    /// A saved version or a moment in time needs edit access; the published version opens with view access.
     ///
     /// # Arguments
     ///
@@ -156,6 +156,31 @@ impl HistoryClient {
             .execute_request(
                 Method::POST,
                 "api/v0/tools/history/open",
+                Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
+                None,
+                options,
+            )
+            .await
+    }
+
+    /// Any viewer gets who wrote a document's text and a deck's shapes. A sheet's cells, and a deck's text split by who wrote each character, are read off past values and need edit access, as in the Attribution tab. Read the values themselves with read_asset and the same request.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Additional request options such as headers, timeout, etc.
+    ///
+    /// # Returns
+    ///
+    /// JSON response from the API
+    pub async fn read_asset_author(
+        &self,
+        request: &ReadAssetAuthorInput,
+        options: Option<RequestOptions>,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.http_client
+            .execute_request(
+                Method::POST,
+                "api/v0/tools/history/read-asset-author",
                 Some(serde_json::to_value(request).map_err(ApiError::Serialization)?),
                 None,
                 options,
@@ -263,7 +288,7 @@ impl HistoryClient {
             .await
     }
 
-    /// Each version has an id to open, compare, restore or cite (asset_…@<id>).
+    /// Each version has an id to open, compare, restore or cite (asset_…@<id>). A reader of a published asset passes a published version's id as `history compare --original previous --revised <id>` to see what changed in it since the one published before it, and who changed it.
     ///
     /// # Arguments
     ///

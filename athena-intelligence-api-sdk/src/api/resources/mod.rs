@@ -6,18 +6,22 @@
 //! - **Approvals**
 //! - **Assets**
 //! - **Automations**
+//! - **Bundles**
 //! - **Capabilities**
 //! - **CollabAgents**
 //! - **Computer**
+//! - **Connectors**
 //! - **Databases**
 //! - **Events**
 //! - **System**
+//! - **LakehouseNamespaces**
 //! - **Users**
 //! - **Meetings**
 //! - **Query**
 //! - **Scripts**
 //! - **SemanticModel**
 //! - **Sessions**
+//! - **Tasks**
 //! - **Threads**
 //! - **Toolkits**
 //! - **Tools**
@@ -34,12 +38,15 @@ pub mod aop;
 pub mod approvals;
 pub mod assets;
 pub mod automations;
+pub mod bundles;
 pub mod capabilities;
 pub mod collab_agents;
 pub mod computer;
+pub mod connectors;
 pub mod databases;
 pub mod events;
 pub mod history;
+pub mod lakehouse_namespaces;
 pub mod meetings;
 pub mod presentation;
 pub mod query;
@@ -48,6 +55,7 @@ pub mod semantic_model;
 pub mod sessions;
 pub mod subscriptions;
 pub mod system;
+pub mod tasks;
 pub mod threads;
 pub mod toolkits;
 pub mod tools;
@@ -59,18 +67,22 @@ pub struct ApiClient {
     pub approvals: ApprovalsClient,
     pub assets: AssetsClient,
     pub automations: AutomationsClient,
+    pub bundles: BundlesClient,
     pub capabilities: CapabilitiesClient,
     pub collab_agents: CollabAgentsClient,
     pub computer: ComputerClient,
+    pub connectors: ConnectorsClient,
     pub databases: DatabasesClient,
     pub events: EventsClient,
     pub system: SystemClient,
+    pub lakehouse_namespaces: LakehouseNamespacesClient,
     pub users: UsersClient,
     pub meetings: MeetingsClient,
     pub query: QueryClient,
     pub scripts: ScriptsClient,
     pub semantic_model: SemanticModelClient,
     pub sessions: SessionsClient,
+    pub tasks: TasksClient,
     pub threads: ThreadsClient,
     pub toolkits: ToolkitsClient,
     pub tools: ToolsClient,
@@ -89,18 +101,22 @@ impl ApiClient {
             approvals: ApprovalsClient::new(config.clone())?,
             assets: AssetsClient::new(config.clone())?,
             automations: AutomationsClient::new(config.clone())?,
+            bundles: BundlesClient::new(config.clone())?,
             capabilities: CapabilitiesClient::new(config.clone())?,
             collab_agents: CollabAgentsClient::new(config.clone())?,
             computer: ComputerClient::new(config.clone())?,
+            connectors: ConnectorsClient::new(config.clone())?,
             databases: DatabasesClient::new(config.clone())?,
             events: EventsClient::new(config.clone())?,
             system: SystemClient::new(config.clone())?,
+            lakehouse_namespaces: LakehouseNamespacesClient::new(config.clone())?,
             users: UsersClient::new(config.clone())?,
             meetings: MeetingsClient::new(config.clone())?,
             query: QueryClient::new(config.clone())?,
             scripts: ScriptsClient::new(config.clone())?,
             semantic_model: SemanticModelClient::new(config.clone())?,
             sessions: SessionsClient::new(config.clone())?,
+            tasks: TasksClient::new(config.clone())?,
             threads: ThreadsClient::new(config.clone())?,
             toolkits: ToolkitsClient::new(config.clone())?,
             tools: ToolsClient::new(config.clone())?,
@@ -118,12 +134,15 @@ pub use aop::AopClient;
 pub use approvals::ApprovalsClient;
 pub use assets::AssetsClient;
 pub use automations::AutomationsClient;
+pub use bundles::BundlesClient;
 pub use capabilities::CapabilitiesClient;
 pub use collab_agents::CollabAgentsClient;
 pub use computer::ComputerClient;
+pub use connectors::ConnectorsClient;
 pub use databases::DatabasesClient;
 pub use events::EventsClient;
 pub use history::HistoryClient;
+pub use lakehouse_namespaces::LakehouseNamespacesClient;
 pub use meetings::MeetingsClient;
 pub use presentation::PresentationClient;
 pub use query::QueryClient;
@@ -132,6 +151,7 @@ pub use semantic_model::SemanticModelClient;
 pub use sessions::SessionsClient;
 pub use subscriptions::SubscriptionsClient;
 pub use system::SystemClient;
+pub use tasks::TasksClient;
 pub use threads::ThreadsClient;
 pub use toolkits::ToolkitsClient;
 pub use tools::ToolsClient;

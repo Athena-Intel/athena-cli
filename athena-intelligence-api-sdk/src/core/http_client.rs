@@ -440,6 +440,43 @@ impl HttpClient {
         Ok(ByteStream::new(response))
     }
 
+    /// Execute a request with a raw bytes body (application/octet-stream).
+    pub async fn execute_bytes_request<T>(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Vec<u8>>,
+        query_params: Option<Vec<(String, String)>>,
+        options: Option<RequestOptions>,
+    ) -> Result<T, ApiError>
+    where
+        T: DeserializeOwned,
+    {
+        let url = join_url(&self.config.base_url, path);
+        let mut request = self.client.request(method, &url);
+
+        if let Some(params) = query_params {
+            request = request.query(&params);
+        }
+
+        if let Some(opts) = &options {
+            if !opts.additional_query_params.is_empty() {
+                request = request.query(&opts.additional_query_params);
+            }
+        }
+
+        if let Some(body) = body {
+            request = request
+                .header("Content-Type", "application/octet-stream")
+                .body(body);
+        }
+
+        let req = request.build().map_err(|e| ApiError::Network(e))?;
+
+        let response = self.send_request(req, &options).await?;
+        self.parse_response(response).await
+    }
+
     /// Applies auth/headers and executes the request, choosing between
     /// the injected executor path (no SDK-level auth/headers/retries)
     /// and the default path (full SDK behavior).
