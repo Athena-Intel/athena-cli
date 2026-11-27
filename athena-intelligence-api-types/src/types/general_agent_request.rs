@@ -13,7 +13,7 @@ pub struct GeneralAgentRequest {
     /// The messages to send to the agent. Each message should be a string (for text inputs) or a list of multimodal content parts.
     #[serde(default)]
     pub messages: Vec<InputMessage>,
-    /// Optional thread ID for conversation persistence. If not provided, a new thread will be created.
+    /// Optional thread ID for conversation persistence. If not provided, a new thread will be created. A new thread's ID is lower-case letters, digits, `_` and `-`, begins with a letter or a digit, is at most 128 characters long and does not begin with `asset_`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thread_id: Option<String>,
 }

@@ -9,14 +9,14 @@ pub struct AutomationDefinitionUpdateResponseOut {
     pub asset_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
-    /// Whether an existing @latest snapshot was re-pointed at the new draft
+    /// Whether the draft's last saved snapshot was re-pointed at the new draft
     #[serde(default)]
     pub snapshot_refreshed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snapshot_version_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
-    /// The updated_at stamp written into the Keryx document
+    /// The updated_at stamp written into the draft
     #[serde(default)]
     #[serde(with = "crate::core::flexible_datetime::offset")]
     pub updated_at: DateTime<FixedOffset>,

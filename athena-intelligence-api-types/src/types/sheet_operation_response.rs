@@ -16,6 +16,9 @@ pub struct SheetOperationResponse {
     /// Whether the operation was successful
     #[serde(default)]
     pub success: bool,
+    /// Things the caller should know about an operation that succeeded. Each entry starts with a stable code and a colon, e.g. 'formula_dependents_not_recalculated: ...' when a write landed on a workbook past the calculation engine's size caps, so formulas that depend on the written cells kept their previous values until they are next read. Absent when there is nothing to report.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warnings: Option<Vec<String>>,
 }
 
 impl SheetOperationResponse {
@@ -31,6 +34,7 @@ pub struct SheetOperationResponseBuilder {
     message: Option<String>,
     new_sheet_id: Option<i64>,
     success: Option<bool>,
+    warnings: Option<Vec<String>>,
 }
 
 impl SheetOperationResponseBuilder {
@@ -54,6 +58,11 @@ impl SheetOperationResponseBuilder {
         self
     }
 
+    pub fn warnings(mut self, value: Vec<String>) -> Self {
+        self.warnings = Some(value);
+        self
+    }
+
     /// Consumes the builder and constructs a [`SheetOperationResponse`].
     /// This method will fail if any of the following fields are not set:
     /// - [`asset_id`](SheetOperationResponseBuilder::asset_id)
@@ -65,6 +74,7 @@ impl SheetOperationResponseBuilder {
             message: self.message.ok_or_else(|| BuildError::missing_field("message"))?,
             new_sheet_id: self.new_sheet_id,
             success: self.success.ok_or_else(|| BuildError::missing_field("success"))?,
+            warnings: self.warnings,
         })
     }
 }

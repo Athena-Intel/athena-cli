@@ -13,7 +13,7 @@ impl ApprovalsClient {
         })
     }
 
-    /// The caller's approval inbox across subject kinds: the approvals of the caller's workspace that name the caller as an approver, newest first, each with its decisions and deliveries. Session interrupts projected onto the object appear read-only; decide them in the session. Keyset-paginated: pass the previous page's next_before and next_before_id to continue.
+    /// The caller's approval inbox across subject kinds: the approvals of the caller's workspace that name the caller as an approver, newest first, each with its decisions and deliveries. Session interrupts projected onto the object appear read-only; decide them in the session. Keyset-paginated: pass the previous page's next_before and next_before_id to continue. `workspace_id` reads the inbox of another workspace the caller is a member of instead of the caller's current one.
     ///
     /// # Arguments
     ///
@@ -22,6 +22,7 @@ impl ApprovalsClient {
     /// * `limit` - Page size (1 to 200)
     /// * `before` - The previous page's next_before; omit for the first page
     /// * `before_id` - The previous page's next_before_id, sent together with before
+    /// * `workspace_id` - Workspace whose inbox to read; the caller's current workspace when omitted. The caller must be a member
     /// * `options` - Additional request options such as headers, timeout, etc.
     ///
     /// # Returns
@@ -43,6 +44,7 @@ impl ApprovalsClient {
                     .int("limit", request.limit.clone())
                     .serialize("before", request.before.clone())
                     .serialize("before_id", request.before_id.clone())
+                    .serialize("workspace_id", request.workspace_id.clone())
                     .build(),
                 options,
             )

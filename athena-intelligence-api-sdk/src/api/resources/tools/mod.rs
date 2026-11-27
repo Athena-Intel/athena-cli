@@ -19,7 +19,7 @@ pub use structured_data_extractor::StructuredDataExtractorClient;
 pub mod system_operations;
 pub use system_operations::SystemOperationsClient;
 pub mod tasks;
-pub use tasks::TasksClient;
+pub use tasks::TasksClient2;
 pub struct ToolsClient {
     pub http_client: HttpClient,
     pub agent_identity: AgentIdentityClient,
@@ -30,7 +30,7 @@ pub struct ToolsClient {
     pub sheets: SheetsClient,
     pub structured_data_extractor: StructuredDataExtractorClient,
     pub system_operations: SystemOperationsClient,
-    pub tasks: TasksClient,
+    pub tasks: TasksClient2,
 }
 
 impl ToolsClient {
@@ -45,7 +45,7 @@ impl ToolsClient {
             sheets: SheetsClient::new(config.clone())?,
             structured_data_extractor: StructuredDataExtractorClient::new(config.clone())?,
             system_operations: SystemOperationsClient::new(config.clone())?,
-            tasks: TasksClient::new(config.clone())?,
+            tasks: TasksClient2::new(config.clone())?,
         })
     }
 
@@ -246,11 +246,14 @@ impl ToolsClient {
     /// Returns `columns`, an optional `index`, and `data` rows (pandas "split"
     /// orientation) for an asset the caller can read: an Athena spreadsheet, a
     /// file-backed live spreadsheet (SharePoint, OneDrive, Drive, iManage), or an
-    /// uploaded CSV, Excel or Parquet file. `row_limit` caps the rows returned,
-    /// `columns` selects columns by name or position, `sheet_name` picks the sheet
-    /// of an Excel file (the first by default), and `separator` sets the delimiter
-    /// of a CSV file. Any other asset type is a 415; a file the parser cannot read
-    /// is a 500 carrying the parser's message.
+    /// uploaded CSV, TSV, Excel or Parquet file. `row_limit` caps the rows
+    /// returned, `columns` selects columns by name or position, `sheet_name` picks
+    /// the sheet of an Excel file (the first by default), and `separator` sets the
+    /// delimiter of a CSV file (a TSV file is always read tab-separated). A CSV or
+    /// TSV whose rows have different numbers of fields, such as a multi-section
+    /// export, is read whole: every row is padded with empty cells to the widest
+    /// row, and the first row is the header. Any other asset type is a 415; a file
+    /// the parser cannot read is a 500 carrying the parser's message.
     ///
     /// # Arguments
     ///
@@ -312,7 +315,7 @@ impl ToolsClient {
             .await
     }
 
-    /// Save a file as an asset in the target workspace.
+    /// Save a file as an asset in the target workspace. Send the file as the multipart form field `file`. `parent_folder_id` and `workspace_id` are optional and may be sent either as query parameters or as multipart form fields next to `file`; sent both ways, the two values must match (a 400 otherwise). The asset is saved into `workspace_id` (default: the caller's current workspace) and filed into `parent_folder_id` (default: the caller's default folder), which must be a folder in that workspace the caller can edit.
     ///
     /// # Arguments
     ///

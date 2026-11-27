@@ -11,10 +11,11 @@ pub mod resources;
 
 pub use resources::{
     AgentsClient, AopClient, ApiClient, ApprovalsClient, AssetsClient, AutomationsClient,
-    CapabilitiesClient, CollabAgentsClient, ComputerClient, DatabasesClient, EventsClient,
-    HistoryClient, MeetingsClient, PresentationClient, QueryClient, ScriptsClient,
-    SemanticModelClient, SessionsClient, SubscriptionsClient, SystemClient, ThreadsClient,
-    ToolkitsClient, ToolsClient, UsersClient, WorkspacesClient,
+    BundlesClient, CapabilitiesClient, CollabAgentsClient, ComputerClient, ConnectorsClient,
+    DatabasesClient, EventsClient, HistoryClient, LakehouseNamespacesClient, MeetingsClient,
+    PresentationClient, QueryClient, ScriptsClient, SemanticModelClient, SessionsClient,
+    SubscriptionsClient, SystemClient, TasksClient, ThreadsClient, ToolkitsClient, ToolsClient,
+    UsersClient, WorkspacesClient,
 };
 
 pub use athena_intelligence_api_types::*;

@@ -14,7 +14,7 @@ pub struct SessionsListQueryRequest {
     /// Originating channel(s) to filter by (e.g. 'web', 'api', 'agent_email'). Repeat the parameter or pass a comma-separated list.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_channel: Option<Vec<String>>,
-    /// Session kind(s) to include: 'session', 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list.
+    /// Session kind(s) to include: 'session', 'video_session', 'desktop_session'. Repeat the parameter or pass a comma-separated list.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_type: Option<Vec<String>>,
     /// Only include sessions belonging to this application identifier
@@ -23,7 +23,7 @@ pub struct SessionsListQueryRequest {
     /// Include branched sub-sessions (excluded by default)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_sessions: Option<bool>,
-    /// Include AOP/workflow task runs (excluded by default)
+    /// Include AOP/workflow task runs and Automation runs (excluded by default)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_task_sessions: Option<bool>,
     /// Only include task sessions originating from this AOP asset identifier

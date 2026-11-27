@@ -20,6 +20,9 @@ pub struct ListUsageSessionsQueryRequest {
     /// Maximum sessions per page (each may yield several rows)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<i64>,
+    /// List a Computer's LLM gateway calls that its app attributed to a session under that session, and mark every row with `ledger_session_id` and `gateway_attributed`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gateway_attribution: Option<bool>,
 }
 
 impl ListUsageSessionsQueryRequest {
@@ -36,6 +39,7 @@ pub struct ListUsageSessionsQueryRequestBuilder {
     days: Option<i64>,
     cursor: Option<String>,
     limit: Option<i64>,
+    gateway_attribution: Option<bool>,
 }
 
 impl ListUsageSessionsQueryRequestBuilder {
@@ -64,6 +68,11 @@ impl ListUsageSessionsQueryRequestBuilder {
         self
     }
 
+    pub fn gateway_attribution(mut self, value: bool) -> Self {
+        self.gateway_attribution = Some(value);
+        self
+    }
+
     /// Consumes the builder and constructs a [`ListUsageSessionsQueryRequest`].
     pub fn build(self) -> Result<ListUsageSessionsQueryRequest, BuildError> {
         Ok(ListUsageSessionsQueryRequest {
@@ -72,6 +81,7 @@ impl ListUsageSessionsQueryRequestBuilder {
             days: self.days,
             cursor: self.cursor,
             limit: self.limit,
+            gateway_attribution: self.gateway_attribution,
         })
     }
 }

@@ -103,9 +103,15 @@ pub struct UpdateAgentConfigRequestIn {
     /// The instructions the agent follows (markdown); replaces the whole prompt
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_prompt: Option<String>,
+    /// Whether the Slack status is written for each message in the tone of thinking_verbs (on by default)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_thinking_verbs: Option<bool>,
     /// Sampling temperature override
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f64>,
+    /// Status lines Slack rotates while the agent works
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_verbs: Option<Vec<String>>,
     /// Toolkit IDs the agent can use; replaces the list
     #[serde(skip_serializing_if = "Option::is_none")]
     pub toolkits: Option<Vec<String>>,
@@ -165,7 +171,9 @@ pub struct UpdateAgentConfigRequestInBuilder {
     sub_agents: Option<Vec<String>>,
     suggestions: Option<Vec<HashMap<String, serde_json::Value>>>,
     system_prompt: Option<String>,
+    task_thinking_verbs: Option<bool>,
     temperature: Option<f64>,
+    thinking_verbs: Option<Vec<String>>,
     toolkits: Option<Vec<String>>,
     tools: Option<Vec<String>>,
     voice_enabled: Option<bool>,
@@ -339,8 +347,18 @@ impl UpdateAgentConfigRequestInBuilder {
         self
     }
 
+    pub fn task_thinking_verbs(mut self, value: bool) -> Self {
+        self.task_thinking_verbs = Some(value);
+        self
+    }
+
     pub fn temperature(mut self, value: f64) -> Self {
         self.temperature = Some(value);
+        self
+    }
+
+    pub fn thinking_verbs(mut self, value: Vec<String>) -> Self {
+        self.thinking_verbs = Some(value);
         self
     }
 
@@ -405,7 +423,9 @@ impl UpdateAgentConfigRequestInBuilder {
             sub_agents: self.sub_agents,
             suggestions: self.suggestions,
             system_prompt: self.system_prompt,
+            task_thinking_verbs: self.task_thinking_verbs,
             temperature: self.temperature,
+            thinking_verbs: self.thinking_verbs,
             toolkits: self.toolkits,
             tools: self.tools,
             voice_enabled: self.voice_enabled,

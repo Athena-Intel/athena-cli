@@ -5,7 +5,7 @@ use super::*;
 /// The change one activity item made, or why it is unavailable.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ActivityDeltaOut {
-    /// The change itself. Always carries kind, type, summary, totals, and coverage; typed detail (cell_changes, slide_changes, inserted_text, ...) varies by kind. Null when error is set.
+    /// The change itself. Always carries kind, type, summary, totals, and coverage; typed detail (cell_changes, slide_changes, inserted_text, ...) varies by kind. A spreadsheet's cell_changes carry each cell's old_value and new_value and, when the cell links before or after the change, old_hyperlink and new_hyperlink (a URL, or #Sheet!A1 for a place in the workbook). Null when error is set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delta: Option<HashMap<String, serde_json::Value>>,
     /// Why this range could not be diffed. Null on success.

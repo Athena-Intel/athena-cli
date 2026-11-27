@@ -17,7 +17,7 @@ pub struct AssetReadResult {
     /// The resolved asset type, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_type: Option<String>,
-    /// The asset content. Plain text or a JSON string for structured asset types; base64-encoded image data when format is 'image'. Pagination metadata (truncated/next_offset) is embedded here for windowed reads.
+    /// The asset content. Plain text or a JSON string for structured asset types; base64-encoded image data when format is 'image'. Windowed reads also report truncated/next_offset below.
     #[serde(default)]
     pub content: String,
     /// Structured teaching error, populated when is_error is true
@@ -32,12 +32,18 @@ pub struct AssetReadResult {
     /// True when the read failed; see the error field
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_error: Option<bool>,
+    /// When truncated, the offset to read next: append ?offset=<next_offset> (or &offset=...) to the asset_id and read again.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_offset: Option<i64>,
     /// What this asset type supports, for precise follow-up reads
     #[serde(skip_serializing_if = "Option::is_none")]
     pub read_capabilities: Option<ReadCapabilitiesOut>,
     /// Structured payload for json-format reads, when available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub structured_content: Option<HashMap<String, serde_json::Value>>,
+    /// For windowed reads (documents, text files, ...): true when content stops before the end of the asset. Null when the read is not windowed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
     /// Non-fatal notice, e.g. a page/slide clamp on the requested range
     #[serde(skip_serializing_if = "Option::is_none")]
     pub warning: Option<String>,
@@ -61,8 +67,10 @@ pub struct AssetReadResultBuilder {
     format: Option<String>,
     format_guidance: Option<String>,
     is_error: Option<bool>,
+    next_offset: Option<i64>,
     read_capabilities: Option<ReadCapabilitiesOut>,
     structured_content: Option<HashMap<String, serde_json::Value>>,
+    truncated: Option<bool>,
     warning: Option<String>,
 }
 
@@ -112,6 +120,11 @@ impl AssetReadResultBuilder {
         self
     }
 
+    pub fn next_offset(mut self, value: i64) -> Self {
+        self.next_offset = Some(value);
+        self
+    }
+
     pub fn read_capabilities(mut self, value: ReadCapabilitiesOut) -> Self {
         self.read_capabilities = Some(value);
         self
@@ -119,6 +132,11 @@ impl AssetReadResultBuilder {
 
     pub fn structured_content(mut self, value: HashMap<String, serde_json::Value>) -> Self {
         self.structured_content = Some(value);
+        self
+    }
+
+    pub fn truncated(mut self, value: bool) -> Self {
+        self.truncated = Some(value);
         self
     }
 
@@ -143,8 +161,10 @@ impl AssetReadResultBuilder {
             format: self.format.ok_or_else(|| BuildError::missing_field("format"))?,
             format_guidance: self.format_guidance,
             is_error: self.is_error,
+            next_offset: self.next_offset,
             read_capabilities: self.read_capabilities,
             structured_content: self.structured_content,
+            truncated: self.truncated,
             warning: self.warning,
         })
     }

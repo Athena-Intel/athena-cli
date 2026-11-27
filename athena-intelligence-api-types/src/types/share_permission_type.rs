@@ -7,6 +7,8 @@ use super::*;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SharePermissionType {
     View,
+    ViewDrafts,
+    Publish,
     Edit,
     /// This variant is used for forward compatibility.
     /// If the server sends a value not recognized by the current SDK version,
@@ -17,6 +19,8 @@ impl Serialize for SharePermissionType {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::View => serializer.serialize_str("view"),
+            Self::ViewDrafts => serializer.serialize_str("view_drafts"),
+            Self::Publish => serializer.serialize_str("publish"),
             Self::Edit => serializer.serialize_str("edit"),
             Self::__Unknown(val) => serializer.serialize_str(val),
         }
@@ -28,6 +32,8 @@ impl<'de> Deserialize<'de> for SharePermissionType {
         let value = String::deserialize(deserializer)?;
         match value.as_str() {
             "view" => Ok(Self::View),
+            "view_drafts" => Ok(Self::ViewDrafts),
+            "publish" => Ok(Self::Publish),
             "edit" => Ok(Self::Edit),
             _ => Ok(Self::__Unknown(value)),
         }
@@ -38,6 +44,8 @@ impl fmt::Display for SharePermissionType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::View => write!(f, "view"),
+            Self::ViewDrafts => write!(f, "view_drafts"),
+            Self::Publish => write!(f, "publish"),
             Self::Edit => write!(f, "edit"),
             Self::__Unknown(val) => write!(f, "{}", val),
         }

@@ -13,17 +13,17 @@ impl SessionsClient {
         })
     }
 
-    /// Retrieve a paginated list of agent sessions (conversations) with optional title search, state filtering, source channel filtering, date range filtering, and sorting. By default, AOP/workflow runs and branched sub-sessions are excluded, and only sessions in the caller's current workspace are visible — pass `workspace_id` to list sessions in another workspace the caller belongs to.
+    /// Retrieve a paginated list of agent sessions (conversations) with optional title search, state filtering, source channel filtering, date range filtering, and sorting. By default, AOP/workflow runs, Automation runs and branched sub-sessions are excluded, and only sessions in the caller's current workspace are visible — pass `workspace_id` to list sessions in another workspace the caller belongs to.
     ///
     /// # Arguments
     ///
     /// * `query` - Keyword to search session titles (case-insensitive)
     /// * `state` - Execution state(s) to filter by (e.g. 'running', 'completed'). Matched against the session's canonical run status (status_v2); 'running' only matches sessions updated within the last 12 hours. Repeat the parameter or pass a comma-separated list.
     /// * `source_channel` - Originating channel(s) to filter by (e.g. 'web', 'api', 'agent_email'). Repeat the parameter or pass a comma-separated list.
-    /// * `session_type` - Session kind(s) to include: 'session', 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list.
+    /// * `session_type` - Session kind(s) to include: 'session', 'video_session', 'desktop_session'. Repeat the parameter or pass a comma-separated list.
     /// * `app_id` - Only include sessions belonging to this application identifier
     /// * `include_sub_sessions` - Include branched sub-sessions (excluded by default)
-    /// * `include_task_sessions` - Include AOP/workflow task runs (excluded by default)
+    /// * `include_task_sessions` - Include AOP/workflow task runs and Automation runs (excluded by default)
     /// * `aop_asset_id` - Only include task sessions originating from this AOP asset identifier
     /// * `workspace_id` - Workspace to list sessions from. Defaults to the caller's current workspace; any other workspace the caller is a member of can be requested explicitly.
     /// * `trigger_type` - Trigger type(s) to filter by (e.g. 'schedule', 'api', 'email'). Repeat the parameter or pass a comma-separated list.

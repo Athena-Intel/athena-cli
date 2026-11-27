@@ -16,6 +16,9 @@ pub struct WaitInput {
     /// Recurring: a 5-field cron in timezone, e.g. '0 9 * * 1' for Mondays at 9:00. Avoid :00/:30 when the time is approximate.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cron: Option<String>,
+    /// at / after only: end this wait as soon as there is news on a pull request this conversation owns, instead of at its time. Use it whenever you are waiting on a pull request's checks or reviews: name the pull request, and the checks you are waiting for. News is a review or a review comment from anyone, a bot included, a person's comment on the conversation, a named check finishing, a merge or a close. A bot's comment on the conversation (a preview link, a status notice) is not news, and neither is a comment you post with your own GitHub tools. The wake is the same one, with the same note, and it fires once; it never comes within about two minutes of setting it. Keep at / after as the latest you would look anyway.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub early_on: Option<WaitEarlyOnInput>,
     /// cron only: how long it lives, up to 90d (30d by default).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires: Option<String>,
@@ -46,6 +49,7 @@ pub struct WaitInputBuilder {
     at: Option<String>,
     calendar: Option<SubscriptionCalendarInput>,
     cron: Option<String>,
+    early_on: Option<WaitEarlyOnInput>,
     expires: Option<String>,
     max_runs: Option<i64>,
     note: Option<String>,
@@ -71,6 +75,11 @@ impl WaitInputBuilder {
 
     pub fn cron(mut self, value: impl Into<String>) -> Self {
         self.cron = Some(value.into());
+        self
+    }
+
+    pub fn early_on(mut self, value: WaitEarlyOnInput) -> Self {
+        self.early_on = Some(value);
         self
     }
 
@@ -106,6 +115,7 @@ impl WaitInputBuilder {
             at: self.at,
             calendar: self.calendar,
             cron: self.cron,
+            early_on: self.early_on,
             expires: self.expires,
             max_runs: self.max_runs,
             note: self.note,

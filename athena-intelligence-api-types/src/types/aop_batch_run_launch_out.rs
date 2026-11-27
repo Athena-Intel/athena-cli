@@ -11,7 +11,7 @@ pub struct AopBatchRunLaunchOut {
     /// Caller-supplied correlation key from the request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_ref: Option<String>,
-    /// True when this run replays an earlier launch with the same `idempotency_key` / `client_ref` in this batch; no new run was started.
+    /// True when this run replays an earlier launch with the same `idempotency_key` / `client_ref` in this batch, or, for a run with neither, at the same position of a request sent again with its `Idempotency-Key` header; no new run was started.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deduplicated: Option<bool>,
     /// Why the run could not be launched; null on success

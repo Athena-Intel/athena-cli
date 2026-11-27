@@ -10,12 +10,15 @@ Full command reference for `athena`.
 - [`athena approvals`](#athena-approvals)
 - [`athena assets`](#athena-assets)
 - [`athena automations`](#athena-automations)
+- [`athena bundles`](#athena-bundles)
 - [`athena capabilities`](#athena-capabilities)
 - [`athena collab-agents`](#athena-collab-agents)
 - [`athena computer`](#athena-computer)
+- [`athena connectors`](#athena-connectors)
 - [`athena databases`](#athena-databases)
 - [`athena events`](#athena-events)
 - [`athena history`](#athena-history)
+- [`athena lakehouse-namespaces`](#athena-lakehouse-namespaces)
 - [`athena meetings`](#athena-meetings)
 - [`athena presentation`](#athena-presentation)
 - [`athena query`](#athena-query)
@@ -24,6 +27,7 @@ Full command reference for `athena`.
 - [`athena sessions`](#athena-sessions)
 - [`athena subscriptions`](#athena-subscriptions)
 - [`athena system`](#athena-system)
+- [`athena tasks`](#athena-tasks)
 - [`athena threads`](#athena-threads)
 - [`athena toolkits`](#athena-toolkits)
 - [`athena tools`](#athena-tools)
@@ -50,6 +54,13 @@ Call the general Athena agent synchronously.
 Call the agent with the messages list, wait for the agent to complete,
 and return the result.
 
+A human message's `additional_kwargs.metadata` keeps the names the
+caller sets for itself. Names Athena reserves there for what it writes
+itself are not taken from the request; `source` is one of them only
+where it holds `voice`, `text` or `voice_delegation`. A message the
+thread already holds keeps the thread's value for each, and on any
+other human message none is taken from the request.
+
 `POST /api/v0/agents/general/invoke`
 
 | Flag | Type | Required | Description |
@@ -58,7 +69,7 @@ and return the result.
 
 #### `athena agents general invoke-async` `[BETA]`
 
-Start a general-agent run and return immediately with a `thread_id`. Use this instead of `/agents/general/invoke` for any call that may take more than a few seconds (tool use, multi-step work), so the HTTP connection is never held open past client or proxy timeouts. Poll `GET /threads/{thread_id}/status` until `status` is `completed` or `failed`; pass `include_messages=true` to read the agent's reply. Supply the `thread_id` of a general-agent thread you can access to continue it; 404/403 when it is unknown/not yours, 409 while a run is still in progress on it or while it is archived (restore it to continue it).
+Start a general-agent run and return immediately with a `thread_id`. Use this instead of `/agents/general/invoke` for any call that may take more than a few seconds (tool use, multi-step work), so the HTTP connection is never held open past client or proxy timeouts. Poll `GET /threads/{thread_id}/status` until `status` is `completed` or `failed`; pass `include_messages=true` to read the agent's reply. Supply the `thread_id` of a general-agent thread you can access to continue it; 404/403 when it is unknown/not yours, 409 while a run is still in progress on it or while it is archived (restore it to continue it). A human message's `additional_kwargs.metadata` keeps the names the caller sets for itself. Names Athena reserves there for what it writes itself are not taken from the request; `source` is one of them only where it holds `voice`, `text` or `voice_delegation`. A message the thread already holds keeps the thread's value for each, and on any other human message none is taken from the request.
 
 `POST /api/v0/agents/general/invoke-async`
 
@@ -103,12 +114,13 @@ Start execution of an Agent Operating Procedure (AOP) asset asynchronously. Retu
 
 #### `athena aop execute-batch` `[BETA]`
 
-Start many Agent Operating Procedure (AOP) runs under one batch handle. Each run is queued exactly like `POST /aop/execute-async`; the response returns a `batch_id` so the caller polls `GET /aop/batches/{batch_id}` once per batch instead of once per thread. Pass the `batch_id` back to append more runs to the same batch. Runs are launched independently: a run that fails to launch is reported with an error and does not stop the others. Runs are idempotent within a batch: a run whose `idempotency_key` (or, when omitted, `client_ref`) was already launched into the same batch with the same parameters is not started again; its original outcome is replayed with `deduplicated: true`.
+Start many Agent Operating Procedure (AOP) runs under one batch handle. Each run is queued exactly like `POST /aop/execute-async`; the response returns a `batch_id` so the caller polls `GET /aop/batches/{batch_id}` once per batch instead of once per thread. Pass the `batch_id` back to append more runs to the same batch. Runs are launched independently: a run that fails to launch is reported with an error and does not stop the others. Runs are idempotent within a batch: a run whose `idempotency_key` (or, when omitted, `client_ref`) was already launched into the same batch with the same parameters is not started again; its original outcome is replayed with `deduplicated: true`. Send an `Idempotency-Key` header to make the request itself safe to retry when its response is lost. Without the header, a request that has no `batch_id` starts a new batch each time, so a retry starts every run again. With the header, the key identifies the batch for your account: the same request sent again returns the same `batch_id` and replays each run that launched. A run that has neither `idempotency_key` nor `client_ref` is then identified by the key and its position in `runs`, so keep the order of `runs` in a retry. Use a new key for each new request: under a key that was used before, a run whose parameters changed is reported with an error and not started, and a run the key has not launched is started in the same batch. If the request is sent again while the first is still launching, a run the first has not finished launching is reported with an error saying it is still being launched and is not started again; send the request again later to get its outcome. Keys are private to your account.
 
 `POST /api/v0/aop/execute-batch`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
+| `--idempotency-key` | `string` | No | Optional caller-chosen key that makes this request safe to retry. A request without `batch_id` sent again with the same key uses the same batch, and each run that launched is replayed instead of started again. Use a new key for each new request. |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 #### `athena aop get-batch-status` `[BETA]`
@@ -136,7 +148,7 @@ Retrieve the full configuration of an AOP asset by its ID. Returns prompt, agent
 
 #### `athena aop update-config` `[BETA]`
 
-Overwrite the configuration of an existing AOP asset. Replaces the entire AOP configuration (prompt, agent config, structured output, etc.) with the provided values. Fields not included in the request body will be reset to their defaults, except user_notification_configs, which is preserved from the existing configuration when omitted; send an explicit null to clear it. The update is rejected with 400 when the configuration would enable more tools at run time than the per-run limit, counting every tool of each toolkit @mentioned in the prompt; the detail names toolkits to remove and the existing configuration is left untouched.
+Overwrite the configuration of an existing AOP asset. Replaces the entire AOP configuration (prompt, agent config, structured output, etc.) with the provided values. Fields not included in the request body will be reset to their defaults, except user_notification_configs, which is preserved from the existing configuration when omitted; send an explicit null to clear it. Parts of the AOP this request has no field for (its checks, for example) are not replaced and stay as they are. The update is rejected with 400 when the configuration would enable more tools at run time than the per-run limit, counting every tool of each toolkit @mentioned in the prompt; the detail names toolkits to remove and the existing configuration is left untouched. A person's update (a signed-in session or the person's own API key) publishes at once, so an update that would give runs tools the published version does not (resolved as runs resolve them, the assigned agent's tools included) is rejected with 409 and nothing is changed unless confirm_sensitive is true; the detail names the added tools. A caller that may not publish (a credential a runtime holds: a computer's, a session VM's, a notebook kernel's, a user interface preview's) gets its update saved as a draft and a 403 whose detail says so; a person publishes the draft from the AOP. For now a staff impersonation (dashboard or in-app) is refused the same way: its update is saved as a draft and the route answers 403, until the central staff-acts-for-customer verdict admits a verified staff impersonation.
 
 `PUT /api/v0/aop/{asset_id}/config`
 
@@ -165,6 +177,9 @@ Retry a failed AOP execution.
 
 Looks up the failed session, extracts the original AOP asset and trigger
 type, then sends a new Inngest execution event. Auth: session owner or admin.
+The retry runs the version of the AOP the failed run ran, unless
+`use_published_version` asks for the version published now. A retry of a
+test run is a test run.
 
 `POST /api/v0/aop/retry`
 
@@ -199,7 +214,7 @@ One approval with its decisions and deliveries. The approval must be of the call
 
 #### `athena approvals list` `[BETA]`
 
-The caller's approval inbox across subject kinds: the approvals of the caller's workspace that name the caller as an approver, newest first, each with its decisions and deliveries. Session interrupts projected onto the object appear read-only; decide them in the session. Keyset-paginated: pass the previous page's next_before and next_before_id to continue.
+The caller's approval inbox across subject kinds: the approvals of the caller's workspace that name the caller as an approver, newest first, each with its decisions and deliveries. Session interrupts projected onto the object appear read-only; decide them in the session. Keyset-paginated: pass the previous page's next_before and next_before_id to continue. `workspace_id` reads the inbox of another workspace the caller is a member of instead of the caller's current one.
 
 `GET /api/v0/approvals`
 
@@ -210,6 +225,7 @@ The caller's approval inbox across subject kinds: the approvals of the caller's 
 | `--limit` | `integer` | No | Page size (1 to 200) |
 | `--before` | `string` | No | The previous page's next_before; omit for the first page |
 | `--before-id` | `string` | No | The previous page's next_before_id, sent together with before |
+| `--workspace-id` | `string` | No | Workspace whose inbox to read; the caller's current workspace when omitted. The caller must be a member |
 
 #### `athena approvals revoke-grant` `[BETA]`
 
@@ -257,12 +273,13 @@ Turn an uploaded HTML file into a user interface (an app) under its own id — t
 
 #### `athena assets create` `[BETA]`
 
-Create a new asset such as a spreadsheet, document, folder, database, computer, user interface, skill, collab agent, figure, Word document, presentation, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied. Databases accept suspend_timeout_seconds, the auto-suspend window from the database's Settings in Athena: 0 keeps the database running (it never suspends, and keeps using capacity), otherwise 60 to 86400 seconds. A database is provisioned in the background: poll GET /api/v0/databases/{asset_id}/compute-status until it reports running or suspended. Figures take figure_config, a FigureSpec (kind, rendered and provenance, plus spec or chart), validated as the Athena UI's figures are. A word_document is a Word document holding Athena's default template, and a presentation is a blank widescreen PPTX Studio deck (the workspace's default template is not applied): Athena creates each with its own studio credential, as your write, and answers once the studio has seeded it (502, keeping nothing, when PPTX Studio could not seed a deck). Edit them through DOCX Studio or PPTX Studio with a token from POST /api/v0/assets/{asset_id}/studio-token. From an agent run (a verified X-Athena-Session-Credential), their first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy. Without workspace_id the asset is created in the workspace of parent_folder_id when one is given, otherwise in your current workspace; you must be a member of that workspace.
+Create a new asset such as a spreadsheet, document, folder, database, computer, user interface, skill, collab agent, figure, Word document, presentation, or generic doc (admin-only) in your workspace with your current permissions. Computer assets return 202 after durable submission, which commits the asset and initialization delivery intent together. Runtime provisioning continues asynchronously. Inspect the returned asset ID for progress instead of repeating creation. Computers accept the same configuration as the Athena UI's creation dialog: template, provider, cpu, memory (GiB), disk (GiB) and env_vars. Sizes must be offered by the environment's computer resource policy, and only admins may pick a size other than the template default (403 otherwise). In capability enforce mode, computer creation requires computer.create and returns 403 when denied. Databases accept suspend_timeout_seconds, the auto-suspend window from the database's Settings in Athena: 0 keeps the database running (it never suspends, and keeps using capacity), otherwise 60 to 86400 seconds. A database is provisioned in the background: poll GET /api/v0/databases/{asset_id}/compute-status until it reports running or suspended. Figures take figure_config, a FigureSpec (kind, rendered and provenance, plus spec or chart), validated as the Athena UI's figures are. A word_document is a Word document holding Athena's default template, and a presentation is a blank widescreen PPTX Studio deck (the workspace's default template is not applied): Athena creates each with its own studio credential, as your write, and answers once the studio has seeded it (502, keeping nothing, when PPTX Studio could not seed a deck). Edit them through DOCX Studio or PPTX Studio with a token from POST /api/v0/assets/{asset_id}/studio-token. From an agent run (a verified X-Athena-Session-Credential), their first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy. Without workspace_id the asset is created in the workspace of parent_folder_id when one is given, otherwise in your current workspace; you must be a member of that workspace. Send an `Idempotency-Key` header to make the create safe to retry: if the response is lost, repeating the identical request with the same key answers with the asset the first request created (with an `Idempotency-Replayed: true` header and its original status) instead of creating another. A key is private to you, the workspace the asset is created in and the asset type: another user, another workspace or another type with the same key creates its own asset. A retry that arrives while the first request is still creating gets 409 (`idempotency_key_in_progress`, with Retry-After); reusing a key with different parameters is rejected with 422; a key whose asset you can no longer open, or that is archived, gets 409 (`idempotency_key_reused`). Keys are kept for 24 hours. GET /api/v0/assets/create/capabilities names `create-idempotency-keys` once every server of this Athena honours them.
 
 `POST /api/v0/assets/create`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
+| `--idempotency-key` | `string` | No | Optional caller-chosen key that makes this create safe to retry. Repeating the identical request with the same key, as the same user in the same workspace, answers with the asset the first request created instead of creating another. |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 #### `athena assets create-collab-token` `[BETA]`
@@ -278,7 +295,7 @@ Admin only. Mint a short-lived Keryx capability token for a Generic Doc asset, e
 
 #### `athena assets create-from-file` `[BETA]`
 
-Create a Word document from a .docx file, or a presentation from a .pptx or .potx file, holding that file's content: the asset Athena makes when you create one from a file in the app. Athena imports the file through DOCX Studio or PPTX Studio with its own studio credential, as your write, and answers once the asset is ready (a large deck can take a few minutes). Nothing is left behind when the import fails. The file's name decides the type; the title defaults to the name without its extension. Gates are those of POST /api/v0/assets/create: membership in the workspace (workspace_id, else parent_folder_id's, else your current one) and EDIT on parent_folder_id. With source_asset_id (an asset you can read, for example the document the file was exported from) and no parent_folder_id, the new asset goes into the source's folder when you may create there, otherwise at your root. Unlike POST /api/v0/tools/file/save, which stores the file itself and turns an Office upload into its editable type in the background, this makes the editable asset in the request and keeps no file asset. A Word file may be up to 18.75 MiB, a PowerPoint file up to 100 MiB. From an agent run (a verified X-Athena-Session-Credential), a Word document's first write also records the run, and a presentation takes the create_presentation_pptx_studio tool policy.
+Create a Word document from a .docx file, or a presentation from a PowerPoint presentation, show or template (.pptx, .pptm, .ppsx, .ppsm, .potx, .potm), holding that file's content: the asset Athena makes when you create one from a file in the app. Athena imports the file through DOCX Studio or PPTX Studio with its own studio credential, as your write, and answers once the asset is ready (a large deck can take a few minutes). A PowerPoint 97-2003 presentation or show (.ppt, .pps) makes a presentation too: PPTX Studio converts it to .pptx first, as PowerPoint for the web does to edit one, and the presentation's import report says so. A macro-enabled file keeps its macros, never run, and the presentation downloads in the file's own format. A Markdown (.md, .markdown) or plain-text (.txt, .text) file becomes an Athena document, its Markdown rendered (headings, lists, tables, links) and plain text one paragraph per line, and an HTML (.html, .htm) file becomes a user interface: Athena stores the file and converts it in place in the request, as the app's Convert to does, so the original upload stays downloadable from the new asset's Versions pane. A Markdown or text file may be up to 2 MiB and an HTML file up to 5 MiB. Nothing is left behind when the import or conversion fails. The file's name decides the type; the title defaults to the name without its extension. Gates are those of POST /api/v0/assets/create: membership in the workspace (workspace_id, else parent_folder_id's, else your current one) and EDIT on parent_folder_id. With source_asset_id (an asset you can read, for example the document the file was exported from) and no parent_folder_id, the new asset goes into the source's folder when you may create there, otherwise at your root. Unlike POST /api/v0/tools/file/save, which stores the file itself and turns an Office upload into its editable type in the background, this makes the editable asset in the request and keeps no file asset. A Word file may be up to 100 MB, Word for the web's limit, a PowerPoint file up to 100 MiB. A Word file gets the app's upload checks before anything is created, and one it refuses answers 422 with detail {code, message}: code is password_protected, rights_managed, damaged (unreadable content, which File > Import in the app can recover), format_mismatch (a template or macro-enabled file named .docx), not_ooxml, too_large or uncompressed_too_large, and message says why in Word's words. An Open XML PowerPoint file (.pptx, .potx, .ppsx, .pptm, .potm, .ppsm) locked with a password or by its organization's information protection answers 422 the same way, before anything is created: code password_protected or rights_managed. From an agent run (a verified X-Athena-Session-Credential), a Word document's first write also records the run, a presentation takes the create_presentation_pptx_studio tool policy and a user interface the create_new_user_interface tool policy.
 
 `POST /api/v0/assets/create-from-file`
 
@@ -302,7 +319,7 @@ Create a new project with custom metadata. Projects can be typed (e.g., 'candida
 
 #### `athena assets create-studio-token` `[BETA]`
 
-Mint a short-lived asset token for the service that edits an asset: a spreadsheet's, a Word document's or a deck's, named in ``audience``. The token names the caller, this asset and one access level, lasts 15 minutes and is good only on that service's routes for this asset, so code (an SDK in a computer, for example) never sends the service a long-lived credential. The caller must be able to view the asset and be a member of its workspace; the token is read-write only when the caller can edit the asset and asked for edit. A computer's or session's credential mints tokens for assets of its own workspace only. With audience 'pptx-studio-source' it mints the read-only token the deck editing service reads a spreadsheet, figure or semantic model with for a linked table, OLE object or chart; a recording's token is always that one. Any other asset (another type, a live provider file, or one outside every workspace) is refused with 422.
+Mint a short-lived asset token for the service that edits an asset: a spreadsheet's, a Word document's or a deck's, named in ``audience``. The token names the caller, this asset and one access level, lasts 15 minutes and is good only on that service's routes for this asset, so code (an SDK in a computer, for example) never sends the service a long-lived credential. The answer also gives that service's address on this deployment (``base_url``), for code that was not configured with it. The caller must be able to view the asset and be a member of its workspace; the token is read-write only when the caller can edit the asset and asked for edit. A computer's or session's credential mints tokens for assets of its own workspace only. With audience 'pptx-studio-source' it mints the read-only token the deck editing service reads a spreadsheet, figure or semantic model with for a linked table, OLE object or chart; a recording's token is always that one. Any other asset (another type, a live provider file, or one outside every workspace) is refused with 422.
 
 `POST /api/v0/assets/{asset_id}/studio-token`
 
@@ -311,16 +328,27 @@ Mint a short-lived asset token for the service that edits an asset: a spreadshee
 | `--asset-id` | `string` | Yes | The spreadsheet, Word document or deck to mint a token for |
 | `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
 
+#### `athena assets create-upload-link` `[BETA]`
+
+Mint a one-time link that takes one file without an API key, for a caller that can run a shell command but holds no key, such as an agent connected through an Athena MCP server. The file's name decides what it becomes, as with POST /api/v0/assets/create-from-file: a .md, .markdown, .txt or .text file an Athena document, a .html or .htm file a user interface, a .docx file a Word document and a .pptx, .pptm, .ppsx, .ppsm, .potx, .potm, .ppt or .pps file a presentation. The gates of create-from-file run now (membership in the workspace, EDIT on parent_folder_id, the deployment's offering, an agent run's tool policy) and again when the file arrives. Send the file's bytes as the body of one PUT to upload_url with the X-Athena-Upload-Token header (the curl field is that command); its answer is the new asset. A link works once, for 15 minutes.
+
+`POST /api/v0/assets/upload-links`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
 #### `athena assets download` `[BETA]`
 
-Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type. With `live_sync=true`, a spreadsheet's .xlsx, a PPTX Studio presentation's .pptx or a Word document's .docx also carries the Athena for Microsoft 365 add-in's link record, so opening it in Excel, PowerPoint or Word with the add-in installed starts syncing it with the asset; other asset types ignore the flag.
+Download an asset's file exactly as Athena stores or serves it — no type coercion, no pagination. Native collaborative assets are converted from live content to their canonical Office format: Athena documents download as .docx, spreadsheets as .xlsx (round-trip faithful — string identifiers, leading zeros, and number formats are preserved), PPTX Studio presentations and Word documents export their live studio content as .pptx/.docx. Uploaded files stream their original bytes. The response sets Content-Disposition with a filename derived from the asset title and media type. With `live_sync=true`, a spreadsheet's .xlsx, a PPTX Studio presentation's .pptx or a Word document's .docx also carries the Athena for Office add-in's link record, so opening it in Excel, PowerPoint or Word with the add-in installed starts syncing it with the asset; other asset types ignore the flag. A Word document's live-sync copy requires EDIT. With `read_only=true`, a Word document downloads as a plain .docx that Word offers to open read-only (Read-only recommended) and that carries no live-sync link; it requires VIEW, like every download, and cannot be combined with `live_sync`.
 
 `GET /api/v0/assets/{asset_id}/download`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes | Unique identifier of the asset to download |
-| `--live-sync` | `boolean` | No | Office live sync: when true and the asset is an Athena spreadsheet, a PPTX Studio presentation or a Word document, the downloaded .xlsx / .pptx / .docx carries the Athena for Microsoft 365 add-in's link record and opens already syncing with this asset. Ignored for every other asset type. |
+| `--live-sync` | `boolean` | No | Office live sync: when true and the asset is an Athena spreadsheet, a PPTX Studio presentation or a Word document, the downloaded .xlsx / .pptx / .docx carries the Athena for Office add-in's link record and opens already syncing with this asset; a Word document's requires EDIT access. Ignored for every other asset type. |
+| `--read-only` | `boolean` | No | Read-only copy: when true and the asset is a Word document, the downloaded .docx carries no live-sync link and Word's Read-only recommended setting, so Word offers to open it read-only. Cannot be combined with `live_sync`. Ignored for every other asset type. |
 | `--addin-id` | `string` | No | GUID of the installed add-in manifest the live-sync record should reference (defaults to this deployment's Athena add-in). Only read together with `live_sync`; use it to target a preview-channel sideload. |
 
 #### `athena assets duplicate` `[BETA]`
@@ -356,7 +384,7 @@ Read the access that you, or another user, have on an asset, and every grant tha
 
 #### `athena assets get-activity-delta` `[BETA]`
 
-Admin only. Report what changed between two Keryx clocks — for spreadsheets, the per-cell before/after values and row/column inserts and deletes (axis_changes); for documents, the inserted and deleted text; for presentations, the affected slides. Take the clocks from the activity endpoint. Computed by the same differ the in-app Activity pane renders, so the payload matches what a user sees. Always inspect delta.coverage: caps and non-decodable bulk regions are reported there rather than silently omitted.
+Admin only. Report what changed between two Keryx clocks — for spreadsheets, the per-cell before/after values and links (old_hyperlink / new_hyperlink: a URL, or #Sheet!A1 for a place in the workbook; a link changed on text that stays is a modified cell with equal values, and a link on a cell with no text is an added or deleted cell with an empty value) and row/column inserts and deletes (axis_changes); for documents, the inserted and deleted text; for presentations, the affected slides. Take the clocks from the activity endpoint. Computed by the same differ the in-app Activity pane renders, so the payload matches what a user sees. Always inspect delta.coverage: caps and non-decodable bulk regions are reported there rather than silently omitted.
 
 `GET /api/v0/assets/{asset_id}/activity/delta`
 
@@ -376,6 +404,12 @@ Admin only. Batch form of the activity-delta endpoint: diff several clock ranges
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena assets get-create-capabilities` `[BETA]`
+
+What POST /api/v0/assets/create takes beyond its documented body, by capability name. `create-idempotency-keys`: every server of this Athena honours the create's Idempotency-Key, so a create whose answer was lost (a timeout, a dropped connection, a gateway's 502, 503 or 504) may be sent again with the same key and is answered with the asset the first request made. A server names nothing for 30 minutes after it starts, longer than a rollout takes, so a client never sends a create again while a server that would create a second asset can still receive it. The answer says what this Athena's code does, never anything about you or your data, and is never cached.
+
+`GET /api/v0/assets/create/capabilities`
 
 #### `athena assets get-workbook` `[BETA]`
 
@@ -427,7 +461,7 @@ Move an asset into a folder or to the workspace root. The asset ID determines th
 
 #### `athena assets publish` `[BETA]`
 
-Publish a skill or collab agent so it is live for everyone who uses it. Omit version_id to snapshot and publish the current draft, or pass an existing version to promote it. Requires edit access to the asset.
+Publish a skill or collab agent so it is live for everyone who uses it. Omit version_id to snapshot and publish the current draft, or pass an existing version to promote it. For a collab agent, pass expected_version_id, the version you saw published, to publish only over it: if another publish landed since, the request is refused with 409 PUBLICATION_MOVED and nothing is published. Requires edit access to the asset.
 
 `POST /api/v0/assets/{asset_id}/publish`
 
@@ -501,6 +535,18 @@ Update the workspace-level access on an asset. Needs edit access to the asset. S
 | `--asset-id` | `string` | Yes | Unique identifier of the asset |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
+#### `athena assets upload-through-link` `[BETA]`
+
+Send one file through a link from POST /api/v0/assets/upload-links: the body is the file's bytes and X-Athena-Upload-Token the link's credential; no API key is needed. Athena runs POST /api/v0/assets/create-from-file as the person who asked for the link, with every gate again (an agent run's tool policy included), and answers with the new asset. A link works once: the first upload spends it, whatever its answer.
+
+`PUT /api/v0/assets/upload-links/{link_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--link-id` | `string` | Yes | The link's id, the last segment of its upload_url |
+| `--x-athena-upload-token` | `string` | No | The link's one-time credential, from its headers |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
 ---
 
 ### `athena automations`
@@ -517,7 +563,7 @@ Cancel a run: its terminal state, its open steps and the trigger execution that 
 
 #### `athena automations create` `[BETA]`
 
-Create an automation asset in the caller's workspace (or the given one), optionally inside a folder and optionally seeded with a draft definition. Nothing runs until the automation is published. Automations are admin-only and workspace-enrolled in Phase 1: a denial is a 403 whose detail.reason is not_provisioned, not_permitted or workspace_not_enrolled.
+Create an automation asset in the caller's workspace (or the given one), optionally inside a folder and optionally seeded with a draft definition. Nothing runs until the automation is published. A caller who may not use Automations in the workspace gets a 403 whose detail.reason is not_provisioned, not_permitted or workspace_not_enrolled.
 
 `POST /api/v0/automations`
 
@@ -560,7 +606,7 @@ Start a dry run of the automation's current version: a rehearsal (`mode: dry_run
 
 #### `athena automations get` `[BETA]`
 
-Read an automation whole: asset facts, the indexed mirror (enabled, current version, fingerprint, principal, next fire), the draft definition (from the @latest snapshot when there is one, else the live Keryx document), the current published version with its definition, the version history, and every trigger-engine row publish materialised, paused rows included with their reason.
+Read an automation whole: asset facts, its state (enabled, current version, fingerprint, principal, next fire), the draft definition (from its last saved snapshot when there is one, else the live document), the current published version with its definition, the version history, and every trigger row publish created, paused rows included with their reason.
 
 `GET /api/v0/automations/{asset_id}`
 
@@ -580,7 +626,7 @@ Read one run and every step attempt recorded for it, in execution order: status,
 
 #### `athena automations get-step-output` `[BETA]`
 
-Read the whole output of one step attempt. A step whose output fit the ledger answers with that object; a step whose row carries `output_ref` (its `output` is a truncated preview) streams the stored object back through the storage abstraction, so a multi-megabyte result never has to fit a GraphQL response. The step row id is the `step_id`-independent `astep_…` id the run detail lists. Until the attempt has recorded an output the route answers 404, so a 200 body is always one JSON object. Only the run's subject (who started it, or the owner of the trigger that did) and its participants (its approvers) read a step's output; anyone else gets 403.
+Read the whole output of one step attempt. A step whose output was stored inline answers with that object; a step whose row carries `output_ref` (its `output` is a truncated preview) streams the stored object back, so a multi-megabyte result is never truncated. The step row id is the `step_id`-independent `astep_…` id the run detail lists. Until the attempt has recorded an output the route answers 404, so a 200 body is always one JSON object. Only the run's subject (who started it, or the owner of the trigger that did) and its participants (its approvers) read a step's output; anyone else gets 403.
 
 `GET /api/v0/automations/runs/{run_id}/steps/{step_row_id}/output`
 
@@ -600,6 +646,40 @@ Read a published `webhook` trigger's inbound endpoint and its live secret. POST 
 | `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
 | `--trigger-id` | `string` | Yes | The `webhook` trigger's id (triggers[].id) |
 
+#### `athena automations instantiate-blueprint` `[BETA]`
+
+Create a new, unpublished automation whose draft is a copy of a blueprint's current version: `blueprint` is dropped, the copy is named `title`, and each `inputs` value becomes the default of the input of that name, checked against the blueprint's `inputs` schema. Nothing runs until the new automation is published. The automation is created in the blueprint's own workspace, and the caller must be able to view the blueprint. A refused value is 400 with `detail.code = INVALID_RUN_INPUTS` and `detail.issues[]` naming each problem's `path` and `message`; an automation that is not a published blueprint, or an archived one, is 400 with `detail.code = BLUEPRINT_REFUSED` and `detail.reason`.
+
+`POST /api/v0/automations/blueprints/{blueprint_asset_id}/instantiate`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--blueprint-asset-id` | `string` | Yes | Unique identifier of the blueprint (an automation asset) |
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena automations list` `[BETA]`
+
+List the automations the caller may view in a workspace, most recently updated first, with offset pagination. `blueprint=true` lists only blueprints (published automations whose current version sets `blueprint`, the templates POST /automations/blueprints/{blueprint_asset_id}/instantiate copies); `blueprint=false` lists only the others. An automation the caller may not view is neither listed nor counted. `workspace_id` names the workspace to list; the caller must be a member of it.
+
+`GET /api/v0/automations`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes | Workspace to list; the caller must be a member of it |
+| `--blueprint` | `string` | No | true: only blueprints; false: only automations that are not blueprints; omit for both |
+| `--limit` | `integer` | No | Maximum number of automations per page (1-200) |
+| `--offset` | `integer` | No | Number of automations to skip for pagination |
+
+#### `athena automations list-run-assets` `[BETA]`
+
+List the assets a run created that the caller may view, oldest first: the documents, spreadsheets, presentations and other assets made in the sessions the run's `aop_run` and `agent_run` steps opened, each with the steps whose session made it. Read while a run is going, it lists what exists so far. An asset the caller may not view is left out. An asset a `tool` step created directly is not listed here (its id is in that step's output), nor is one a `call_automation` child run created (read the child run's assets by its own run id). Only the run's subject (who started it, or the owner of the trigger that did) and its participants (its approvers) read a run's assets; anyone else gets 403.
+
+`GET /api/v0/automations/runs/{run_id}/assets`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--run-id` | `string` | Yes | Unique identifier of the run |
+
 #### `athena automations list-runs` `[BETA]`
 
 List the automation's runs, newest first, with offset pagination and an optional run_status filter. Use next_offset for the next page. A run's inputs and starting events are returned only to its subject (who started it, or the owner of the trigger that did) and its participants (its approvers); for everyone else they are null and empty, and the run's status, timing and cost are still returned.
@@ -612,6 +692,17 @@ List the automation's runs, newest first, with offset pagination and an optional
 | `--run-status` | `string` | No | Only runs in these statuses (scheduled, queued, running, needs_input, completed, failed, canceled). Repeat the parameter or pass a comma-separated list. |
 | `--limit` | `integer` | No | Maximum number of runs per page (1-200) |
 | `--offset` | `integer` | No | Number of runs to skip for pagination |
+
+#### `athena automations pause-triggers` `[BETA]`
+
+Pause every live trigger of the automation by hand. Each trigger row is disabled with paused_reason `{type: operator, by, at, message}`; the draft, the versions and a row already paused for another reason are left as they are, and runs already started keep going. Resume with POST /automations/{asset_id}/triggers/resume or a publish. Returns the automation as GET /automations/{asset_id} reads it afterwards.
+
+`POST /api/v0/automations/{asset_id}/triggers/pause`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
 
 #### `athena automations publish` `[BETA]`
 
@@ -634,6 +725,28 @@ Redrive a failed or canceled run: a new run of the same pinned version that resu
 | `--run-id` | `string` | Yes | Unique identifier of the run |
 | `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
 
+#### `athena automations republish-version` `[BETA]`
+
+Make a published version current again. The version's definition passes every publish check first; one that no longer publishes is refused with 400 and every problem in detail.issues, and the draft is left as it was. Otherwise the current draft is kept as a snapshot, the version's definition is written into the draft and published the ordinary way, so the result is a new version (none when the latest version already is this definition by this publisher). Answers as POST /automations/{asset_id}/publish does, 202 included when the workspace's approval policy parks the publish.
+
+`POST /api/v0/automations/{asset_id}/versions/{version}/republish`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+| `--version` | `integer` | Yes | The sequential number of the version to republish |
+
+#### `athena automations resume-triggers` `[BETA]`
+
+Re-enable the trigger rows paused for the named reasons: `operator` (a pause by hand), `error` (the failure breaker) or `budget_exceeded` (a budget breach). Rows paused for any other reason are left alone, and a schedule whose instant has passed stays paused with its paired rule. Resuming a budget pause leaves every budget as set: a new run is still refused while a daily cap it pays into is spent. Returns the automation as GET /automations/{asset_id} reads it afterwards.
+
+`POST /api/v0/automations/{asset_id}/triggers/resume`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
 #### `athena automations rotate-webhook` `[BETA]`
 
 Mint a fresh secret for a published `webhook` trigger and return the endpoint with it. The old secret stops working at once, so update the caller right after. Republishing never rotates the secret.
@@ -647,7 +760,7 @@ Mint a fresh secret for a published `webhook` trigger and return the endpoint wi
 
 #### `athena automations run` `[BETA]`
 
-Start a manual run of the automation's current version and queue it for the interpreter; returns the run id to poll with GET /automations/runs/{run_id}. The inputs are validated against the version's `inputs` schema with declared defaults filled in; a refusal is 400 with `detail.code = INVALID_RUN_INPUTS`, `detail.issues[]` naming each problem's `path` and `message`, and `detail.subject` = `inputs` (fix the request body) or `schema` (the version's pinned schema is invalid; republish the automation). Also refused with 400 when the automation has no published version, is archived, or the interpreter is switched off. POST /automations/{asset_id}/dry-run rehearses the same launch. Send an `Idempotency-Key` header to make the launch safe to retry: repeating the identical request with the same key replays the original response (deduplicated: true) instead of queuing a second run; the same key with different parameters is rejected with 422.
+Start a manual run of the automation's current version and queue it; returns the run id to poll with GET /automations/runs/{run_id}. The inputs are validated against the version's `inputs` schema with declared defaults filled in; a refusal is 400 with `detail.code = INVALID_RUN_INPUTS`, `detail.issues[]` naming each problem's `path` and `message`, and `detail.subject` = `inputs` (fix the request body) or `schema` (the version's pinned schema is invalid; republish the automation). Also refused with 400 when the automation has no published version, is archived, or automation runs are switched off for the deployment. Send an `Idempotency-Key` header to make the launch safe to retry: repeating the identical request with the same key replays the original response (deduplicated: true) instead of queuing a second run; the same key with different parameters is rejected with 422.
 
 `POST /api/v0/automations/{asset_id}/run`
 
@@ -659,7 +772,7 @@ Start a manual run of the automation's current version and queue it for the inte
 
 #### `athena automations update-definition` `[BETA]`
 
-Replace the draft definition in the automation's Keryx document — the server-side counterpart of the Definition tab, written through the same Y.Doc path the AOP config API uses, so open editors converge on it live. The document is shape-validated (detail.issues lists every problem); tools, cron and expressions are checked at publish. An existing @latest snapshot is re-pointed at the new draft so publish reads what was written. Nothing runs until the automation is published.
+Replace the automation's draft definition: the server-side counterpart of the Definition tab, written into the same collaborative document, so open editors converge on it live. The document is shape-validated (detail.issues lists every problem); tools, cron and expressions are checked at publish. The draft's last saved snapshot is re-pointed at the new draft so publish reads what was written. Nothing runs until the automation is published.
 
 `PUT /api/v0/automations/{asset_id}/definition`
 
@@ -667,6 +780,35 @@ Replace the draft definition in the automation's Keryx document — the server-s
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes | Unique identifier of the automation asset |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
+### `athena bundles`
+
+#### `athena bundles get-descriptor` `[BETA]`
+
+Read what a bundle's track serves in this workspace: the workspace's id, the asset and type behind each member key (and an object type's registry id where the caller may already read it through the records APIs), and each slot's kind and state (filled, not_used or waiting). A slot carries a value only when the bundle declares it for the app, its fill is in force and the caller can open an application the bundle lists: a text value's words, or the asset a pointer names where the caller can open that asset; never a secret, a channel or a database. Production unless track names another. The caller needs view access to the bundle as a member of its workspace; a member the caller can't open is left out. Every refusal is 404, the same answer a key that names nothing gets.
+
+`GET /api/v0/bundles/{bundle_key}/descriptor`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--bundle-key` | `string` | Yes | The bundle's permanent key. |
+| `--workspace-id` | `string` | No | The workspace to read in. Optional for a caller with one workspace, and for a credential bound to one; a caller in several names it. The caller must be a member. |
+| `--track` | `string` | No | A track's key (production, pilot…): answer what it serves. Production when omitted. The caller must be on the track. |
+
+#### `athena bundles get-member` `[BETA]`
+
+Resolve a bundle member's name, support-desk/support_agent, to this workspace's own asset: its id, type and link, and with track the revision that track serves. The caller needs view access to the bundle as a member of its workspace, and to the member. Every refusal is 404, the same answer a name that doesn't exist gets.
+
+`GET /api/v0/bundles/{bundle_key}/members/{member_key}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--bundle-key` | `string` | Yes | The bundle's permanent key. |
+| `--member-key` | `string` | Yes | The member's permanent key. |
+| `--workspace-id` | `string` | No | The workspace to resolve in. Optional for a caller with one workspace, and for a credential bound to one (a page's, a computer's); a caller in several names it. The caller must be a member. |
+| `--track` | `string` | No | A track's key (production, pilot…): answer with the revision it serves. The caller must be on the track. |
 
 ---
 
@@ -861,7 +1003,7 @@ Generate a time-limited SSH access token for a computer asset. Returns a full SS
 
 #### `athena computer deploy-computer` `[BETA]`
 
-Deploy a computer asset's running application to a shareable, persistent preview URL — the same action the Deploy button in the Olympus UI performs. Auto-starts the computer if it is stopped, validates that the requested port is reachable, records the deployment in the asset's metadata (so the UI stays in sync), and returns the Marathon preview URL for the exposed port. Call it with different ports to deploy multiple services from the same computer. Ports reserved by the computer runtime (such as the internal developer-agent port) are rejected with a 400 and can never be deployed. A 409 means the port cannot be exposed on this computer's runtime as currently booted (the detail explains how to proceed); a 502 means the runtime's port validation failed.
+Deploy a computer asset's running application to a shareable, persistent preview URL — the same action the Deploy button in the Olympus UI performs. Auto-starts the computer if it is stopped, validates that the requested port is reachable, records the deployment in the asset's metadata (so the UI stays in sync), and returns the Marathon preview URL for the exposed port. Call it with different ports to deploy multiple services from the same computer. Ports reserved by the computer runtime (such as the internal developer-agent port) are rejected with a 400 and can never be deployed. A 409 means the port cannot be exposed on this computer's runtime as currently booted (the detail explains how to proceed); a 502 means the runtime's port validation failed; a 503 means the deploy couldn't be checked, so nothing was recorded and it can be sent again. A credential a runtime holds is refused with a 403 where the port would be served beyond the workspace (a public or SSO computer, a port in raw proxy mode, a public custom domain that would serve the port, whether pinned to it or a legacy one with no port, which follows the deployed port, or a stored policy or custom domains this server can't read), unless its workspace's decision_authority.agent_widening setting admits its agent. For now a staff impersonation (dashboard or in-app) is refused there too, whatever that setting says, until the central staff-acts-for-customer verdict admits a verified staff impersonation.
 
 `POST /api/v0/computer/{asset_id}/deploy`
 
@@ -959,6 +1101,33 @@ Stop (suspend) a running computer's runtime — the same operation as the Stop b
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--asset-id` | `string` | Yes |  |
+
+---
+
+### `athena connectors`
+
+#### `athena connectors import-item` `[BETA]`
+
+Bring one file of a source in as a new Athena asset, filed in `folder_asset_id`. The file is downloaded inside Athena with the caller's own sign-in and is at most 100 MiB. The caller needs a connected account of their own for the source, and must be able to edit the folder. The new asset takes the sharing of where it is filed: whoever can open the Drive or the place the folder is in can open it. A SharePoint file is imported as the same protected copy Athena's own import makes: it cannot be shared person by person, moved or renamed afterwards, and a share made on the folder itself for one person is not copied onto it. OneDrive files cannot be imported yet (`import_not_supported`). Returns the new asset's id; no token or download link is returned.
+
+`POST /api/v0/connectors/{catalog_asset_id}/items/import`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--catalog-asset-id` | `string` | Yes | The catalog of the source the file is in. |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena connectors list-items` `[BETA]`
+
+List one page of what a connected account or a source holds, read with the caller's own sign-in. Start from a connected account's catalog (the `catalogId` the React SDK's `useAthenaConnectors` gives for each account): its items are its sources (a OneDrive, SharePoint sites). List a source's `catalog_asset_id` for its libraries, folders and files, and pass `folder_id` to open a library or a folder. The caller needs a connected account of their own for the source: being able to see a colleague's catalog is answered 403 `connect_your_own`, and nothing is asked of the provider. Listings carry names and ids, never a token or a signed download link.
+
+`GET /api/v0/connectors/{catalog_asset_id}/items`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--catalog-asset-id` | `string` | Yes | The catalog of a connected account, or of one of its sources. |
+| `--folder-id` | `string` | No | The id of a library or a folder of the source to open. Omit for the top level. |
+| `--page-token` | `string` | No | The next_page_token of the page before, for the next one. |
 
 ---
 
@@ -1182,7 +1351,7 @@ Values need edit access; export long windows in pieces.
 
 #### `athena history compare` `[BETA]`
 
-Comparing against the asset as it was at a time needs edit access; saved versions and two current assets compare with view access.
+Comparing against a saved version or the asset as it was at a time needs edit access; the published version and two current assets compare with view access. `--original previous` answers what changed in a version and who changed it: with view access, a published version against the one published before it; a draft version needs edit access or a share that lets you view drafts.
 
 `POST /api/v0/tools/history/compare`
 
@@ -1192,7 +1361,7 @@ Comparing against the asset as it was at a time needs edit access; saved version
 
 #### `athena history info` `[BETA]`
 
-Answers, for you: where an edit lands (the asset as it is now, a draft behind a published version, tracked changes), what readers get, how many versions are saved, when history starts and the last change.
+Answers, for you: where an edit lands (the asset as it is now, a draft behind a published version, tracked changes), what readers get, how many versions are saved, when history starts and the last change. With view access on a published asset it answers for its published versions, and `commands` lists what you can run on them.
 
 `POST /api/v0/tools/history/info`
 
@@ -1212,7 +1381,7 @@ Read-only; it lists findings and changes nothing.
 
 #### `athena history list` `[BETA]`
 
-View access shows who, what kind and where; edit access adds the values. A filtered list says how far back it looked.
+View access shows who, what kind and where; edit access adds the values. A filtered list says how far back it looked. A reader of a published asset gets its published versions; `history compare --original previous` then shows what changed in one and who changed it.
 
 `POST /api/v0/tools/history/list`
 
@@ -1222,9 +1391,19 @@ View access shows who, what kind and where; edit access adds the values. A filte
 
 #### `athena history open` `[BETA]`
 
-A moment in time needs edit access; saved versions open with view access.
+A saved version or a moment in time needs edit access; the published version opens with view access.
 
 `POST /api/v0/tools/history/open`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena history read-asset-author` `[BETA]`
+
+Any viewer gets who wrote a document's text and a deck's shapes. A sheet's cells, and a deck's text split by who wrote each character, are read off past values and need edit access, as in the Attribution tab. Read the values themselves with read_asset and the same request.
+
+`POST /api/v0/tools/history/read-asset-author`
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
@@ -1272,7 +1451,7 @@ Needs edit access. Athena's edits are undone one conversation at a time. To take
 
 #### `athena history versions` `[BETA]`
 
-Each version has an id to open, compare, restore or cite (asset_…@<id>).
+Each version has an id to open, compare, restore or cite (asset_…@<id>). A reader of a published asset passes a published version's id as `history compare --original previous --revised <id>` to see what changed in it since the one published before it, and who changed it.
 
 `POST /api/v0/tools/history/versions`
 
@@ -1288,6 +1467,21 @@ Needs edit access. A change counts as yours only when the document's history sho
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
+### `athena lakehouse-namespaces`
+
+#### `athena lakehouse-namespaces execute-sql` `[BETA]`
+
+Run one SELECT over a lakehouse namespace you can view, as yourself, and get its columns and rows. The namespace must be shared with you (VIEW on the namespace asset, in your current workspace), and the statement may read only that namespace's tables: a table of any other namespace is refused (403). The statement is one SELECT in StarRocks SQL (WITH … SELECT and UNION, INTERSECT or EXCEPT of SELECTs included); anything else is refused (403): a write or schema change, SHOW, DESCRIBE, EXPLAIN, or more than one statement. The engine returns at most 2,000 rows for one statement (`truncated` says when more matched) and cancels a statement after 60 s. The public edge closes a connection that has waited about as long, so a statement that runs that long usually ends in a closed connection rather than an answer: keep statements well under a minute. The same read Athena's SQL workbench runs, except that a member's SharePoint projection is not read here. It is a person's read: their session or API key, or staff acting as them. A credential held by a computer, a preview or an agent's session, and a person's key sent from an agent's session, is refused (403).
+
+`POST /api/v0/lakehouse-namespaces/{asset_id}/sql`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes |  |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
@@ -1354,7 +1548,7 @@ Retrieve a paginated list of meetings with optional keyword search (across title
 
 #### `athena presentation create` `[BETA]`
 
-Create a new PowerPoint deck in PPTX Studio. Returns the asset ID for the new presentation. Use this to start a new presentation before adding content. Pass template_asset_id to seed the deck from any ready PPTX Studio deck or uploaded .pptx/.potx file; if the template cannot be applied, no deck is created and the error says why.
+Create a new PowerPoint deck in PPTX Studio. Returns the asset ID for the new presentation. Use this to start a new presentation before adding content. Pass template_asset_id to seed the deck from any ready PPTX Studio deck or uploaded .pptx/.potx file; if the template cannot be applied, no deck is created and the error says why. A presentation created from a template holds every slide of the template; remove the ones you do not want in execute_presentation_code with ``prs.slides.keep_only([...], allow_bulk_delete=True)`` (or ``delete_slides`` / ``delete`` with the same flag).
 
 `POST /api/v0/tools/presentation/create`
 
@@ -1392,7 +1586,7 @@ Get the result of an SQL query over given assets.
 
 #### `athena scripts create` `[BETA]`
 
-Create a script asset — code that runs with no model — in the caller's workspace (or the given one), optionally inside a folder and seeded with its source. The contract (language, entrypoint, args schema, timeout) starts at the language's defaults. Scripts are admin-only and workspace-enrolled while Automations are internal: a denial is a 403 whose detail.reason is not_provisioned, not_permitted or workspace_not_enrolled.
+Create a script asset — code that runs with no model — in the caller's workspace (or the given one), optionally inside a folder and seeded with its source. The contract (language, entrypoint, args schema, timeout) starts at the language's defaults. Scripts are open to the live members of a workspace enrolled in Automations where they are provisioned: a denial is a 403 whose detail.reason is not_provisioned, not_permitted or workspace_not_enrolled.
 
 `POST /api/v0/scripts`
 
@@ -1516,7 +1710,7 @@ Retrieve a single session by its asset ID, including state, originating channel,
 
 #### `athena sessions list` `[BETA]`
 
-Retrieve a paginated list of agent sessions (conversations) with optional title search, state filtering, source channel filtering, date range filtering, and sorting. By default, AOP/workflow runs and branched sub-sessions are excluded, and only sessions in the caller's current workspace are visible — pass `workspace_id` to list sessions in another workspace the caller belongs to.
+Retrieve a paginated list of agent sessions (conversations) with optional title search, state filtering, source channel filtering, date range filtering, and sorting. By default, AOP/workflow runs, Automation runs and branched sub-sessions are excluded, and only sessions in the caller's current workspace are visible — pass `workspace_id` to list sessions in another workspace the caller belongs to.
 
 `GET /api/v0/sessions`
 
@@ -1525,10 +1719,10 @@ Retrieve a paginated list of agent sessions (conversations) with optional title 
 | `--query` | `string` | No | Keyword to search session titles (case-insensitive) |
 | `--state` | `string` | No | Execution state(s) to filter by (e.g. 'running', 'completed'). Matched against the session's canonical run status (status_v2); 'running' only matches sessions updated within the last 12 hours. Repeat the parameter or pass a comma-separated list. |
 | `--source-channel` | `string` | No | Originating channel(s) to filter by (e.g. 'web', 'api', 'agent_email'). Repeat the parameter or pass a comma-separated list. |
-| `--session-type` | `string` | No | Session kind(s) to include: 'session', 'video_session', 'desktop_session', 'mobile_session'. Repeat the parameter or pass a comma-separated list. |
+| `--session-type` | `string` | No | Session kind(s) to include: 'session', 'video_session', 'desktop_session'. Repeat the parameter or pass a comma-separated list. |
 | `--app-id` | `string` | No | Only include sessions belonging to this application identifier |
 | `--include-sub-sessions` | `boolean` | No | Include branched sub-sessions (excluded by default) |
-| `--include-task-sessions` | `boolean` | No | Include AOP/workflow task runs (excluded by default) |
+| `--include-task-sessions` | `boolean` | No | Include AOP/workflow task runs and Automation runs (excluded by default) |
 | `--aop-asset-id` | `string` | No | Only include task sessions originating from this AOP asset identifier |
 | `--workspace-id` | `string` | No | Workspace to list sessions from. Defaults to the caller's current workspace; any other workspace the caller is a member of can be requested explicitly. |
 | `--trigger-type` | `string` | No | Trigger type(s) to filter by (e.g. 'schedule', 'api', 'email'). Repeat the parameter or pass a comma-separated list. |
@@ -1575,7 +1769,7 @@ See and change your watches and waits: list them, show one, read what one heard 
 
 #### `athena subscriptions wait` `[BETA]`
 
-Continue this conversation at a time, then end your turn: once at an instant (at) or after a delay (after, e.g. 15m or 7d), or on a cron, at most 90 days ahead. The wake arrives as a new turn with your note. stop cancels this conversation's pending one-off wakes.
+Continue this conversation at a time, then end your turn: once at an instant (at) or after a delay (after, e.g. 15m or 7d), or on a cron, at most 90 days ahead. The wake arrives as a new turn with your note. When you are waiting on a pull request's checks or reviews, name it in early_on and the wait ends as soon as there is news, instead of at its time. stop cancels this conversation's pending one-off wakes.
 
 `POST /api/v0/tools/subscriptions/wait`
 
@@ -1585,7 +1779,7 @@ Continue this conversation at a time, then end your turn: once at an instant (at
 
 #### `athena subscriptions watch` `[BETA]`
 
-Continue this conversation when something happens, then end your turn. Watch an asset you can open, an item in a connection's catalog (a Slack thread, a GitHub pull request) or a link to one, for events its capability card offers; each matching event continues this conversation as a new turn, with your note. Filters, conditions and a deadline narrow it; a pull request or issue watch may end with it (limits.until). Bounded by a run budget and an expiry (24h by default, 7 days at most, 90 days with until). Never polls.
+Continue this conversation when something happens, then end your turn. Watch an asset you can open, an item in a connection's catalog (a Slack thread, a GitHub pull request, an email thread in your mailbox) or a link to one, for events its capability card offers; each matching event continues this conversation as a new turn, with your note. Mail can be narrowed to senders or participants by address or domain (filters.senders, filters.participants). Filters, conditions and a deadline narrow it; a pull request or issue watch may end with it (limits.until). Bounded by a run budget and an expiry (24h by default, 7 days at most, 90 days with until). Never polls.
 
 `POST /api/v0/tools/subscriptions/watch`
 
@@ -1662,6 +1856,69 @@ Resolve an active incident with a reason, recorded on its timeline and announced
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--incident-id` | `string` | Yes | Unique identifier of the incident |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+---
+
+### `athena tasks`
+
+#### `athena tasks create` `[BETA]`
+
+Create a task (an assignable to-do) in a workspace the caller belongs to, with an optional due date and time, priority, assignee, labels, links to the records it is about and a folder or project to put it in. It is the caller's own unless assignee_ref names someone who can already open it (assigning never shares it) or is null. Each link must be a record the caller can open, and a parent folder needs edit access.
+
+`POST /api/v0/tasks`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tasks get` `[BETA]`
+
+One task the caller can open: its status, due date, priority, assignee, labels, the records it links (each read with the caller's own access: one they can't open shows its kind only) and whether they may change it.
+
+`GET /api/v0/tasks/{asset_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | The task's asset id. |
+
+#### `athena tasks list` `[BETA]`
+
+The tasks of a workspace the caller belongs to that they can open, soonest due first (tasks with no due date last, newest first). Open tasks unless status says otherwise. Filter by assignee (me for the caller's own), due dates (calendar days, inclusive), a label's name or a record the task links. A listed task carries no links and a null can_edit: read one task for them.
+
+`GET /api/v0/tasks`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes | The workspace to list; the caller must be a member. |
+| `--assignee-ref` | `string` | No | Only tasks assigned to this user_… or agent_asset_…, or me. |
+| `--status` | `open | done | all` | No | open (the default), done or all. |
+| `--due-on-or-before` | `string` | No | YYYY-MM-DD: only tasks due on or before this day. |
+| `--due-on-or-after` | `string` | No | YYYY-MM-DD: only tasks due on or after this day. |
+| `--label` | `string` | No | Only tasks with a label of exactly this name. |
+| `--linked-id` | `string` | No | Only tasks that link this asset or ontology object id. |
+| `--limit` | `integer` | No | At most this many tasks. |
+
+#### `athena tasks set-status` `[BETA]`
+
+Mark a task done (completed, or not_planned: won't do), or open it again. Needs edit access, and the task must not be in the trash. Marking it done records who, when and why; reopening clears them.
+
+`POST /api/v0/tasks/{asset_id}/status`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | The task's asset id. |
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tasks update` `[BETA]`
+
+Change a task: a field left out is kept, and an explicit null clears it (title and status cannot be cleared). Needs edit access, and the task must not be in the trash. Labels and links are replaced whole; links already on it that the caller cannot open are kept. Marking it done records who and when.
+
+`PATCH /api/v0/tasks/{asset_id}`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--asset-id` | `string` | Yes | The task's asset id. |
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
@@ -1750,11 +2007,14 @@ Read a tabular asset as a JSON data frame.
 Returns `columns`, an optional `index`, and `data` rows (pandas "split"
 orientation) for an asset the caller can read: an Athena spreadsheet, a
 file-backed live spreadsheet (SharePoint, OneDrive, Drive, iManage), or an
-uploaded CSV, Excel or Parquet file. `row_limit` caps the rows returned,
-`columns` selects columns by name or position, `sheet_name` picks the sheet
-of an Excel file (the first by default), and `separator` sets the delimiter
-of a CSV file. Any other asset type is a 415; a file the parser cannot read
-is a 500 carrying the parser's message.
+uploaded CSV, TSV, Excel or Parquet file. `row_limit` caps the rows
+returned, `columns` selects columns by name or position, `sheet_name` picks
+the sheet of an Excel file (the first by default), and `separator` sets the
+delimiter of a CSV file (a TSV file is always read tab-separated). A CSV or
+TSV whose rows have different numbers of fields, such as a multi-section
+export, is read whole: every row is padded with empty cells to the widest
+row, and the first row is the header. Any other asset type is a 415; a file
+the parser cannot read is a 500 carrying the parser's message.
 
 `GET /api/v0/tools/file/data-frame`
 
@@ -1871,7 +2131,7 @@ Read one or more assets with citation-style anchors, output format selection (te
 
 #### `athena tools save-asset` `[BETA]`
 
-Save a file as an asset in the target workspace.
+Save a file as an asset in the target workspace. Send the file as the multipart form field `file`. `parent_folder_id` and `workspace_id` are optional and may be sent either as query parameters or as multipart form fields next to `file`; sent both ways, the two values must match (a 400 otherwise). The asset is saved into `workspace_id` (default: the caller's current workspace) and filed into `parent_folder_id` (default: the caller's default folder), which must be a folder in that workspace the caller can edit.
 
 `POST /api/v0/tools/file/save`
 
@@ -2039,6 +2299,16 @@ Add selected assets to the user's favorites for quick access. Requires that the 
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
+#### `athena tools olympus-drive archive-assets` `[BETA]`
+
+Archive one or more assets (soft delete): they leave the workspace for every collaborator and can be restored with unarchive_assets. Each asset needs edit access; a folder takes what it holds with it. The user approves the list before anything is archived. With partial=true (the default) every asset that passes is archived and the rest are reported; with partial=false nothing is archived unless all of them can be.
+
+`POST /api/v0/tools/olympus-drive/archive-assets`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
 #### `athena tools olympus-drive athena-resources-search` `[BETA]`
 
 Searches Athena resources documentation at resources.athenaintel.com. Contains information about getting started, agents, integrations, applications, use cases, and AOPs. Use this to answer questions about Athena/Olympus features. Provide links to users for the relevant documentation as well.
@@ -2059,6 +2329,16 @@ Creates a new folder in the workspace. Accepts a folder name and optional parent
 |------|------|----------|-------------|
 | `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
 
+#### `athena tools olympus-drive delete-uploaded-attachments` `[BETA]`
+
+Archives files or images the current user uploaded themselves, such as a chat screenshot that exposes a credential or other sensitive data. Accepts a list of asset IDs. Only assets the current user uploaded can be removed; the user must confirm before anything is archived. Archived assets leave the conversation and the workspace and can be restored by the user.
+
+`POST /api/v0/tools/olympus-drive/delete-uploaded-attachments`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
 #### `athena tools olympus-drive duplicate-asset` `[BETA]`
 
 Creates a copy of an existing asset. Accepts an asset ID and optional new title as input. Supports documents, spreadsheets, PDFs, images, collections, and AOPs.
@@ -2068,6 +2348,16 @@ Creates a copy of an existing asset. Accepts an asset ID and optional new title 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools olympus-drive explore-assets` `[BETA]`
+
+Runs the Asset Explorer's set as the caller: a page of rows and the set's counts come from the same read gate as the explorer and simpleSearch, so an asset the caller cannot open is never listed, counted or named, and a folder the caller cannot open is counted but never named. Explicit ids (asset_ids, related_to_asset_id) pass the asset permission check first. Counts stop after 5 seconds; the answer then says counts_available=false.
+
+`POST /api/v0/tools/olympus-drive/explore-assets`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
 
 #### `athena tools olympus-drive in-depth-analysis` `[BETA]`
 
@@ -2138,6 +2428,16 @@ Search for assets in the workspace by name or content. Accepts a search query as
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
+#### `athena tools olympus-drive unarchive-assets` `[BETA]`
+
+Restore one or more archived assets to the workspace. Each asset needs edit access; a folder comes back with what its archive took down. The user approves the list before anything is restored. With partial=true (the default) every asset that passes is restored and the rest are reported; with partial=false nothing is restored unless all of them can be.
+
+`POST /api/v0/tools/olympus-drive/unarchive-assets`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--json` | `JSON` | Yes | Request body as JSON (or use individual body-field flags) |
 
 ---
 
@@ -2527,9 +2827,9 @@ Counts of the caller's connected Microsoft 365 sources (mail, files, sites, chat
 
 ### `athena workspaces`
 
-#### `athena workspaces create-presence-token` `[BETA]`
+#### `athena workspaces create-presence-token` `[DEPRECATED]`
 
-Admin only. Mint a short-lived, read-only Keryx token for a workspace's live presence feed (the awareness room the People page renders). The token is bound to the calling user, so Keryx narrows every frame to the documents that user may open; it can never publish presence or write document content. Requires the presence roster to be enabled for the deployment and opted in for the workspace. Computer-asset sandbox credentials are refused: call with the viewing user's own token.
+Retired: this operation mints nothing and always answers 410 Gone. Read the roster with POST /api/v0/workspaces/{workspace_id}/presence/roster instead, which Athena answers itself, with no realtime connection to keep. It used to mint a read-only token for a workspace's live presence feed; Athena no longer serves that feed to anything but itself.
 
 `POST /api/v0/workspaces/{workspace_id}/presence-token`
 
@@ -2547,6 +2847,17 @@ Retrieve the configuration for a workspace. Includes disclaimer settings. Requir
 |------|------|----------|-------------|
 | `--workspace-id` | `string` | Yes |  |
 
+#### `athena workspaces get-presence-roster` `[BETA]`
+
+Admin only, and only for a signed-in person: call with the viewing user's own session token, which an app served from a computer receives for its viewer when that viewer created the computer. An API key, a personal token, a computer-asset sandbox credential and the scoped credential such an app receives for any other viewer are refused. Read one page of who is online in a workspace, active first and then by name, each with the places of theirs the caller may open: a document the caller may not open is absent, or shown only as a project that contains it. Names, emails and avatars come from the member directory; a person who appears offline is absent, and one set Away is listed with no places. The same answer as the People page in Athena. Requires the presence roster to be enabled for the deployment and opted in for the workspace. Poll it; a few seconds apart is enough.
+
+`POST /api/v0/workspaces/{workspace_id}/presence/roster`
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--workspace-id` | `string` | Yes | The workspace whose presence feed to read. |
+| `--json` | `JSON` | No | Request body as JSON (or use individual body-field flags) |
+
 #### `athena workspaces get-tool-registry` `[BETA]`
 
 Retrieve the persisted per-workspace Tool Registry policy. The response contains explicit tool overrides; environment feature flags, billing restrictions, and disabled tags may further restrict effective availability. Requires workspace owner or admin permissions.
@@ -2559,7 +2870,7 @@ Retrieve the persisted per-workspace Tool Registry policy. The response contains
 
 #### `athena workspaces get-usage` `[BETA]`
 
-Aggregate LLM token usage (and cost) for one workspace over the last `days` days: workspace totals plus per-member, per-day and per-Computer breakdowns. Token counters are summed from each session's usage ledger; dry-run (test) sessions are reported separately and excluded from the totals. Requires workspace owner or manager (or Athena admin) permissions — the same gate as the in-app Usage page.
+Aggregate LLM token usage (and cost) for one workspace over the last `days` days: workspace totals plus per-member, per-day and per-Computer breakdowns. Token counters are summed from each session's usage ledger; dry-run (test) sessions are reported separately and excluded from the totals. A Computer's LLM gateway usage counts under the Computer's owner. With `gateway_attribution=true`, the calls a Computer's app attributed to a session count in `per_user` under the member who started that session instead (a member with no session of their own in the window has `session_count` 0), `active_users` counts the `per_user` rows returned, and `gateway_attribution` says whether that covers the whole window. Costs and tokens, in total and in the per-day and per-Computer breakdowns, are the same either way; the option reads the calls of up to 100 Computer usage sessions and takes longer. Requires workspace owner or manager (or Athena admin) permissions — the same gate as the in-app Usage page.
 
 `GET /api/v0/workspaces/{workspace_id}/usage`
 
@@ -2567,6 +2878,7 @@ Aggregate LLM token usage (and cost) for one workspace over the last `days` days
 |------|------|----------|-------------|
 | `--workspace-id` | `string` | Yes |  |
 | `--days` | `integer` | No | Reporting window in days, ending now (1-365) |
+| `--gateway-attribution` | `boolean` | No | Count a Computer's LLM gateway calls that its app attributed to a session under that session's member in `per_user` |
 
 #### `athena workspaces list-memberships` `[BETA]`
 
@@ -2583,7 +2895,7 @@ The full membership roster of one workspace with each member's user id, name, em
 
 #### `athena workspaces list-usage-sessions` `[BETA]`
 
-Per-session LLM token usage for one workspace — the same rows as the workspace usage CSV export, as JSON. Each session yields one row per provider/model/status combination with its token breakdown and billed cost; dry-run (test) sessions are excluded. Pick the window with `from`/`to` (UTC dates, inclusive, at most 365 days) or a rolling `days`. Pages are keyset-paginated newest first: `limit` counts sessions, and `next_cursor` is returned while more sessions remain. Requires workspace owner or manager (or Athena admin) permissions.
+Per-session LLM token usage for one workspace — the same rows as the workspace usage CSV export, as JSON. Each session yields one row per provider/model/status combination with its token breakdown and billed cost; dry-run (test) sessions are excluded. A Computer's LLM gateway usage is listed under the Computer's usage session for the day of the call. With `gateway_attribution=true`, the calls a Computer's app attributed to a session are listed under that session instead: those rows carry its id, creation time, member and origin, are marked `gateway_attributed`, and name the Computer usage session in `ledger_session_id`. They stay on the page of that usage session, so with the option on a session's rows can sit on several pages, a provider/model/status combination can repeat for a session, `session_created_at` can be earlier than the window, and the rows of Computer usage sessions no longer add up to the usage report's `computer_cost_usd` (group by `ledger_session_id` to get the default rows back). Every summed column is the same either way. Pick the window with `from`/`to` (UTC dates, inclusive, at most 365 days) or a rolling `days`. Pages are keyset-paginated newest first: `limit` counts sessions, and `next_cursor` is returned while more sessions remain. Requires workspace owner or manager (or Athena admin) permissions.
 
 `GET /api/v0/workspaces/{workspace_id}/usage/sessions`
 
@@ -2595,10 +2907,11 @@ Per-session LLM token usage for one workspace — the same rows as the workspace
 | `--days` | `integer` | No | Rolling window in days ending now; ignored when `from`/`to` are given |
 | `--cursor` | `string` | No | `next_cursor` from the previous page |
 | `--limit` | `integer` | No | Maximum sessions per page (each may yield several rows) |
+| `--gateway-attribution` | `boolean` | No | List a Computer's LLM gateway calls that its app attributed to a session under that session, and mark every row with `ledger_session_id` and `gateway_attributed` |
 
 #### `athena workspaces resolve-presence` `[BETA]`
 
-Admin only. Resolve the guids a presence feed carries into display titles, asset kinds, and project membership, and optionally list the projects and members of the workspace. Every id is checked against the calling user's own read permission as an ordinary member; anything the caller could not open is omitted rather than reported. Same gates as the presence-token mint.
+Admin only. Resolve the guids a presence feed carries into display titles, asset kinds, and project membership, and optionally list the projects and members of the workspace. Every id is checked against the calling user's own read permission as an ordinary member; anything the caller could not open is omitted rather than reported. Computer-asset sandbox credentials are refused: call with the viewing user's own token. Requires the presence roster to be enabled for the deployment and opted in for the workspace.
 
 `POST /api/v0/workspaces/{workspace_id}/presence/resolve`
 

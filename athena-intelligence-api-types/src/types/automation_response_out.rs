@@ -2,7 +2,7 @@ pub use crate::prelude::*;
 #[allow(unused_imports)]
 use super::*;
 
-/// An automation: asset facts, mirror, draft, versions and trigger rows.
+/// An automation: asset facts, state, draft, versions and trigger rows.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct AutomationResponseOut {
     #[serde(default)]

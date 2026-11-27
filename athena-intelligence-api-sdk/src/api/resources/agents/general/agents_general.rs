@@ -18,6 +18,13 @@ impl GeneralClient {
     /// Call the agent with the messages list, wait for the agent to complete,
     /// and return the result.
     ///
+    /// A human message's `additional_kwargs.metadata` keeps the names the
+    /// caller sets for itself. Names Athena reserves there for what it writes
+    /// itself are not taken from the request; `source` is one of them only
+    /// where it holds `voice`, `text` or `voice_delegation`. A message the
+    /// thread already holds keeps the thread's value for each, and on any
+    /// other human message none is taken from the request.
+    ///
     /// # Arguments
     ///
     /// * `options` - Additional request options such as headers, timeout, etc.
@@ -41,7 +48,7 @@ impl GeneralClient {
             .await
     }
 
-    /// Start a general-agent run and return immediately with a `thread_id`. Use this instead of `/agents/general/invoke` for any call that may take more than a few seconds (tool use, multi-step work), so the HTTP connection is never held open past client or proxy timeouts. Poll `GET /threads/{thread_id}/status` until `status` is `completed` or `failed`; pass `include_messages=true` to read the agent's reply. Supply the `thread_id` of a general-agent thread you can access to continue it; 404/403 when it is unknown/not yours, 409 while a run is still in progress on it or while it is archived (restore it to continue it).
+    /// Start a general-agent run and return immediately with a `thread_id`. Use this instead of `/agents/general/invoke` for any call that may take more than a few seconds (tool use, multi-step work), so the HTTP connection is never held open past client or proxy timeouts. Poll `GET /threads/{thread_id}/status` until `status` is `completed` or `failed`; pass `include_messages=true` to read the agent's reply. Supply the `thread_id` of a general-agent thread you can access to continue it; 404/403 when it is unknown/not yours, 409 while a run is still in progress on it or while it is archived (restore it to continue it). A human message's `additional_kwargs.metadata` keeps the names the caller sets for itself. Names Athena reserves there for what it writes itself are not taken from the request; `source` is one of them only where it holds `voice`, `text` or `voice_delegation`. A message the thread already holds keeps the thread's value for each, and on any other human message none is taken from the request.
     ///
     /// # Arguments
     ///

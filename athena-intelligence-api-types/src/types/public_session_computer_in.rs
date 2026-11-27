@@ -14,7 +14,7 @@ pub struct PublicSessionComputerIn {
     /// Commands each session runs once on its computer first
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_setup: Option<Vec<PublicSessionSetupStepIn>>,
-    /// Title of created computers; {person} becomes the person's name
+    /// Title of created computers. {person} becomes the person's name, {session} the session's own title (scope 'session' only) and {started} when the computer was bound, in the person's time zone
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     /// Absolute path the agent's commands start in
